@@ -14,13 +14,13 @@ export function ProtectedRoute({ children, roles }: Props) {
   const location = useLocation()
 
   if (loading) {
-    return <div className="grid h-full place-items-center text-2xl text-slate-500">Cargando…</div>
+    return <div className="grid h-full place-items-center text-heading text-ink-muted">Cargando…</div>
   }
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
   if (roles && profile && !roles.includes(profile.role)) {
-    return <div className="grid h-full place-items-center text-2xl">No tienes permiso para ver esta página.</div>
+    return <div className="grid h-full place-items-center text-heading text-ink">No tienes permiso para ver esta página.</div>
   }
   return <>{children}</>
 }

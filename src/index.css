@@ -1,4 +1,239 @@
 @import "tailwindcss";
 
-html, body, #root { height: 100%; }
-body { @apply bg-slate-100 text-slate-900 antialiased; }
+/*
+ * Design system "Inventario" (Claude Design).
+ * Los tokens se exponen como utilidades de Tailwind: bg-app, bg-surface,
+ * bg-subtle, text-ink, text-ink-muted, border-line, border-control, bg-brand,
+ * text-on-brand, bg-success-bg / text-success-fg, etc.
+ * Se borra la paleta por defecto para que solo se usen colores del sistema.
+ */
+/* Sombras como variables propias: Tailwind copia el valor de las de @theme y no
+   seguiría el cambio de tema. */
+@theme inline {
+  --shadow-card: var(--elevation-card);
+  --shadow-popover: var(--elevation-popover);
+}
+
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-app: #f4f4f6;
+  --color-surface: #ffffff;
+  --color-subtle: #f8f8fa;
+  --color-line: #e4e4e9;
+  --color-control: #82828f;
+  --color-ink: #16161a;
+  --color-ink-muted: #5a5a66;
+  --color-ink-subtle: #6b6b77;
+
+  --color-brand: #5b2ee0;
+  --color-brand-hover: #4a22c0;
+  --color-brand-soft: #eee9fd;
+  --color-brand-tint: #cfc3f8;
+  --color-brand-ink: #4a22c0;
+  --color-on-brand: #ffffff;
+  --color-focus-ring: var(--color-brand);
+
+  --color-success-bg: #e3f6e8;
+  --color-success-fg: #11602a;
+  --color-success-solid: #1b8a41;
+  --color-warning-bg: #fdf1cc;
+  --color-warning-fg: #734c00;
+  --color-warning-solid: #b07c00;
+  --color-danger-bg: #fde4e4;
+  --color-danger-fg: #a31b1b;
+  --color-danger-solid: #d12a1f;
+  --color-info-bg: #e4eeff;
+  --color-info-fg: #1c4db5;
+  --color-info-solid: #2f6bfe;
+
+  /* Barra lateral: casi negra en ambos temas. */
+  --color-nav-bg: #141416;
+  --color-nav-border: #2a2a31;
+  --color-nav-ink: #f2f2f5;
+  --color-nav-ink-muted: #a9a9b5;
+  --color-nav-ink-subtle: #8f8f9c;
+  --color-nav-hover: #212126;
+  --color-nav-active-bg: #2a2150;
+  --color-nav-active-ink: #c9bbff;
+  --color-nav-avatar-bg: #43358a;
+  --color-nav-focus: #9378ff;
+
+  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Estilos de texto del sistema: text-display, text-title, text-heading… */
+  --text-display: 32px;
+  --text-display--line-height: 40px;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.02em;
+  --text-title-lg: 24px;
+  --text-title-lg--line-height: 32px;
+  --text-title-lg--font-weight: 600;
+  --text-title-lg--letter-spacing: -0.01em;
+  --text-title: 20px;
+  --text-title--line-height: 28px;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+  --text-heading: 16px;
+  --text-heading--line-height: 24px;
+  --text-heading--font-weight: 600;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+  --text-label--font-weight: 500;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-kpi: 28px;
+  --text-kpi--line-height: 32px;
+  --text-kpi--font-weight: 600;
+  --text-kpi--letter-spacing: -0.02em;
+
+  --radius-xs: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  --spacing-control-sm: 28px;
+  --spacing-control-md: 36px;
+  --spacing-row: 52px;
+  --spacing-sidebar: 232px;
+}
+
+/* Tema oscuro: mismo nombre de token, otro valor. Sigue al sistema operativo
+   salvo que se fuerce con data-theme="light" | "dark" en <html>. */
+@layer theme {
+  :root {
+    --elevation-card: 0 1px 2px rgba(22, 22, 26, 0.06);
+    --elevation-popover: 0 8px 24px rgba(22, 22, 26, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-app: #0e0e11;
+      --color-surface: #18181d;
+      --color-subtle: #202026;
+      --color-line: #2b2b33;
+      --color-control: #80808e;
+      --color-ink: #f2f2f5;
+      --color-ink-muted: #a9a9b5;
+      --color-ink-subtle: #9696a3;
+      --color-brand: #9378ff;
+      --color-brand-hover: #a58fff;
+      --color-brand-soft: #2a2150;
+      --color-brand-tint: #43358a;
+      --color-brand-ink: #c9bbff;
+      --color-on-brand: #120a33;
+      --color-success-bg: #12301d;
+      --color-success-fg: #7ee0a0;
+      --color-success-solid: #3cc36e;
+      --color-warning-bg: #38290a;
+      --color-warning-fg: #f5cb5c;
+      --color-warning-solid: #e8b400;
+      --color-danger-bg: #3d1515;
+      --color-danger-fg: #ff9e97;
+      --color-danger-solid: #f0524a;
+      --color-info-bg: #14285a;
+      --color-info-fg: #a5c0ff;
+      --color-info-solid: #6b94ff;
+      --color-nav-bg: #050507;
+      --elevation-card: 0 1px 2px rgba(0, 0, 0, 0.5);
+      --elevation-popover: 0 8px 24px rgba(0, 0, 0, 0.6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --color-app: #0e0e11;
+    --color-surface: #18181d;
+    --color-subtle: #202026;
+    --color-line: #2b2b33;
+    --color-control: #80808e;
+    --color-ink: #f2f2f5;
+    --color-ink-muted: #a9a9b5;
+    --color-ink-subtle: #9696a3;
+    --color-brand: #9378ff;
+    --color-brand-hover: #a58fff;
+    --color-brand-soft: #2a2150;
+    --color-brand-tint: #43358a;
+    --color-brand-ink: #c9bbff;
+    --color-on-brand: #120a33;
+    --color-success-bg: #12301d;
+    --color-success-fg: #7ee0a0;
+    --color-success-solid: #3cc36e;
+    --color-warning-bg: #38290a;
+    --color-warning-fg: #f5cb5c;
+    --color-warning-solid: #e8b400;
+    --color-danger-bg: #3d1515;
+    --color-danger-fg: #ff9e97;
+    --color-danger-solid: #f0524a;
+    --color-info-bg: #14285a;
+    --color-info-fg: #a5c0ff;
+    --color-info-solid: #6b94ff;
+    --color-nav-bg: #050507;
+    --elevation-card: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --elevation-popover: 0 8px 24px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-app font-sans text-body text-ink antialiased;
+  }
+  /* Anillo de foco del sistema: 2px con 2px de separación. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+  input::placeholder { color: var(--color-ink-subtle); }
+}
+
+@layer components {
+  /* Tarjeta: flota sobre bg-app. */
+  .card {
+    @apply rounded-lg border border-line bg-surface shadow-card;
+  }
+
+  /* Button: primary | secondary | ghost | danger; tamaño md (36px) o sm (28px). */
+  .btn {
+    @apply inline-flex h-control-md shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md border border-transparent px-4 text-label;
+  }
+  .btn-sm { @apply h-control-sm gap-1.5 px-3; }
+  .btn-lg { @apply h-12 gap-2.5 px-5 text-heading; }
+  .btn-primary { @apply bg-brand text-on-brand hover:bg-brand-hover; }
+  .btn-secondary { @apply border-control bg-surface text-ink hover:bg-subtle; }
+  .btn-ghost { @apply bg-transparent text-ink hover:bg-subtle; }
+  .btn-danger { @apply border-danger-fg bg-surface text-danger-fg hover:bg-danger-bg; }
+  .btn:disabled {
+    @apply cursor-not-allowed border-line bg-subtle text-ink-subtle;
+  }
+
+  /* Input de texto con borde de control. */
+  .field {
+    @apply h-control-md w-full rounded-md border border-control bg-surface px-3 text-body text-ink;
+  }
+  .field:focus { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+  .field-label { @apply mb-1.5 block text-label text-ink-muted; }
+
+  /* StatusBadge: píldora con punto; el color siempre va con su palabra. */
+  .badge {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-pill px-3 py-1 text-label;
+  }
+  .badge::before {
+    content: "";
+    @apply size-1.5 rounded-pill bg-current;
+  }
+  .badge-success { @apply bg-success-bg text-success-fg; }
+  .badge-warning { @apply bg-warning-bg text-warning-fg; }
+  .badge-danger { @apply bg-danger-bg text-danger-fg; }
+  .badge-info { @apply bg-info-bg text-info-fg; }
+  .badge-neutral { @apply bg-subtle text-ink-muted; }
+
+  /* Aviso en línea (error, precaución, info). */
+  .notice {
+    @apply flex items-start gap-2 rounded-md px-3 py-2.5 text-body;
+  }
+}
