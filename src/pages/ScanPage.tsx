@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ProductFormModal } from '../components/ProductFormModal'
 import { ProductImage } from '../components/ProductImage'
 import { useKeepFocus } from '../components/useKeepFocus'
@@ -50,7 +50,7 @@ export function ScanPage() {
   const [exporting, setExporting] = useState(false)
   const scanRef = useRef<HTMLInputElement>(null)
   const qtyRef = useRef<HTMLInputElement>(null)
-  const lastValidQty = useRef(qtyText)
+  const qtyOnFocus = useRef(qtyText)
   const qtyIdle = useRef<number | undefined>(undefined)
   const qtyDetector = useRef(createBurstDetector())
 
@@ -60,6 +60,10 @@ export function ScanPage() {
 
   const quantity = parseCount(qtyText, mode === 'add' ? 1 : 0)
   const qtyValid = !Number.isNaN(quantity)
+
+  useEffect(() => {
+    if (qtyValid) savePref('hachiko.qty', qtyText.trim())
+  }, [qtyText, qtyValid])
 
   const totals = useMemo(() => {
     let pieces = 0
@@ -76,10 +80,6 @@ export function ScanPage() {
 
   function updateQty(text: string) {
     setQtyText(text)
-    if (/^\d+$/.test(text.trim())) {
-      lastValidQty.current = text.trim()
-      savePref('hachiko.qty', text.trim())
-    }
     // Si se deja el campo de cantidad sin tocar, el foco regresa al escaneo.
     window.clearTimeout(qtyIdle.current)
     qtyIdle.current = window.setTimeout(() => {
@@ -87,10 +87,11 @@ export function ScanPage() {
     }, 4000)
   }
 
-  async function processScan(raw: string) {
+  async function processScan(raw: string, qtyStr = qtyText) {
     const barcode = normalizeBarcode(raw)
     if (!barcode) return
-    if (!qtyValid) {
+    const quantity = parseCount(qtyStr, mode === 'add' ? 1 : 0)
+    if (Number.isNaN(quantity)) {
       sounds.error()
       setFeedback({
         kind: 'error',
@@ -122,9 +123,12 @@ export function ScanPage() {
     })
   }
 
-  function onScanSubmit(e: FormEvent) {
+  // Enter del lector (o del teclado) procesa el código. Se maneja en keydown
+  // porque el formulario tiene dos campos y el navegador no lo enviaría solo.
+  function onScanKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return
     e.preventDefault()
-    const value = code
+    const value = e.currentTarget.value
     setCode('')
     if (value.trim()) void processScan(value)
   }
@@ -134,9 +138,12 @@ export function ScanPage() {
     const scanned = qtyDetector.current.handle(e)
     if (scanned) {
       e.preventDefault()
-      setQtyText(lastValidQty.current)
+      const current = e.currentTarget.value
+      const stripped = current.endsWith(scanned) ? current.slice(0, -scanned.length).trim() : ''
+      const restored = stripped || qtyOnFocus.current
+      setQtyText(restored)
       scanRef.current?.focus()
-      void processScan(scanned)
+      void processScan(scanned, restored)
       return
     }
     if (e.key === 'Enter') {
@@ -194,7 +201,7 @@ export function ScanPage() {
     <div className="grid h-full gap-5 p-5 lg:grid-cols-[1fr_380px]">
       <section className="flex min-w-0 flex-col gap-5">
         {/* Escaneo */}
-        <form onSubmit={onScanSubmit} className="rounded-2xl bg-white p-5 shadow">
+        <form onSubmit={(e) => e.preventDefault()} className="rounded-2xl bg-white p-5 shadow">
           <label htmlFor="scan" className="mb-2 block text-xl font-bold text-slate-700">
             Escanea o escribe el código y presiona Enter
           </label>
@@ -203,6 +210,7 @@ export function ScanPage() {
             ref={scanRef}
             value={code}
             onChange={(e) => setCode(e.target.value)}
+            onKeyDown={onScanKeyDown}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -221,8 +229,11 @@ export function ScanPage() {
                 value={qtyText}
                 onChange={(e) => updateQty(e.target.value)}
                 onKeyDown={onQtyKeyDown}
-                onFocus={(e) => e.target.select()}
-                onBlur={() => !qtyValid && setQtyText(lastValidQty.current)}
+                onFocus={(e) => {
+                  qtyOnFocus.current = qtyText
+                  e.target.select()
+                }}
+                onBlur={() => !qtyValid && setQtyText(qtyOnFocus.current)}
                 inputMode="numeric"
                 autoComplete="off"
                 className={`w-36 rounded-xl border-4 px-4 py-2 text-center text-3xl font-black focus:outline-none ${qtyValid ? 'border-slate-400 focus:border-blue-600' : 'border-red-600 bg-red-50'}`}
