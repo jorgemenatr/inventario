@@ -1,0 +1,97 @@
+# Pruebas manuales con el lector real
+
+Hazlas en la laptop y con el lector que se van a usar el día del escaneo, sobre la URL de
+Netlify. Ten abierto el **Table Editor** de Supabase (`products` e `inventory_movements`) para
+confirmar los datos.
+
+> Tip: usa 3 o 4 productos de prueba y, al terminar, bórralos desde el dashboard: primero
+> sus filas en `inventory_movements` y luego en `products`.
+
+## 0. Lector y teclado
+- [ ] En la pantalla de escaneo, escanea un producto cualquiera. El código completo aparece
+      y se procesa solo (el lector manda Enter).
+- [ ] Tras crear un producto sin código (prueba 6), imprime su etiqueta y escanéala. Debe
+      encontrar el producto `HCH-000001` (con guion, aunque el lector mande `'`).
+
+## 1. Login y logout
+- [ ] Con contraseña incorrecta aparece "Correo o contraseña incorrectos." y el foco queda
+      en la contraseña.
+- [ ] Con la laptop sin internet, intenta iniciar sesión: aparece "Sin conexión a internet…".
+- [ ] Login correcto: llegas a Escaneo y el cursor ya está en el campo de escaneo (puedes
+      escanear sin hacer clic).
+- [ ] El encabezado muestra tu correo y el botón "Cerrar sesión".
+- [ ] Cierra la pestaña y vuelve a abrir la URL: sigues dentro sin volver a iniciar sesión.
+- [ ] "Cerrar sesión" te lleva al login con el cursor en la contraseña (el correo queda recordado).
+
+## 2. Acceso sin sesión
+- [ ] Sin sesión, abre `https://<tu-sitio>/historial`: te manda al login. Al iniciar sesión,
+      regresa a Historial.
+- [ ] Desde una ventana de incógnito, abre `https://<tu-proyecto>.supabase.co/rest/v1/products`
+      con la anon key (o desde la consola del navegador sin sesión). Debe responder
+      `permission denied`.
+
+## 3. Escaneo repetido
+- [ ] Con cantidad 1 y modo **Sumar**, escanea el mismo producto 5 veces seguidas, rápido.
+      La cantidad sube de 1 en 1. Cada escaneo hace un "bip" y pinta el panel de verde.
+- [ ] En Supabase, la cantidad coincide y hay 5 movimientos `scan_add`.
+- [ ] Cambia la cantidad a 24, presiona Enter (el cursor vuelve al escaneo) y escanea: +24.
+- [ ] Haz clic en "Cantidad" y, sin escribir nada, escanea un producto. Debe procesarse
+      como escaneo y la cantidad debe seguir igual.
+- [ ] Haz clic en cualquier parte vacía de la pantalla: el cursor regresa al escaneo.
+- [ ] Los contadores "Productos distintos" y "Piezas totales" se actualizan.
+
+## 4. Código nuevo
+- [ ] Escanea un código que no exista: suena un tono doble y se abre el formulario con el
+      código ya puesto y el cursor en "Nombre".
+- [ ] Intenta guardar sin precio: aparece el error y no se guarda.
+- [ ] Llena nombre y precio (prueba con coma: `45,50`), sube una foto desde archivo y
+      presiona **Enter**. Se guarda, el panel azul muestra la foto y el cursor vuelve al escaneo.
+- [ ] Con el formulario abierto, escanea otro producto por accidente: aparece el aviso
+      "Se detectó un escaneo…" y el código **no** queda en el nombre.
+- [ ] Prueba "Usar cámara": el navegador pide permiso, ves la imagen y "Tomar foto" la adjunta.
+- [ ] La cantidad inicial por defecto es la "Cantidad por escaneo" actual.
+
+## 5. Modo Fijar total
+- [ ] Cambia a **Fijar total** (el aviso naranja indica el valor) y pon 10. Escanea un
+      producto que tenga más de 10: queda en 10 y el panel muestra el delta negativo.
+- [ ] En Supabase hay un movimiento `set_total` con el delta correcto.
+- [ ] Regresa a **Sumar** antes de seguir.
+
+## 6. Producto sin código
+- [ ] "Producto sin código": el formulario dice que se generará el código. Guarda, y se
+      asigna `HCH-000001` (o el siguiente número).
+- [ ] "Imprimir etiqueta" abre la etiqueta con el nombre, el código de barras y el precio.
+      Imprímela en la impresora real y ajusta la escala si hace falta.
+- [ ] Escanea la etiqueta impresa: suma 1 a ese producto.
+
+## 7. Deshacer
+- [ ] Escanea un producto y presiona "Deshacer último escaneo": la cantidad regresa, el
+      panel se pinta morado y en el panel lateral el escaneo aparece tachado.
+- [ ] En Supabase hay un movimiento `adjustment` con el delta opuesto.
+- [ ] Deshacer un "Fijar total" regresa a la cantidad que había antes.
+- [ ] Deshacer un alta deja ese producto en 0 (el producto no se borra).
+
+## 8. Historial y exportar
+- [ ] Historial muestra los movimientos con tu nombre o correo y se puede buscar por
+      código o nombre.
+- [ ] "Exportar Excel": ábrelo en Excel. Los códigos se ven completos (sin `7.5E+12`), los
+      acentos y las ñ se ven bien, y la URL de la imagen abre la foto.
+- [ ] "Exportar CSV": ábrelo en un editor (o impórtalo). Los acentos están bien y tiene las
+      columnas código, nombre, categoría, proveedor, costo, precio, cantidad, URL de imagen
+      y fecha de alta.
+- [ ] En Historial, exporta los movimientos (CSV y Excel) y revisa la columna "Usuario".
+
+## 9. Desconectar internet y reconectar
+- [ ] Apaga el Wi-Fi. El encabezado se pone rojo: "Sin conexión: 0 pendientes".
+- [ ] Escanea 3 veces un producto conocido: el panel se pinta amarillo, dice "pendiente" y
+      el contador queda en "Sin conexión: 3 pendientes".
+- [ ] Escanea un código nuevo: el formulario avisa que se guardará sin conexión. Guárdalo
+      (la imagen no se guarda sin red).
+- [ ] "Producto sin código" y "Exportar" están deshabilitados.
+- [ ] Deshacer el último escaneo lo quita de la cola (baja el número de pendientes).
+- [ ] Presiona "Cerrar sesión": pide confirmación por los pendientes. Cancela.
+- [ ] Recarga la página (F5) sin internet: los pendientes siguen ahí.
+- [ ] Prende el Wi-Fi. En unos segundos el encabezado vuelve a verde ("En línea"), y en
+      Supabase aparecen los movimientos **una sola vez** y el producto nuevo.
+- [ ] Prueba larga (opcional): deja la laptop sin red más de 1 hora con pendientes y luego
+      reconecta. Debe sincronizar o, si pide login, sincronizar después de iniciar sesión.
