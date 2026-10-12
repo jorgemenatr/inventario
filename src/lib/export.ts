@@ -34,7 +34,7 @@ function stamp() {
 export async function buildInventoryRows(): Promise<Row[]> {
   const products = await fetchAll<Product>(
     'products',
-    'barcode, name, category, supplier, cost, price, quantity, image_url, created_at',
+    'barcode, name, category, supplier, cost, price, quantity, image_url, description, catalog_product_id, created_at',
     'created_at',
   )
   const urls = await getSignedUrlsForExport(products.map((p) => p.image_url ?? ''))
@@ -47,6 +47,8 @@ export async function buildInventoryRows(): Promise<Row[]> {
     'Precio': Number(p.price),
     'Cantidad': p.quantity,
     'URL de imagen': p.image_url ? (urls.get(p.image_url) ?? '') : '',
+    'Descripción': p.description,
+    'ID TCGplayer': p.catalog_product_id,
     'Fecha de alta': localDateTime(p.created_at),
   }))
 }

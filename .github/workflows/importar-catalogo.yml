@@ -1,0 +1,44 @@
+# Actualiza el catálogo TCG (producto sellado) en Supabase.
+# - Corre solo cada lunes.
+# - También a mano: pestaña Actions → "Importar catálogo TCG" → Run workflow.
+# Necesita los secrets SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
+# (Settings → Secrets and variables → Actions). Sin ellos, no hace nada.
+name: Importar catálogo TCG
+
+on:
+  schedule:
+    - cron: '17 9 * * 1' # lunes 09:17 UTC (03:17 en CDMX)
+  workflow_dispatch:
+    inputs:
+      juegos:
+        description: 'Juegos separados por coma (vacío = todos: pokemon,magic,yugioh,lorcana,flesh-and-blood)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Importar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JUEGOS: ${{ github.event.inputs.juegos }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::Faltan los secrets SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY; no se importó nada."
+            exit 0
+          fi
+          if [ -n "$JUEGOS" ]; then
+            node scripts/importar-catalogo.mjs --juegos "$JUEGOS"
+          else
+            node scripts/importar-catalogo.mjs
+          fi

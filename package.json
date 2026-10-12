@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "catalogo": "node --env-file-if-exists=.env.catalogo scripts/importar-catalogo.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

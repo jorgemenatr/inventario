@@ -115,3 +115,25 @@ laptop). Así escaneas los códigos reales de los productos con la cámara del c
       Supabase aparecen los movimientos **una sola vez** y el producto nuevo.
 - [ ] Prueba larga (opcional): deja la laptop sin red más de 1 hora con pendientes y luego
       reconecta. Debe sincronizar o, si pide login, sincronizar después de iniciar sesión.
+
+## 10. Catálogo TCG
+Antes: aplica la migración `20261012000500_catalogo_tcg.sql` y corre la importación
+(README → Catálogo TCG).
+- [ ] Escanea un producto nuevo que no esté en el inventario: el formulario abre con el
+      cursor en **Buscar en el catálogo TCG** y arriba dice cuántos productos tiene el
+      catálogo y la fecha de actualización.
+- [ ] Escribe `etb` y parte del nombre del set (p. ej. `delta etb`). Salen resultados con foto.
+      Muévete con las flechas y presiona Enter: se llenan Nombre, Categoría (el juego),
+      Descripción y la foto, y el cursor pasa a **Precio de venta**.
+- [ ] Captura el precio y presiona Enter: el producto se da de alta con la foto del catálogo.
+      En Supabase, `products.catalog_product_id` tiene el número de TCGplayer.
+- [ ] Vuelve a escanear el mismo código: ya no abre el formulario, solo suma.
+- [ ] Escanea un código nuevo, vincula un producto, presiona **Cambiar**: la foto del
+      catálogo desaparece y puedes buscar otro.
+- [ ] Sube una foto propia y luego vincula un producto: se queda tu foto, no la del catálogo.
+- [ ] Busca un producto que ya vinculaste con otro código: el resultado avisa "Ya está en
+      inventario con el código …".
+- [ ] Si tienes producto de Magic o Yu-Gi-Oh! en inglés, escanéalo: si su código está en
+      el catálogo, el formulario abre ya vinculado ("Encontrado en el catálogo por código de
+      barras").
+- [ ] Sin internet, el formulario dice que el catálogo necesita conexión y deja capturar a mano.

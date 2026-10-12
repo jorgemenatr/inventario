@@ -38,6 +38,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261012000200_seguridad_rls.sql` | Permisos y políticas RLS |
 | `20261012000300_funciones_rpc.sql` | RPC `register_scan`, `create_product`, `undo_movement`, `inventory_totals` y la vista `movement_history` |
 | `20261012000400_storage.sql` | Bucket privado `product-images` y sus políticas |
+| `20261012000500_catalogo_tcg.sql` | Tabla `catalog_products`, vínculo en `products`, RPC `search_catalog` y `catalog_status` |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -100,6 +101,103 @@ npm run build        # verifica tipos y genera dist/
 4. Netlify sirve en HTTPS, que es lo que necesita la webcam (`getUserMedia`).
 5. Opcional: en Supabase, **Authentication → URL Configuration → Site URL**, pon la URL de
    Netlify.
+
+### 8. Cargar el catálogo TCG
+
+Ver [Catálogo TCG](#catálogo-tcg). Se hace una vez al inicio y luego se mantiene solo (o
+a mano con cada expansión).
+
+---
+
+## Catálogo TCG
+
+Para no capturar a mano nombre, foto y descripción del producto sellado, la app tiene una
+copia del catálogo de **TCGplayer** (vía [tcgcsv.com](https://tcgcsv.com), un espejo
+público y gratuito que se actualiza a diario). Solo incluye **producto sellado** (cajas,
+sobres, ETB, blisters, mazos, latas…), no cartas sueltas, de estos juegos:
+
+| Juego | Productos aprox. | Con código de barras |
+| --- | --- | --- |
+| Pokémon (inglés) | 2,900 | ~950 |
+| Magic: The Gathering | 3,700 | ~1,050 |
+| Yu-Gi-Oh! | 1,200 | ~440 |
+| Disney Lorcana | 180 | — |
+| Flesh and Blood | 230 | — |
+
+(Cifras de octubre de 2026.)
+
+### Cómo funciona al escanear
+
+1. Escaneas un código que no está en el inventario y se abre **Producto nuevo**.
+2. Si ese código viene en el catálogo, el producto se **vincula solo** ("Encontrado en el
+   catálogo por código de barras"). Pasa con parte de Magic, Yu-Gi-Oh! y Pokémon.
+3. Si no, el cursor queda en **Buscar en el catálogo TCG**. Escribe palabras del nombre en
+   cualquier orden, como aparecen en TCGplayer (en inglés): `delta reign etb`,
+   `151 booster bundle`, `bloomburrow play box`. También entiende `etb`, `upc`
+   (Ultra Premium Collection), `caja`, `sobre`, `mazo` y `lata`. Flechas para moverte y
+   Enter para elegir.
+4. Se llenan **nombre, categoría (el juego), descripción y foto**. Tú solo pones precio,
+   costo y cantidad, y guardas. El nombre y la descripción se pueden editar (p. ej. agregar
+   "(español)").
+5. A partir de ahí ese código de barras queda ligado al producto. **El vínculo se hace una
+   sola vez por SKU**, no por pieza.
+
+Detalles:
+
+- La foto se **descarga y se guarda en el bucket propio** (`product-images`), igual que una
+  foto tomada con la cámara. No depende de TCGplayer después del alta. Si subes o tomas una
+  foto propia, tiene prioridad sobre la del catálogo.
+- El precio de TCGplayer (en dólares) se muestra **solo como referencia**; no llena el
+  precio de venta.
+- Si eliges un producto del catálogo que ya está vinculado a otro código, la app avisa
+  ("Ya está en inventario con el código …"), pero te deja continuar: hay productos que
+  tienen dos códigos (p. ej. otra impresión o idioma).
+- **Producto en español:** TCGplayer cataloga la versión en inglés. Para producto en
+  español, vincula la versión en inglés equivalente (misma caja, mismo set) y ajusta el
+  nombre si quieres. La foto será la de la caja en inglés.
+- Sin internet no se puede buscar en el catálogo; el alta se hace a mano como antes.
+
+### Cargar o actualizar el catálogo
+
+**¿Hay que hacerlo con cada expansión nueva?** Sí: el catálogo es una copia, así que los
+productos de una expansión aparecen hasta que se vuelve a importar. TCGplayer suele
+publicar el producto sellado unas semanas **antes** del lanzamiento (preventa), así que
+normalmente ya está cuando llega la mercancía. Hay dos formas, y **la importación es
+segura de repetir**: actualiza lo que ya existe, agrega lo nuevo y nunca borra, así que
+los productos ya vinculados no se pierden.
+
+Ambas usan la **service_role key** de Supabase (*Project Settings → API*, "service_role" o
+"secret"). Esa llave se salta todos los permisos: **nunca** la pongas en Netlify, en
+variables `VITE_` ni en el código de la app.
+
+**Opción A: automática con GitHub Actions (recomendada).** Se actualiza sola cada lunes.
+
+1. En GitHub, en el repositorio: **Settings → Secrets and variables → Actions → New
+   repository secret**. Crea dos:
+   - `SUPABASE_URL`: la URL del proyecto (`https://xxxx.supabase.co`).
+   - `SUPABASE_SERVICE_ROLE_KEY`: la service_role key.
+2. Ve a la pestaña **Actions → Importar catálogo TCG → Run workflow** para la primera carga
+   (tarda menos de un minuto). Al terminar, el resumen muestra cuántos productos importó
+   por juego.
+3. Ya no hay que hacer nada: corre cada lunes. Si sale una expansión a media semana y la
+   necesitas ya, repite el paso 2.
+
+**Opción B: a mano desde una computadora** (Node 22 o superior).
+
+```bash
+cp .env.catalogo.example .env.catalogo   # y llénalo (está en .gitignore)
+npm run catalogo                          # todos los juegos
+npm run catalogo -- --juegos pokemon      # solo un juego
+npm run catalogo -- --desde 2026-01-01    # solo sets publicados desde esa fecha (más rápido)
+npm run catalogo -- --prueba              # descarga sin escribir en Supabase (catalogo-prueba.json)
+```
+
+En la app, el buscador muestra cuántos productos tiene el catálogo y la fecha de la última
+importación.
+
+**Agregar otro juego** (p. ej. One Piece): súmalo a `JUEGOS` en
+`scripts/importar-catalogo.mjs` con su `categoryId` de TCGplayer (la lista está en
+<https://tcgcsv.com/tcgplayer/categories>) y vuelve a importar.
 
 ---
 
@@ -166,6 +264,8 @@ velocidad de lector en el campo con foco y manda Enter. Se apaga con `?simulador
   productos solo se borran desde el dashboard.
 - `authenticated` lee todos los `profiles`, para mostrar "quién lo hizo" en el historial y en
   la exportación. Los perfiles solo se crean con el trigger.
+- `catalog_products` (catálogo TCG): `authenticated` solo puede **leer**. Únicamente el
+  script de importación escribe, con la service_role key, que nunca está en el frontend.
 - Las RPC son `SECURITY INVOKER` con `search_path` fijo, así que respetan RLS.
   **Riesgo aceptado para la Fase 1:** como el usuario necesita permiso de UPDATE en
   `products`, técnicamente podría cambiar `quantity` sin pasar por la RPC (sin movimiento).
@@ -221,13 +321,15 @@ velocidad de lector en el campo con foco y manda Enter. Se apaga con `?simulador
 ## Estructura
 
 ```
-supabase/migrations/     Migraciones SQL (esquema, RLS, RPC, storage)
+supabase/migrations/     Migraciones SQL (esquema, RLS, RPC, storage, catálogo TCG)
+scripts/                 Importador del catálogo TCG (npm run catalogo)
+.github/workflows/       Importación semanal del catálogo (GitHub Actions)
 src/
   lib/supabase.ts        Cliente único de Supabase + detección de errores de red/sesión
   auth/                  AuthProvider, useAuth, ProtectedRoute (listo para roles)
   store/                 Store de inventario: caché, cola offline, deshacer, sincronización
   pages/                 Login, Escaneo, Historial, Etiqueta
-  components/            Layout, formulario de producto, webcam, imagen, foco
+  components/            Layout, formulario de producto, buscador del catálogo, webcam, imagen, foco
   lib/                   Exportación, imágenes, sonidos, normalización de códigos
 netlify.toml             Build + redirección SPA
 ```
