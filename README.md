@@ -117,6 +117,12 @@ npm run build        # verifica tipos y genera dist/
   (viene en el manual del lector, con códigos de configuración).
 - Haz una prueba de escaneo después de cada cambio de configuración.
 
+### Probar sin lector
+
+Abre la app con `?simulador=1` para mostrar un **simulador de lector**: escribe códigos a
+velocidad de lector en el campo con foco y manda Enter. Se apaga con `?simulador=0`. Detalles en
+[`docs/PRUEBAS_MANUALES.md`](docs/PRUEBAS_MANUALES.md).
+
 ### Cómo se usa
 
 - **Sumar** con cantidad `1`: escanea pieza por pieza. Con `24`: "tengo 24 de estos".

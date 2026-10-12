@@ -3,11 +3,13 @@ import { useAuth } from '../auth/useAuth'
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { ConnectionBadge } from './ConnectionBadge'
+import { ScannerSimulator, useSimulatorEnabled } from './ScannerSimulator'
 
 export function Layout() {
   const { user, profile, signOut } = useAuth()
   const { queue } = useInventory()
   const navigate = useNavigate()
+  const simulator = useSimulatorEnabled()
 
   async function handleSignOut() {
     if (queue.length > 0) {
@@ -55,6 +57,7 @@ export function Layout() {
       <main className="min-h-0 flex-1 overflow-auto">
         <Outlet />
       </main>
+      {simulator && <ScannerSimulator />}
     </div>
   )
 }

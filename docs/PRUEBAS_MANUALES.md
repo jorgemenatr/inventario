@@ -7,6 +7,26 @@ confirmar los datos.
 > Tip: usa 3 o 4 productos de prueba y, al terminar, bórralos desde el dashboard: primero
 > sus filas en `inventory_movements` y luego en `products`.
 
+## Sin lector: simulador
+
+Mientras no tengas el lector, abre la app con **`?simulador=1`** al final de la URL (por
+ejemplo `https://<tu-sitio>/?simulador=1`). Aparece un panel morado abajo a la izquierda.
+Igual que un lector USB, el simulador escribe el código muy rápido en el campo que tenga
+el foco y luego manda Enter. Sus botones no le quitan el foco a ese campo.
+
+- **Código nuevo**: un EAN-13 aleatorio que no existe, para probar el alta.
+- **Productos existentes**: los últimos productos del catálogo, para probar escaneo repetido.
+- **Lector con teclado de EE. UU.**: manda `HCH'000001` (con apóstrofo), como llegaría con un
+  lector en distribución US.
+- **Código personalizado**: para escribir el que quieras (p. ej. el de un producto real).
+
+Para apagarlo, abre la app con `?simulador=0`. Con el simulador puedes hacer todas las
+pruebas de abajo excepto la **0**, que necesita el lector físico. Hazla en cuanto lo tengas.
+
+Otra opción, aún más realista: una app de celular que mande el código a la laptop como si
+fuera un teclado (p. ej. *Barcode to PC*, gratis en Android e iOS, con su programa para la
+laptop). Así escaneas los códigos reales de los productos con la cámara del celular.
+
 ## 0. Lector y teclado
 - [ ] En la pantalla de escaneo, escanea un producto cualquiera. El código completo aparece
       y se procesa solo (el lector manda Enter).
