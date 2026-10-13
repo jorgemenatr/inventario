@@ -61,7 +61,7 @@ export function Layout() {
           ))}
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-3 md:mt-auto md:ml-0 md:flex-col md:items-stretch">
+        <div className="ml-auto flex flex-wrap items-center gap-3 md:mt-auto md:ml-0 md:flex-col md:flex-nowrap md:items-stretch">
           <ConnectionBadge />
           <div className="flex items-center gap-3 border-nav-border px-2 md:border-t md:pt-3">
             <span
