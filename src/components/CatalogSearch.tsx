@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 
 import { catalogThumb, getCatalogStatus, searchCatalog, type CatalogStatus } from '../lib/catalog'
 import { formatInt } from '../lib/format'
 import type { CatalogItem } from '../lib/types'
+import { Icon } from './Icon'
 
 interface Props {
   inputRef: RefObject<HTMLInputElement | null>
@@ -78,65 +79,76 @@ export function CatalogSearch({ inputRef, onSelect }: Props) {
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <label htmlFor="pf-catalog" className="mb-1 block text-base font-bold text-slate-700">
+        <label htmlFor="pf-catalog" className="field-label">
           Buscar en el catálogo TCG
         </label>
         {status && status.products > 0 && (
-          <span className="text-sm text-slate-500">
+          <span className="text-caption text-ink-subtle">
             {formatInt(status.products)} productos
             {status.imported_at && ` · actualizado ${new Date(status.imported_at).toLocaleDateString('es-MX')}`}
           </span>
         )}
       </div>
       {empty ? (
-        <p className="rounded-lg bg-amber-100 px-3 py-2 font-semibold text-amber-900">
+        <p className="notice bg-warning-bg text-warning-fg">
+          <Icon name="alert" className="mt-0.5" />
           El catálogo está vacío. Hay que correr la importación (ver README → Catálogo TCG).
         </p>
       ) : (
-        <input
-          id="pf-catalog"
-          name="catalog"
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onKeyDown}
-          autoComplete="off"
-          placeholder='Ej. "delta reign etb", "caja 151", "micas negras mate dragon"'
-          className="w-full rounded-lg border-2 border-blue-500 bg-white px-3 py-2 text-xl focus:border-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
-        />
+        <div className="relative">
+          <Icon name="search" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-subtle" />
+          <input
+            id="pf-catalog"
+            name="catalog"
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+            autoComplete="off"
+            placeholder='Ej. "delta reign etb", "caja 151", "micas negras mate dragon"'
+            className="field h-10 pl-9"
+          />
+        </div>
       )}
-      {loading && <p className="mt-2 text-slate-500">Buscando…</p>}
-      {error && <p className="mt-2 font-semibold text-red-700">No se pudo buscar: {error}</p>}
+      {loading && <p className="mt-2 text-ink-muted">Buscando…</p>}
+      {error && (
+        <p className="mt-2 notice bg-danger-bg text-danger-fg">
+          <Icon name="alert" className="mt-0.5" />
+          No se pudo buscar: {error}
+        </p>
+      )}
       {!loading && !error && query.trim().length >= 2 && results.length === 0 && (
-        <p className="mt-2 text-slate-600">Sin resultados. Prueba con otras palabras (en inglés, como en TCGplayer).</p>
+        <p className="mt-2 text-ink-muted">Sin resultados. Prueba con otras palabras (en inglés, como en TCGplayer).</p>
       )}
       {results.length > 0 && (
-        <ul ref={listRef} className="mt-2 max-h-72 overflow-auto rounded-lg border-2 border-slate-300" role="listbox">
+        <ul ref={listRef} className="mt-2 max-h-72 divide-y divide-line overflow-auto rounded-md border border-line bg-surface" role="listbox">
           {results.map((r, i) => (
             <li key={r.id} role="option" aria-selected={i === active}>
               <button
                 type="button"
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(r)}
-                className={`flex w-full items-center gap-3 p-2 text-left ${i === active ? 'bg-blue-100' : 'bg-white hover:bg-slate-50'}`}
+                className={`flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left ${i === active ? 'bg-brand-soft' : 'hover:bg-subtle'}`}
               >
                 {r.image_url ? (
-                  <img src={catalogThumb(r.image_url) ?? ''} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded bg-white object-contain" />
+                  <img src={catalogThumb(r.image_url) ?? ''} alt="" loading="lazy" className="size-12 shrink-0 rounded-xs bg-white object-contain" />
                 ) : (
-                  <div className="h-14 w-14 shrink-0 rounded bg-slate-200" />
+                  <div className="grid size-12 shrink-0 place-items-center rounded-xs bg-subtle text-ink-subtle">
+                    <Icon name="image" />
+                  </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-lg font-bold">{r.name}</p>
-                  <p className="truncate text-sm text-slate-600">
+                  <p className="truncate text-label text-ink">{r.name}</p>
+                  <p className="truncate text-caption text-ink-muted">
                     {r.game} · {r.set_name}
                     {r.released_on && ` · ${r.released_on.slice(0, 4)}`}
                     {r.market_price != null && ` · ref. ${usd.format(r.market_price)}`}
                   </p>
-                  {r.upc_match && <p className="text-sm font-bold text-emerald-700">✓ El código de barras coincide</p>}
+                  {r.upc_match && <span className="badge badge-success mt-1">El código de barras coincide</span>}
                   {r.linked_barcode && (
-                    <p className="truncate text-sm font-bold text-amber-700">
+                    <span className="badge badge-warning mt-1 max-w-full truncate">
                       Ya está en inventario con el código {r.linked_barcode}
-                    </p>
+                    </span>
                   )}
                 </div>
               </button>

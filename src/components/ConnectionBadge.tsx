@@ -1,36 +1,40 @@
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
+import { Icon } from './Icon'
 
+/** Estado de conexión y cola, dentro de la barra lateral oscura. */
 export function ConnectionBadge() {
   const { online, queue, syncing, syncError, failed } = useInventory()
   const pending = queue.length
+  const plural = pending === 1 ? '' : 's'
 
-  let cls = 'bg-emerald-600 text-white'
+  let tone = 'badge-success'
   let text = 'En línea'
   if (!online) {
-    cls = 'bg-red-600 text-white animate-pulse'
-    text = `Sin conexión: ${pending} pendiente${pending === 1 ? '' : 's'}`
+    tone = 'badge-danger'
+    text = `Sin conexión: ${pending} pendiente${plural}`
   } else if (syncing) {
-    cls = 'bg-amber-400 text-slate-900'
-    text = `Sincronizando… ${pending} pendiente${pending === 1 ? '' : 's'}`
+    tone = 'badge-warning'
+    text = `Sincronizando… ${pending} pendiente${plural}`
   } else if (pending > 0) {
-    cls = 'bg-amber-400 text-slate-900'
-    text = `${pending} pendiente${pending === 1 ? '' : 's'} por sincronizar`
+    tone = 'badge-warning'
+    text = `${pending} pendiente${plural} por sincronizar`
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2 md:flex-col md:items-stretch">
       <button
         type="button"
         onClick={() => void inventoryStore.checkConnection()}
         title="Reintentar sincronización"
-        className={`rounded-full px-4 py-2 text-base font-bold ${cls}`}
+        className={`badge ${tone} cursor-pointer justify-start whitespace-normal py-1.5 text-left focus-visible:outline-nav-focus`}
       >
-        {text}
+        <span className="flex-1">{text}</span>
+        <Icon name={online ? 'refresh' : 'wifi-off'} size={14} />
       </button>
-      {syncError && <span className="max-w-xs text-sm font-semibold text-red-300">{syncError}</span>}
+      {syncError && <p className="max-w-xs px-2 text-caption text-nav-ink-muted">{syncError}</p>}
       {failed.length > 0 && (
-        <span className="rounded-full bg-red-700 px-3 py-1 text-sm font-bold text-white">
+        <span className="badge badge-danger whitespace-normal">
           {failed.length} con error (ver Historial)
         </span>
       )}

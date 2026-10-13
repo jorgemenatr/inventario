@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate, type Location } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { Icon } from '../components/Icon'
 import { supabaseConfigured } from '../lib/supabase'
 
 const LAST_EMAIL_KEY = 'hachiko.lastEmail'
@@ -59,22 +60,23 @@ export function LoginPage() {
     navigate(target, { replace: true })
   }
 
-  const input =
-    'w-full rounded-xl border-4 border-slate-400 px-4 py-3 text-2xl focus:border-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-200'
-
   return (
-    <div className="grid min-h-full place-items-center bg-slate-900 p-4">
-      <form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
-        <h1 className="text-3xl font-black">Inventario Hachiko</h1>
-        <p className="mb-6 mt-1 text-lg text-slate-600">Inicia sesión para continuar</p>
+    <div className="grid min-h-full place-items-center bg-app p-4">
+      <form onSubmit={onSubmit} className="card w-full max-w-sm p-8">
+        <span className="mb-5 grid size-10 place-items-center rounded-md bg-brand text-on-brand">
+          <Icon name="box" size={20} />
+        </span>
+        <h1 className="text-title-lg">Inventario Hachiko</h1>
+        <p className="mt-1 mb-6 text-ink-muted">Inicia sesión para continuar.</p>
 
         {!supabaseConfigured && (
-          <p className="mb-4 rounded-lg bg-red-100 p-3 font-semibold text-red-800">
+          <p className="notice mb-4 bg-danger-bg text-danger-fg">
+            <Icon name="alert" className="mt-0.5" />
             Falta configurar VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY (ver README).
           </p>
         )}
 
-        <label htmlFor="email" className="mb-1 block text-lg font-bold">Correo</label>
+        <label htmlFor="email" className="field-label">Correo</label>
         <input
           id="email"
           ref={emailRef}
@@ -82,10 +84,10 @@ export function LoginPage() {
           autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className={input}
+          className="field h-10"
         />
 
-        <label htmlFor="password" className="mb-1 mt-4 block text-lg font-bold">Contraseña</label>
+        <label htmlFor="password" className="field-label mt-4">Contraseña</label>
         <input
           id="password"
           ref={passwordRef}
@@ -93,23 +95,20 @@ export function LoginPage() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className={input}
+          className="field h-10"
         />
 
         {error && (
-          <p role="alert" className="mt-4 rounded-lg bg-red-100 p-3 text-lg font-bold text-red-800">
+          <p role="alert" className="notice mt-4 bg-danger-bg text-danger-fg">
+            <Icon name="alert" className="mt-0.5" />
             {error}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="mt-6 w-full rounded-xl bg-blue-700 py-4 text-2xl font-black text-white hover:bg-blue-800 disabled:opacity-50"
-        >
+        <button type="submit" disabled={submitting} className="btn btn-primary mt-6 h-10 w-full">
           {submitting ? 'Entrando…' : 'Iniciar sesión'}
         </button>
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-caption text-ink-subtle">
           ¿No tienes cuenta? Pide a un administrador que te cree un usuario.
         </p>
       </form>

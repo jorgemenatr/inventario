@@ -7,6 +7,7 @@ import type { CatalogItem } from '../lib/types'
 import { inventoryStore, type CreateOutcome } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { CatalogSearch } from './CatalogSearch'
+import { Icon } from './Icon'
 import { WebcamCapture } from './WebcamCapture'
 
 interface Props {
@@ -211,161 +212,180 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     onSaved(outcome)
   }
 
-  const input =
-    'w-full rounded-lg border-2 border-slate-400 bg-white px-3 py-2 text-xl focus:border-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-200'
-  const label = 'mb-1 block text-base font-bold text-slate-700'
+  const input = 'field h-10'
+  const label = 'field-label'
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/70 p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="pf-title">
       <form
         onSubmit={onSubmit}
         onKeyDownCapture={onKeyDownCapture}
-        className="max-h-full w-full max-w-3xl overflow-auto rounded-2xl bg-white p-6 shadow-2xl"
+        className="max-h-full w-full max-w-2xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <div>
-            <h2 className="text-3xl font-black">Producto nuevo</h2>
-            <p className="mt-1 text-xl">
+            <h2 id="pf-title" className="text-title">Producto nuevo</h2>
+            <p className="mt-1 text-ink-muted">
               Código:{' '}
-              <span className="font-mono font-bold">
+              <span className="font-mono text-ink">
                 {barcode ?? 'se generará un código interno HCH- al guardar'}
               </span>
             </p>
-            {!online && (
-              <p className="mt-2 rounded-lg bg-amber-100 px-3 py-2 font-semibold text-amber-900">
-                Sin conexión: el producto se guardará en la cola y se sincronizará después (sin imagen).
-              </p>
-            )}
           </div>
-          <button type="button" onClick={onCancel} className="rounded-lg bg-slate-200 px-4 py-2 text-lg font-bold hover:bg-slate-300">
+          <button type="button" onClick={onCancel} className="btn btn-ghost">
+            <Icon name="x" />
             Cancelar (Esc)
           </button>
         </div>
 
-        {warning && <p className="mb-4 rounded-lg bg-amber-200 p-3 text-lg font-bold text-amber-950">{warning}</p>}
+        <div className="space-y-5 px-6 py-5">
+          {!online && (
+            <p className="notice bg-warning-bg text-warning-fg">
+              <Icon name="wifi-off" className="mt-0.5" />
+              Sin conexión: el producto se guardará en la cola y se sincronizará después (sin imagen).
+            </p>
+          )}
+          {warning && (
+            <p className="notice bg-warning-bg text-warning-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {warning}
+            </p>
+          )}
 
-        <div className="mb-5 rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
-          {linked ? (
-            <div className="flex items-start gap-3">
-              {linked.image_url && (
-                <img src={catalogThumb(linked.image_url) ?? ''} alt="" className="h-16 w-16 shrink-0 rounded bg-white object-contain" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-base font-bold text-blue-900">
-                  {linkedBy === 'barcode' ? '✓ Encontrado en el catálogo por código de barras' : '✓ Vinculado al catálogo'}
-                </p>
-                <p className="truncate text-xl font-black">{linked.name}</p>
-                <p className="truncate text-slate-700">
-                  {linked.game} · {linked.set_name}
-                  {linked.market_price != null && ` · referencia TCGplayer US$ ${linked.market_price.toFixed(2)}`}
-                </p>
-                {linked.linked_barcode && (
-                  <p className="font-bold text-amber-800">
-                    Ojo: este producto ya está en inventario con el código {linked.linked_barcode}
-                    {linked.linked_name && ` (${linked.linked_name})`}.
+          <div className="rounded-md border border-line bg-subtle p-4">
+            {linked ? (
+              <div className="flex items-start gap-3">
+                {linked.image_url && (
+                  <img src={catalogThumb(linked.image_url) ?? ''} alt="" className="size-14 shrink-0 rounded-xs bg-white object-contain" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 text-label text-success-fg">
+                    <Icon name="check" />
+                    {linkedBy === 'barcode' ? 'Encontrado en el catálogo por código de barras' : 'Vinculado al catálogo'}
                   </p>
+                  <p className="truncate text-heading">{linked.name}</p>
+                  <p className="truncate text-ink-muted">
+                    {linked.game} · {linked.set_name}
+                    {linked.market_price != null && ` · referencia TCGplayer US$ ${linked.market_price.toFixed(2)}`}
+                  </p>
+                  {linked.linked_barcode && (
+                    <p className="mt-2 notice bg-warning-bg text-warning-fg">
+                      <Icon name="alert" className="mt-0.5" />
+                      Este producto ya está en inventario con el código {linked.linked_barcode}
+                      {linked.linked_name && ` (${linked.linked_name})`}.
+                    </p>
+                  )}
+                </div>
+                <button type="button" onClick={unlink} className="btn btn-secondary btn-sm">
+                  Cambiar
+                </button>
+              </div>
+            ) : online ? (
+              <CatalogSearch
+                inputRef={catalogRef}
+                onSelect={(item) => {
+                  applyCatalog(item, 'search')
+                  setTimeout(() => priceRef.current?.focus(), 0)
+                }}
+              />
+            ) : (
+              <p className="text-ink-muted">El catálogo TCG necesita conexión. Captura los datos a mano.</p>
+            )}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className={label} htmlFor="pf-name">Nombre *</label>
+              <input id="pf-name" name="name" ref={nameRef} className={input} value={fields.name} onChange={set('name')} autoComplete="off" />
+            </div>
+            <div>
+              <label className={label} htmlFor="pf-price">Precio de venta * ($)</label>
+              <input id="pf-price" name="price" ref={priceRef} className={`${input} tabular-nums`} value={fields.price} onChange={set('price')} inputMode="decimal" autoComplete="off" />
+            </div>
+            <div>
+              <label className={label} htmlFor="pf-cost">Costo ($)</label>
+              <input id="pf-cost" name="cost" className={`${input} tabular-nums`} value={fields.cost} onChange={set('cost')} inputMode="decimal" autoComplete="off" />
+            </div>
+            <div>
+              <label className={label} htmlFor="pf-category">Categoría</label>
+              <input id="pf-category" name="category" className={input} value={fields.category} onChange={set('category')} list="pf-categories" autoComplete="off" />
+              <datalist id="pf-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+            </div>
+            <div>
+              <label className={label} htmlFor="pf-supplier">Proveedor</label>
+              <input id="pf-supplier" name="supplier" className={input} value={fields.supplier} onChange={set('supplier')} list="pf-suppliers" autoComplete="off" />
+              <datalist id="pf-suppliers">{suppliers.map((s) => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div>
+              <label className={label} htmlFor="pf-qty">Cantidad inicial</label>
+              <input id="pf-qty" name="quantity" className={`${input} tabular-nums`} value={fields.quantity} onChange={set('quantity')} inputMode="numeric" autoComplete="off" />
+            </div>
+            <div className="md:col-span-2">
+              <label className={label} htmlFor="pf-description">Descripción</label>
+              <textarea
+                id="pf-description"
+                name="description"
+                rows={3}
+                className="field h-auto py-2"
+                value={fields.description}
+                onChange={set('description')}
+              />
+            </div>
+            <div>
+              <span className={label}>Imagen (opcional)</span>
+              <div className="flex flex-wrap gap-2">
+                <label className="btn btn-secondary has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus-ring">
+                  <Icon name="upload" />
+                  Subir archivo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) void setImageFrom(f)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                <button type="button" onClick={() => setCamera(true)} className="btn btn-secondary">
+                  <Icon name="camera" />
+                  Usar cámara
+                </button>
+                {image && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImage(null)
+                      setImageSource(null)
+                    }}
+                    className="btn btn-danger"
+                  >
+                    Quitar
+                  </button>
                 )}
               </div>
-              <button type="button" onClick={unlink} className="shrink-0 rounded-lg bg-white px-3 py-2 font-bold text-slate-800 ring-2 ring-slate-300 hover:bg-slate-100">
-                Cambiar
-              </button>
             </div>
-          ) : online ? (
-            <CatalogSearch inputRef={catalogRef} onSelect={(item) => {
-              applyCatalog(item, 'search')
-              setTimeout(() => priceRef.current?.focus(), 0)
-            }} />
-          ) : (
-            <p className="font-semibold text-slate-700">El catálogo TCG necesita conexión. Captura los datos a mano.</p>
+          </div>
+
+          {camera && <WebcamCapture onCapture={(b) => void setImageFrom(b)} onClose={() => setCamera(false)} />}
+          {imageLoading && <p className="text-ink-muted">Descargando foto del catálogo…</p>}
+          {preview && <img src={preview} alt="Vista previa" className="max-h-48 rounded-md border border-line" />}
+
+          {error && (
+            <p className="notice bg-danger-bg text-danger-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {error}
+            </p>
           )}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className={label} htmlFor="pf-name">Nombre *</label>
-            <input id="pf-name" name="name" ref={nameRef} className={input} value={fields.name} onChange={set('name')} autoComplete="off" />
-          </div>
-          <div>
-            <label className={label} htmlFor="pf-price">Precio de venta * ($)</label>
-            <input id="pf-price" name="price" ref={priceRef} className={input} value={fields.price} onChange={set('price')} inputMode="decimal" autoComplete="off" />
-          </div>
-          <div>
-            <label className={label} htmlFor="pf-cost">Costo ($)</label>
-            <input id="pf-cost" name="cost" className={input} value={fields.cost} onChange={set('cost')} inputMode="decimal" autoComplete="off" />
-          </div>
-          <div>
-            <label className={label} htmlFor="pf-category">Categoría</label>
-            <input id="pf-category" name="category" className={input} value={fields.category} onChange={set('category')} list="pf-categories" autoComplete="off" />
-            <datalist id="pf-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
-          </div>
-          <div>
-            <label className={label} htmlFor="pf-supplier">Proveedor</label>
-            <input id="pf-supplier" name="supplier" className={input} value={fields.supplier} onChange={set('supplier')} list="pf-suppliers" autoComplete="off" />
-            <datalist id="pf-suppliers">{suppliers.map((s) => <option key={s} value={s} />)}</datalist>
-          </div>
-          <div>
-            <label className={label} htmlFor="pf-qty">Cantidad inicial</label>
-            <input id="pf-qty" name="quantity" className={input} value={fields.quantity} onChange={set('quantity')} inputMode="numeric" autoComplete="off" />
-          </div>
-          <div className="md:col-span-2">
-            <label className={label} htmlFor="pf-description">Descripción</label>
-            <textarea
-              id="pf-description"
-              name="description"
-              rows={3}
-              className={`${input} text-base`}
-              value={fields.description}
-              onChange={set('description')}
-            />
-          </div>
-          <div>
-            <span className={label}>Imagen (opcional)</span>
-            <div className="flex flex-wrap gap-2">
-              <label className="cursor-pointer rounded-lg bg-slate-700 px-4 py-2 text-lg font-bold text-white hover:bg-slate-800">
-                Subir archivo
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    if (f) void setImageFrom(f)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-              <button type="button" onClick={() => setCamera(true)} className="rounded-lg bg-slate-700 px-4 py-2 text-lg font-bold text-white hover:bg-slate-800">
-                Usar cámara
-              </button>
-              {image && (
-                <button type="button" onClick={() => {
-                  setImage(null)
-                  setImageSource(null)
-                }} className="rounded-lg bg-red-100 px-4 py-2 text-lg font-bold text-red-800 hover:bg-red-200">
-                  Quitar
-                </button>
-              )}
-            </div>
-          </div>
+        <div className="flex justify-end gap-3 border-t border-line bg-subtle px-6 py-4">
+          <button type="submit" disabled={saving || imageLoading} className="btn btn-primary btn-lg w-full sm:w-auto">
+            <Icon name="check" size={20} />
+            {saving ? 'Guardando…' : 'Guardar producto (Enter)'}
+          </button>
         </div>
-
-        {camera && (
-          <div className="mt-4">
-            <WebcamCapture onCapture={(b) => void setImageFrom(b)} onClose={() => setCamera(false)} />
-          </div>
-        )}
-        {imageLoading && <p className="mt-4 text-lg text-slate-600">Descargando foto del catálogo…</p>}
-        {preview && <img src={preview} alt="Vista previa" className="mt-4 max-h-48 rounded-lg border-2 border-slate-300" />}
-
-        {error && <p className="mt-4 rounded-lg bg-red-100 p-3 text-lg font-bold text-red-800">{error}</p>}
-
-        <button
-          type="submit"
-          disabled={saving || imageLoading}
-          className="mt-6 w-full rounded-xl bg-blue-700 py-4 text-2xl font-black text-white hover:bg-blue-800 disabled:opacity-50"
-        >
-          {saving ? 'Guardando…' : 'Guardar producto (Enter)'}
-        </button>
       </form>
     </div>
   )

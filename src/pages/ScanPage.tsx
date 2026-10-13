@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ProductFormModal } from '../components/ProductFormModal'
+import { Icon } from '../components/Icon'
 import { ProductImage } from '../components/ProductImage'
 import { useKeepFocus } from '../components/useKeepFocus'
 import { isInternalCode, normalizeBarcode } from '../lib/barcode'
@@ -16,13 +17,14 @@ type Feedback =
   | { kind: 'error'; title: string; detail?: string }
   | { kind: 'idle' }
 
+// Cada resultado usa su estado del sistema: fondo -bg, texto -fg y borde -solid.
 const STYLES: Record<Feedback['kind'], string> = {
-  idle: 'bg-white border-slate-300 text-slate-500',
-  success: 'bg-emerald-600 border-emerald-800 text-white',
-  pending: 'bg-amber-400 border-amber-600 text-slate-950',
-  created: 'bg-blue-700 border-blue-900 text-white',
-  undo: 'bg-violet-700 border-violet-900 text-white',
-  error: 'bg-red-600 border-red-800 text-white',
+  idle: 'border-dashed border-control bg-surface text-ink-muted',
+  success: 'border-success-solid bg-success-bg text-success-fg',
+  pending: 'border-warning-solid bg-warning-bg text-warning-fg',
+  created: 'border-info-solid bg-info-bg text-info-fg',
+  undo: 'border-brand bg-brand-soft text-brand-ink',
+  error: 'border-danger-solid bg-danger-bg text-danger-fg',
 }
 
 function loadPref(key: string, fallback: string) {
@@ -195,189 +197,218 @@ export function ScanPage() {
     }
   }
 
-  const bigBtn = 'rounded-xl px-5 py-4 text-xl font-black shadow-sm disabled:opacity-40'
+  const openLabel = (barcode: string) => window.open(`/etiqueta/${encodeURIComponent(barcode)}?print=1`, '_blank')
 
   return (
-    <div className="grid h-full gap-5 p-5 lg:grid-cols-[1fr_380px]">
-      <section className="flex min-w-0 flex-col gap-5">
-        {/* Escaneo */}
-        <form onSubmit={(e) => e.preventDefault()} className="rounded-2xl bg-white p-5 shadow">
-          <label htmlFor="scan" className="mb-2 block text-xl font-bold text-slate-700">
-            Escanea o escribe el código y presiona Enter
-          </label>
-          <input
-            id="scan"
-            ref={scanRef}
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={onScanKeyDown}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            className="w-full rounded-xl border-4 border-slate-900 px-5 py-4 font-mono text-4xl tracking-wider focus:border-blue-600 focus:outline-none focus:ring-8 focus:ring-blue-200"
-            placeholder="Código de barras…"
-          />
-          <div className="mt-4 flex flex-wrap items-end gap-4">
-            <div data-keep-focus>
-              <label htmlFor="qty" className="mb-1 block text-base font-bold text-slate-700">
-                {mode === 'add' ? 'Cantidad por escaneo' : 'Total a fijar'}
-              </label>
-              <input
-                id="qty"
-                ref={qtyRef}
-                value={qtyText}
-                onChange={(e) => updateQty(e.target.value)}
-                onKeyDown={onQtyKeyDown}
-                onFocus={(e) => {
-                  qtyOnFocus.current = qtyText
-                  e.target.select()
-                }}
-                onBlur={() => !qtyValid && setQtyText(qtyOnFocus.current)}
-                inputMode="numeric"
-                autoComplete="off"
-                className={`w-36 rounded-xl border-4 px-4 py-2 text-center text-3xl font-black focus:outline-none ${qtyValid ? 'border-slate-400 focus:border-blue-600' : 'border-red-600 bg-red-50'}`}
-              />
-            </div>
-            <div className="flex overflow-hidden rounded-xl border-4 border-slate-900" role="group" aria-label="Modo">
-              <button
-                type="button"
-                onClick={() => setMode('add')}
-                className={`px-6 py-3 text-xl font-black ${mode === 'add' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-              >
-                Sumar
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('set')}
-                className={`px-6 py-3 text-xl font-black ${mode === 'set' ? 'bg-orange-600 text-white' : 'bg-white text-slate-900'}`}
-              >
-                Fijar total
-              </button>
-            </div>
-            {mode === 'set' && (
-              <p className="rounded-lg bg-orange-100 px-3 py-2 text-lg font-bold text-orange-900">
-                Modo FIJAR TOTAL: cada escaneo deja la cantidad en {qtyValid ? formatInt(quantity) : '…'}
-              </p>
-            )}
-          </div>
-        </form>
+    <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
+      {/* Título y acciones de página */}
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="mr-auto text-title">Escaneo</h1>
+        <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
+          <Icon name="download" />
+          Exportar CSV
+        </button>
+        <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary">
+          <Icon name="download" />
+          {exporting ? 'Exportando…' : 'Exportar Excel'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setFeedback({ kind: 'idle' })
+            setModal({ barcode: null, defaultQuantity: qtyValid && quantity > 0 ? quantity : 1 })
+          }}
+          disabled={!online}
+          title={online ? undefined : 'Se necesita conexión para generar un código interno'}
+          className="btn btn-primary"
+        >
+          <Icon name="plus" />
+          Producto sin código
+        </button>
+      </div>
+      {!online && (
+        <p className="-mt-2 text-right text-caption text-ink-subtle">
+          Sin conexión: exportar y dar de alta productos sin código necesitan internet.
+        </p>
+      )}
 
-        {/* Confirmación grande */}
-        <div className={`flex min-h-64 flex-1 items-center gap-6 rounded-2xl border-4 p-6 ${STYLES[feedback.kind]}`} aria-live="polite">
-          {feedback.kind === 'idle' && <p className="w-full text-center text-3xl font-bold">Listo para escanear</p>}
-          {feedback.kind === 'error' && (
-            <div>
-              <p className="text-4xl font-black">✕ {feedback.title}</p>
-              {feedback.detail && <p className="mt-2 text-2xl">{feedback.detail}</p>}
-            </div>
-          )}
-          {(feedback.kind === 'success' || feedback.kind === 'pending' || feedback.kind === 'created' || feedback.kind === 'undo') && (
-            <>
-              <ProductImage path={feedback.product.image_url} alt={feedback.product.name} className="h-48 w-48 shrink-0 rounded-xl" />
-              <div className="min-w-0 flex-1">
-                <p className="text-2xl font-bold uppercase opacity-90">{feedback.title}</p>
-                <p className="truncate text-5xl font-black" title={feedback.product.name}>{feedback.product.name}</p>
-                <p className="mt-1 font-mono text-2xl opacity-90">{feedback.product.barcode}</p>
-                <div className="mt-3 flex items-baseline gap-6">
-                  <span className="text-7xl font-black">{formatInt(feedback.quantityAfter)}</span>
-                  <span className="text-3xl font-bold opacity-90">pzas · {feedback.detail}</span>
-                </div>
-                {feedback.note && <p className="mt-2 text-xl font-semibold">{feedback.note}</p>}
-                {feedback.kind === 'created' && isInternalCode(feedback.product.barcode) && (
-                  <button
-                    type="button"
-                    onClick={() => window.open(`/etiqueta/${encodeURIComponent(feedback.product.barcode)}?print=1`, '_blank')}
-                    className="mt-4 rounded-xl bg-white px-6 py-3 text-2xl font-black text-blue-800 hover:bg-blue-50"
-                  >
-                    🖨 Imprimir etiqueta
-                  </button>
-                )}
+      <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_360px]">
+        <section className="flex min-w-0 flex-col gap-4">
+          {/* Escaneo */}
+          <form onSubmit={(e) => e.preventDefault()} className="card p-5">
+            <label htmlFor="scan" className="mb-2 flex items-center gap-2 text-heading">
+              <Icon name="barcode" size={20} className="text-brand" />
+              Escanea o escribe el código y presiona Enter
+            </label>
+            <input
+              id="scan"
+              ref={scanRef}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={onScanKeyDown}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="h-16 w-full rounded-md border-2 border-control bg-surface px-4 font-mono text-3xl tracking-wider text-ink focus:border-brand"
+              placeholder="Código de barras…"
+            />
+            <div className="mt-4 flex flex-wrap items-end gap-4">
+              <div data-keep-focus>
+                <label htmlFor="qty" className="field-label">
+                  {mode === 'add' ? 'Cantidad por escaneo' : 'Total a fijar'}
+                </label>
+                <input
+                  id="qty"
+                  ref={qtyRef}
+                  value={qtyText}
+                  onChange={(e) => updateQty(e.target.value)}
+                  onKeyDown={onQtyKeyDown}
+                  onFocus={(e) => {
+                    qtyOnFocus.current = qtyText
+                    e.target.select()
+                  }}
+                  onBlur={() => !qtyValid && setQtyText(qtyOnFocus.current)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  aria-invalid={!qtyValid}
+                  className={`h-11 w-28 rounded-md border bg-surface px-3 text-center text-title tabular-nums ${qtyValid ? 'border-control text-ink' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
+                />
               </div>
-            </>
-          )}
-        </div>
+              <div className="flex h-11 gap-0.5 rounded-md border border-control bg-surface p-0.5" role="group" aria-label="Modo">
+                {(
+                  [
+                    ['add', 'Sumar'],
+                    ['set', 'Fijar total'],
+                  ] as const
+                ).map(([m, text]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    aria-pressed={mode === m}
+                    onClick={() => setMode(m)}
+                    className={`cursor-pointer rounded-[6px] px-4 text-heading ${mode === m ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
+              {mode === 'set' && (
+                <p className="notice bg-warning-bg text-warning-fg">
+                  <Icon name="alert" className="mt-0.5" />
+                  <span>
+                    <strong className="font-semibold">Modo fijar total:</strong> cada escaneo deja la cantidad en{' '}
+                    {qtyValid ? formatInt(quantity) : '…'}.
+                  </span>
+                </p>
+              )}
+            </div>
+          </form>
 
-        {/* Acciones */}
-        <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={() => void undo()} className={`${bigBtn} bg-violet-700 text-white hover:bg-violet-800`}>
-            ↶ Deshacer último escaneo
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFeedback({ kind: 'idle' })
-              setModal({ barcode: null, defaultQuantity: qtyValid && quantity > 0 ? quantity : 1 })
-            }}
-            disabled={!online}
-            title={online ? undefined : 'Se necesita conexión para generar un código interno'}
-            className={`${bigBtn} bg-blue-700 text-white hover:bg-blue-800`}
-          >
-            + Producto sin código
-          </button>
-          <div className="ml-auto flex gap-3">
-            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className={`${bigBtn} bg-white text-slate-900 ring-4 ring-slate-900 hover:bg-slate-50`}>
-              Exportar CSV
-            </button>
-            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className={`${bigBtn} bg-emerald-700 text-white hover:bg-emerald-800`}>
-              {exporting ? 'Exportando…' : 'Exportar Excel'}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Lateral: contadores y últimos escaneos */}
-      <aside className="flex min-h-0 flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl bg-slate-900 p-4 text-white">
-            <p className="text-base font-bold uppercase text-slate-300">Productos distintos</p>
-            <p className="text-5xl font-black">{formatInt(totals.products)}</p>
-          </div>
-          <div className="rounded-2xl bg-slate-900 p-4 text-white">
-            <p className="text-base font-bold uppercase text-slate-300">Piezas totales</p>
-            <p className="text-5xl font-black">{formatInt(totals.pieces)}</p>
-          </div>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-white p-4 shadow">
-          <h2 className="mb-3 text-xl font-black">Últimos escaneos de esta sesión</h2>
-          {recent.length === 0 && <p className="text-lg text-slate-500">Aún no hay escaneos.</p>}
-          <ul className="min-h-0 flex-1 space-y-2 overflow-auto">
-            {recent.map((r) => (
-              <li
-                key={r.key}
-                className={`flex items-center gap-3 rounded-xl border-2 p-2 ${r.undone ? 'border-slate-200 opacity-50' : r.error ? 'border-red-400 bg-red-50' : r.pending ? 'border-amber-400 bg-amber-50' : 'border-slate-200'}`}
-              >
-                <ProductImage path={r.imagePath} alt={r.name} className="h-12 w-12 shrink-0 rounded-lg" />
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-lg font-bold ${r.undone ? 'line-through' : ''}`}>{r.name}</p>
-                  <p className="truncate font-mono text-sm text-slate-600">
-                    {r.barcode} · {new Date(r.at).toLocaleTimeString('es-MX')}
-                  </p>
-                  {r.pending && !r.undone && <p className="text-sm font-bold text-amber-700">Pendiente de sincronizar</p>}
-                  {r.error && <p className="text-sm font-bold text-red-700">Error: {r.error}</p>}
-                  {r.undone && r.movementId && <p className="text-sm font-bold text-slate-600">Deshecho</p>}
+          {/* Confirmación grande, legible a distancia */}
+          <div className={`flex min-h-64 flex-1 items-center gap-6 rounded-lg border-2 p-6 ${STYLES[feedback.kind]}`} aria-live="polite">
+            {feedback.kind === 'idle' && (
+              <div className="flex w-full flex-col items-center gap-3 text-center">
+                <Icon name="barcode" size={40} className="text-ink-subtle" />
+                <p className="text-title-lg text-ink-muted">Listo para escanear</p>
+              </div>
+            )}
+            {feedback.kind === 'error' && (
+              <div className="flex items-start gap-4">
+                <Icon name="x" size={40} className="mt-1" />
+                <div>
+                  <p className="text-4xl font-semibold tracking-tight">{feedback.title}</p>
+                  {feedback.detail && <p className="mt-2 text-xl">{feedback.detail}</p>}
                 </div>
-                <div className="text-right">
-                  <p className="text-xl font-black">
-                    {r.kind === 'create' ? 'Alta' : r.mode === 'set' ? '=' : '+'}
-                    {r.kind === 'create' || r.mode === 'add' ? formatInt(r.amount) : formatInt(r.quantityAfter)}
+              </div>
+            )}
+            {(feedback.kind === 'success' || feedback.kind === 'pending' || feedback.kind === 'created' || feedback.kind === 'undo') && (
+              <>
+                <ProductImage path={feedback.product.image_url} alt={feedback.product.name} className="size-44 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 text-heading">
+                    <Icon name={feedback.kind === 'undo' ? 'undo' : feedback.kind === 'pending' ? 'wifi-off' : 'check'} size={20} />
+                    {feedback.title}
                   </p>
-                  <p className="text-sm text-slate-600">total {formatInt(r.quantityAfter)}</p>
-                  {isInternalCode(r.barcode) && !r.undone && (
-                    <button
-                      type="button"
-                      onClick={() => window.open(`/etiqueta/${encodeURIComponent(r.barcode)}?print=1`, '_blank')}
-                      className="mt-1 rounded bg-slate-200 px-2 py-0.5 text-sm font-bold hover:bg-slate-300"
-                    >
-                      Etiqueta
+                  <p className="mt-1 truncate text-5xl font-semibold tracking-tight text-ink" title={feedback.product.name}>
+                    {feedback.product.name}
+                  </p>
+                  <p className="mt-1 font-mono text-xl">{feedback.product.barcode}</p>
+                  <div className="mt-3 flex items-baseline gap-4 text-ink">
+                    <span className="text-7xl font-semibold tracking-tight tabular-nums">{formatInt(feedback.quantityAfter)}</span>
+                    <span className="text-2xl font-medium">pzas · {feedback.detail}</span>
+                  </div>
+                  {feedback.note && <p className="mt-2 text-lg font-medium">{feedback.note}</p>}
+                  {feedback.kind === 'created' && isInternalCode(feedback.product.barcode) && (
+                    <button type="button" onClick={() => openLabel(feedback.product.barcode)} className="btn btn-secondary btn-lg mt-4">
+                      <Icon name="printer" size={20} />
+                      Imprimir etiqueta
                     </button>
                   )}
                 </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </aside>
+              </>
+            )}
+          </div>
+
+          <div>
+            <button type="button" onClick={() => void undo()} className="btn btn-secondary btn-lg">
+              <Icon name="undo" size={20} />
+              Deshacer último escaneo
+            </button>
+          </div>
+        </section>
+
+        {/* Lateral: contadores y últimos escaneos */}
+        <aside className="flex min-h-0 flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="card p-5">
+              <p className="text-label text-ink-muted">Productos distintos</p>
+              <p className="mt-1 text-kpi tabular-nums">{formatInt(totals.products)}</p>
+            </div>
+            <div className="card p-5">
+              <p className="text-label text-ink-muted">Piezas totales</p>
+              <p className="mt-1 text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
+            </div>
+          </div>
+          <div className="card flex min-h-80 flex-1 flex-col overflow-hidden lg:min-h-0">
+            <h2 className="border-b border-line px-5 py-4 text-heading">Últimos escaneos de esta sesión</h2>
+            {recent.length === 0 && <p className="px-5 py-10 text-center text-ink-subtle">Aún no hay escaneos.</p>}
+            <ul className="min-h-0 flex-1 divide-y divide-line overflow-auto">
+              {recent.map((r) => (
+                <li key={r.key} className={`flex items-center gap-3 px-4 py-3 ${r.undone ? 'opacity-60' : ''}`}>
+                  <ProductImage path={r.imagePath} alt={r.name} className="size-10 shrink-0 rounded-xs" />
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate font-medium ${r.undone ? 'line-through' : ''}`}>{r.name}</p>
+                    <p className="truncate font-mono text-caption text-ink-muted">
+                      {r.barcode} · {new Date(r.at).toLocaleTimeString('es-MX')}
+                    </p>
+                    {(r.pending || r.error || (r.undone && r.movementId)) && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {r.pending && !r.undone && <span className="badge badge-warning px-2 py-0.5 text-caption">Pendiente de sincronizar</span>}
+                        {r.undone && r.movementId && <span className="badge badge-neutral px-2 py-0.5 text-caption">Deshecho</span>}
+                      </div>
+                    )}
+                    {r.error && <p className="mt-1 text-caption text-danger-fg">Error: {r.error}</p>}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-heading tabular-nums">
+                      {r.kind === 'create' ? 'Alta ' : r.mode === 'set' ? '= ' : '+'}
+                      {r.kind === 'create' || r.mode === 'add' ? formatInt(r.amount) : formatInt(r.quantityAfter)}
+                    </p>
+                    <p className="text-caption text-ink-muted tabular-nums">total {formatInt(r.quantityAfter)}</p>
+                    {isInternalCode(r.barcode) && !r.undone && (
+                      <button type="button" onClick={() => openLabel(r.barcode)} className="btn btn-ghost btn-sm mt-1 -mr-2">
+                        <Icon name="printer" />
+                        Etiqueta
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+      </div>
 
       {modal && (
         <ProductFormModal

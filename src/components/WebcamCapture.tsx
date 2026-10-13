@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Icon } from './Icon'
 
 interface Props {
   onCapture: (blob: Blob) => void
@@ -57,26 +58,21 @@ export function WebcamCapture({ onCapture, onClose }: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border-2 border-slate-300 bg-slate-900 p-3">
+    <div className="space-y-3 rounded-lg border border-line bg-subtle p-3">
       {error ? (
-        <p className="p-4 text-lg font-semibold text-red-300">{error}</p>
+        <p className="notice bg-danger-bg text-danger-fg">
+          <Icon name="alert" className="mt-0.5" />
+          {error}
+        </p>
       ) : (
-        <video ref={videoRef} className="mx-auto max-h-72 rounded-lg" muted playsInline />
+        <video ref={videoRef} className="mx-auto max-h-72 rounded-md bg-black" muted playsInline />
       )}
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={capture}
-          disabled={!ready}
-          className="flex-1 rounded-lg bg-emerald-600 px-4 py-3 text-lg font-bold text-white hover:bg-emerald-700 disabled:opacity-40"
-        >
+      <div className="flex gap-2">
+        <button type="button" onClick={capture} disabled={!ready} className="btn btn-primary flex-1">
+          <Icon name="camera" />
           Tomar foto
         </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg bg-slate-600 px-4 py-3 text-lg font-bold text-white hover:bg-slate-700"
-        >
+        <button type="button" onClick={onClose} className="btn btn-secondary">
           Cerrar cámara
         </button>
       </div>
