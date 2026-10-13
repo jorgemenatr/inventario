@@ -37,8 +37,8 @@ laptop). Así escaneas los códigos reales de los productos con la cámara del c
 - [ ] Con contraseña incorrecta aparece "Correo o contraseña incorrectos." y el foco queda
       en la contraseña.
 - [ ] Con la laptop sin internet, intenta iniciar sesión: aparece "Sin conexión a internet…".
-- [ ] Login correcto: llegas a Escaneo y el cursor ya está en el campo de escaneo (puedes
-      escanear sin hacer clic).
+- [ ] Login correcto: llegas al Mostrador. En Inventario → Agregar, el cursor ya está en el
+      campo de escaneo (puedes escanear sin hacer clic).
 - [ ] El encabezado muestra tu correo y el botón "Cerrar sesión".
 - [ ] Cierra la pestaña y vuelve a abrir la URL: sigues dentro sin volver a iniciar sesión.
 - [ ] "Cerrar sesión" te lleva al login con el cursor en la contraseña (el correo queda recordado).

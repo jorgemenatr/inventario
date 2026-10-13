@@ -33,7 +33,9 @@ export function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<ScanPage />} />
+            {/* La app abre en el Mostrador. */}
+            <Route index element={<Navigate to="/mostrador" replace />} />
+            <Route path="agregar" element={<ScanPage />} />
             <Route path="inventario" element={<InventoryPage />} />
             <Route path="mostrador" element={<MostradorPage />} />
             <Route path="ventas" element={<VentasPage />} />

@@ -253,7 +253,7 @@ velocidad de lector en el campo con foco y manda Enter. Se apaga con `?simulador
 
 El menú lateral queda: **Mostrador · Ventas · Clientes · Inventario**. Al entrar a Inventario
 aparecen sus subsecciones: **Agregar** (la pantalla de escaneo para dar de alta y contar
-productos, en `/`) e **Historial**.
+productos, en `/agregar`) e **Historial**. Al iniciar sesión la app abre en el **Mostrador**.
 
 ## Inventario
 

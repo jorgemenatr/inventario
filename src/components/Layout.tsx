@@ -24,8 +24,8 @@ const NAV: NavItem[] = [
     label: 'Inventario',
     icon: 'grid',
     children: [
-      // Escaneo (alta y conteo de productos) vive en "/".
-      { to: '/', label: 'Agregar', icon: 'barcode', end: true },
+      // Escaneo: alta y conteo de productos con el lector.
+      { to: '/agregar', label: 'Agregar', icon: 'barcode' },
       { to: '/historial', label: 'Historial', icon: 'history' },
     ],
   },
