@@ -247,6 +247,18 @@ velocidad de lector en el campo con foco y manda Enter. Se apaga con `?simulador
 
 ---
 
+## Inventario
+
+En **Inventario** (`/inventario`) se consultan los productos dados de alta:
+
+- **Cuadrícula** (foto, nombre, precio y stock) o **Lista** (tabla con código, categoría,
+  proveedor, stock y precio, ordenable con clic en el encabezado). La app recuerda la
+  última vista elegida.
+- Buscador (nombre, código, categoría o proveedor), filtro por categoría y por existencias.
+- Arriba, el total de productos, piezas y valor a precio de venta de lo que está filtrado.
+- Usa la misma copia local que Escaneo, así que también funciona sin conexión. Las fotos sí
+  necesitan internet.
+
 ## Clientes
 
 En **Clientes** (`/clientes`) se da de alta y se consulta a los clientes de la tienda:
@@ -352,7 +364,7 @@ src/
   lib/supabase.ts        Cliente único de Supabase + detección de errores de red/sesión
   auth/                  AuthProvider, useAuth, ProtectedRoute (listo para roles)
   store/                 Store de inventario: caché, cola offline, deshacer, sincronización
-  pages/                 Login, Escaneo, Clientes, Historial, Etiqueta
+  pages/                 Login, Escaneo, Inventario, Clientes, Historial, Etiqueta
   components/            Layout, formulario de producto, buscador del catálogo, webcam, imagen, foco
   lib/                   Exportación, imágenes, sonidos, normalización de códigos
 netlify.toml             Build + redirección SPA
