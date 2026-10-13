@@ -1,7 +1,7 @@
 import { isAuthError, isNetworkError, probeConnection, supabase } from '../lib/supabase'
 import { normalizeBarcode } from '../lib/barcode'
 import { uploadProductImage } from '../lib/images'
-import type { CreateRpcResult, MovementResult, Product, ScanMode, ScanRpcResult } from '../lib/types'
+import type { CreateRpcResult, MovementResult, PaymentMethod, PayTicketResult, Product, ScanMode, ScanRpcResult } from '../lib/types'
 
 /*
  * Estado de inventario del lado del cliente:
@@ -43,10 +43,23 @@ export interface CreateInput {
   catalogProductId?: number | null
 }
 
-type QueueItem =
+/** Venta cobrada en el mostrador (se envía con pay_ticket). */
+export interface SaleInput {
+  /** Id del ticket: lo genera el mostrador y evita cobrar dos veces. */
+  ticketId: string
+  name: string
+  customerId: string | null
+  customerName: string | null
+  paymentMethod: PaymentMethod
+  openedAt: string
+  items: { barcode: string; name: string; quantity: number; unitPrice: number }[]
+}
+
+export type QueueItem =
   | { kind: 'scan'; opId: string; createdAt: string; barcode: string; mode: ScanMode; quantity: number }
   | { kind: 'create'; opId: string; createdAt: string; input: CreateInput; imagePath: string | null }
   | { kind: 'undo'; opId: string; createdAt: string; movementId: string; barcode: string }
+  | { kind: 'sale'; opId: string; createdAt: string; sale: SaleInput }
 
 export interface RecentEntry {
   /** = client_op_id de la operación */
@@ -98,6 +111,10 @@ export type CreateOutcome =
       existed: boolean
       imageSkipped: boolean
     }
+  | { type: 'error'; message: string }
+
+export type SaleOutcome =
+  | { type: 'ok'; pending: boolean; total: number }
   | { type: 'error'; message: string }
 
 export type UndoOutcome =
@@ -153,8 +170,10 @@ function errorMessage(e: unknown) {
   return m ?? String(e)
 }
 
-function queueBarcode(q: QueueItem): string | null {
-  return q.kind === 'create' ? q.input.barcode : q.barcode
+function queueBarcodes(q: QueueItem): string[] {
+  if (q.kind === 'sale') return q.sale.items.map((i) => i.barcode)
+  const b = q.kind === 'create' ? q.input.barcode : q.barcode
+  return b ? [b] : []
 }
 
 function rpcError(error: unknown): never {
@@ -283,7 +302,7 @@ class InventoryStore {
    */
   private putServerProduct(product: CachedProduct, opId: string, removeBarcode?: string) {
     const keys = new Set([product.barcode, removeBarcode].filter(Boolean))
-    const othersQueued = this.state.queue.some((q) => q.opId !== opId && keys.has(queueBarcode(q) ?? ''))
+    const othersQueued = this.state.queue.some((q) => q.opId !== opId && queueBarcodes(q).some((b) => keys.has(b)))
     const local = this.state.products[removeBarcode ?? product.barcode]
     this.putProduct(othersQueued && local ? { ...product, quantity: local.quantity } : product, removeBarcode)
   }
@@ -592,6 +611,68 @@ class InventoryStore {
     })
   }
 
+  // ---------- venta (mostrador) ----------
+  /**
+   * Cobra un ticket. En línea, pay_ticket valida stock y registra todo en una
+   * transacción. Sin red, la venta se encola (con el id del ticket, así un
+   * reintento no la duplica) y el stock local se descuenta de inmediato.
+   */
+  paySale(sale: SaleInput): Promise<SaleOutcome> {
+    return this.run(async () => {
+      if (sale.items.length === 0) return { type: 'error', message: 'El ticket no tiene productos' }
+      const total = sale.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0)
+
+      // Revisión local de stock (la definitiva la hace el servidor en línea).
+      for (const item of sale.items) {
+        const p = this.state.products[item.barcode]
+        if (!p) return { type: 'error', message: `El producto ${item.name} ya no está en el inventario` }
+        if (item.quantity > p.quantity) {
+          return { type: 'error', message: `Stock insuficiente: ${item.name} (pide ${item.quantity}, hay ${p.quantity})` }
+        }
+      }
+
+      if (await this.flushBeforeOnline()) {
+        try {
+          await this.callPayTicket(sale, false)
+          return { type: 'ok', pending: false, total }
+        } catch (e) {
+          if (e instanceof PermanentError || (!isNetworkError(e) && !isAuthError(e))) {
+            return { type: 'error', message: errorMessage(e) }
+          }
+          if (isNetworkError(e)) this.markOffline()
+          // Se encola con el mismo id de ticket: si sí llegó al servidor, no se duplica.
+        }
+      }
+
+      this.enqueue({ kind: 'sale', opId: sale.ticketId, createdAt: new Date().toISOString(), sale })
+      const products = { ...this.state.products }
+      for (const item of sale.items) {
+        const p = products[item.barcode]
+        if (p) products[item.barcode] = { ...p, quantity: p.quantity - item.quantity }
+      }
+      this.set({ products })
+      return { type: 'ok', pending: true, total }
+    })
+  }
+
+  private async callPayTicket(sale: SaleInput, offline: boolean) {
+    const { data, error } = await supabase.rpc('pay_ticket', {
+      p_ticket_id: sale.ticketId,
+      p_name: sale.name,
+      p_payment_method: sale.paymentMethod,
+      p_items: sale.items.map((i) => ({ barcode: i.barcode, quantity: i.quantity, unit_price: i.unitPrice })),
+      p_customer_id: sale.customerId,
+      p_opened_at: sale.openedAt,
+      p_offline: offline,
+    })
+    if (error) {
+      if (!isNetworkError(error) && !isAuthError(error)) throw new PermanentError(error.message)
+      throw error
+    }
+    this.markOnline()
+    for (const p of (data as PayTicketResult).products) this.putServerProduct(toCached(p), sale.ticketId)
+  }
+
   // ---------- deshacer ----------
   undoLast(): Promise<UndoOutcome> {
     return this.run(async () => {
@@ -734,6 +815,11 @@ class InventoryStore {
     }
     if (item.kind === 'create') {
       await this.callCreate(item.input, item.imagePath, item.opId)
+      return
+    }
+    if (item.kind === 'sale') {
+      // El dinero ya se cobró: el servidor la registra aunque el stock no alcance (y lo anota).
+      await this.callPayTicket(item.sale, true)
       return
     }
     const { data, error } = await supabase.rpc('undo_movement', {

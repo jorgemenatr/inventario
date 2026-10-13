@@ -41,6 +41,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261012000500_catalogo_tcg.sql` | Tabla `catalog_products`, vínculo en `products`, RPC `search_catalog` y `catalog_status` |
 | `20261013000100_catalogo_busqueda_accesorios.sql` | Búsqueda con palabras en español (micas, tapete, carpeta, colores…) |
 | `20261013000200_clientes.sql` | Tabla `customers` (clientes) y sus permisos |
+| `20261013000300_ventas.sql` | Tablas `tickets` y `ticket_items`, RPC `pay_ticket` y vista `sales_history` |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -261,6 +262,49 @@ En **Clientes** (`/clientes`) se da de alta y se consulta a los clientes de la t
 - Los clientes no se borran desde la app (solo desde el dashboard de Supabase), porque
   después tendrán ventas ligadas.
 
+## Mostrador y ventas
+
+### Mostrador (`/mostrador`)
+
+1. **Abre un ticket** con un nombre ("Mesa 3", "Torneo", el nombre del cliente…). Puede
+   haber varios abiertos a la vez; se cambia entre ellos en la columna izquierda.
+2. **Asigna un cliente** (opcional): búscalo por nombre o teléfono, o dalo de alta ahí mismo
+   con "Nuevo cliente".
+3. **Agrega productos** con el lector (código + Enter) o escribiendo parte del nombre y
+   eligiendo con flechas + Enter. La cantidad se cambia con − / + o escribiéndola.
+4. Elige la **forma de pago** (efectivo, tarjeta, créditos o transferencia). En efectivo, si
+   escribes lo recibido, calcula el cambio.
+5. **Pagar** registra la venta, descuenta el inventario y crea un movimiento "Venta" por
+   producto (se ve en Historial). El ticket se cierra.
+
+Reglas:
+
+- **No se vende sin stock.** Lo que está en un ticket abierto queda **apartado**: si hay 3
+  piezas y un ticket tiene 2, otro ticket solo puede llevar 1. Al pagar, el servidor
+  vuelve a revisar el stock.
+- Los tickets abiertos **viven en la computadora del mostrador** (hay un solo POS): no se
+  pierden al recargar ni sin internet, pero no se ven desde otra computadora.
+- Un ticket solo se puede eliminar si está vacío. Por ahora no hay cancelaciones ni
+  descuentos, y no se desglosa IVA.
+
+### Sin conexión
+
+El mostrador funciona sin internet: se pueden abrir tickets, agregar productos (con el stock
+de la copia local), asignar clientes ya descargados y cobrar. La venta se guarda en la cola
+("Sin conexión: N pendientes") y se registra sola al volver la red, con el mismo id de
+ticket, así que un reintento nunca la cobra dos veces. Como ya se cobró, el servidor la
+acepta aunque el stock no alcance y lo anota en la venta. Dar de alta clientes sí necesita
+conexión.
+
+### Ventas (`/ventas`)
+
+Historial de ventas cobradas con fecha, ticket, cliente, artículos, forma de pago y total.
+Se filtra por fechas (por defecto, hoy) y forma de pago, con el total de ventas y la suma
+por forma de pago. Al hacer clic en una venta se ven sus productos y quién cobró. Las
+ventas que siguen en la cola sin conexión aparecen arriba como pendientes.
+
+En el detalle de cada cliente, **Compras previas** muestra sus ventas con el total gastado.
+
 ## Decisiones de diseño
 
 ### Modelo de datos
@@ -352,7 +396,7 @@ src/
   lib/supabase.ts        Cliente único de Supabase + detección de errores de red/sesión
   auth/                  AuthProvider, useAuth, ProtectedRoute (listo para roles)
   store/                 Store de inventario: caché, cola offline, deshacer, sincronización
-  pages/                 Login, Escaneo, Clientes, Historial, Etiqueta
+  pages/                 Login, Escaneo, Mostrador, Ventas, Clientes, Historial, Etiqueta
   components/            Layout, formulario de producto, buscador del catálogo, webcam, imagen, foco
   lib/                   Exportación, imágenes, sonidos, normalización de códigos
 netlify.toml             Build + redirección SPA

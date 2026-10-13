@@ -4,10 +4,23 @@ import { formatDateTime, formatInt } from '../lib/format'
 import { isNetworkError, supabase } from '../lib/supabase'
 import { Icon } from '../components/Icon'
 import { MOVEMENT_LABELS, type MovementHistoryRow } from '../lib/types'
-import { inventoryStore } from '../store/inventoryStore'
+import { inventoryStore, type QueueItem } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
 const PAGE = 100
+
+function describeQueueItem(item: QueueItem) {
+  switch (item.kind) {
+    case 'create':
+      return `Alta: ${item.input.name} (${item.input.barcode ?? 'HCH-'})`
+    case 'scan':
+      return `Escaneo ${item.barcode} (${item.mode === 'add' ? '+' : '='}${item.quantity})`
+    case 'sale':
+      return `Venta: ${item.sale.name} (${item.sale.items.reduce((n, i) => n + i.quantity, 0)} pzas)`
+    default:
+      return `Deshacer ${item.barcode}`
+  }
+}
 
 export function HistoryPage() {
   const { queue, failed, online } = useInventory()
@@ -96,7 +109,7 @@ export function HistoryPage() {
                     <span className="badge badge-danger">Rechazada</span>
                     <div className="min-w-0 flex-1">
                       <p className="font-mono text-ink">
-                        {f.item.kind === 'create' ? `Alta: ${f.item.input.name} (${f.item.input.barcode ?? 'HCH-'})` : f.item.kind === 'scan' ? `Escaneo ${f.item.barcode} (${f.item.mode === 'add' ? '+' : '='}${f.item.quantity})` : `Deshacer ${f.item.barcode}`}
+                        {describeQueueItem(f.item)}
                       </p>
                       <p className="text-danger-fg">{f.error}</p>
                       <p className="text-caption text-ink-subtle">{formatDateTime(f.item.createdAt)}</p>
