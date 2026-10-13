@@ -39,13 +39,47 @@ export async function uploadProductImage(image: Blob): Promise<string> {
 const signedCache = new Map<string, { url: string; expires: number }>()
 const DISPLAY_TTL_S = 60 * 60
 
-export async function getSignedImageUrl(path: string): Promise<string | null> {
+// Las imágenes que se piden en el mismo instante (p. ej. una cuadrícula entera)
+// se firman juntas: una petición por cada 100 en lugar de una por imagen.
+const pending = new Map<string, Promise<string | null>>()
+let batch: { path: string; resolve: (url: string | null) => void }[] = []
+
+function flushBatch() {
+  const items = batch
+  batch = []
+  for (let i = 0; i < items.length; i += 100) {
+    const chunk = items.slice(i, i + 100)
+    Promise.resolve(supabase.storage.from(BUCKET).createSignedUrls(chunk.map((c) => c.path), DISPLAY_TTL_S))
+      .then(({ data }) => {
+        const urls = new Map<string, string>()
+        for (const item of data ?? []) {
+          if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl)
+        }
+        return urls
+      })
+      .catch(() => new Map<string, string>())
+      .then((urls) => {
+        for (const { path, resolve } of chunk) {
+          const url = urls.get(path) ?? null
+          if (url) signedCache.set(path, { url, expires: Date.now() + DISPLAY_TTL_S * 1000 })
+          pending.delete(path)
+          resolve(url)
+        }
+      })
+  }
+}
+
+export function getSignedImageUrl(path: string): Promise<string | null> {
   const cached = signedCache.get(path)
-  if (cached && cached.expires > Date.now() + 60_000) return cached.url
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, DISPLAY_TTL_S)
-  if (error || !data) return null
-  signedCache.set(path, { url: data.signedUrl, expires: Date.now() + DISPLAY_TTL_S * 1000 })
-  return data.signedUrl
+  if (cached && cached.expires > Date.now() + 60_000) return Promise.resolve(cached.url)
+  const inFlight = pending.get(path)
+  if (inFlight) return inFlight
+  const p = new Promise<string | null>((resolve) => {
+    if (batch.length === 0) setTimeout(flushBatch, 0)
+    batch.push({ path, resolve })
+  })
+  pending.set(path, p)
+  return p
 }
 
 /** URLs firmadas de larga duración para exportar (por defecto 7 días). */
