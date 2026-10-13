@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
@@ -6,18 +6,41 @@ import { ConnectionBadge } from './ConnectionBadge'
 import { Icon, type IconName } from './Icon'
 import { ScannerSimulator, useSimulatorEnabled } from './ScannerSimulator'
 
-const NAV: { to: string; label: string; icon: IconName; end?: boolean }[] = [
-  { to: '/', label: 'Escaneo', icon: 'barcode', end: true },
-  { to: '/inventario', label: 'Inventario', icon: 'grid' },
+interface NavItem {
+  to: string
+  label: string
+  icon: IconName
+  end?: boolean
+  /** Subsecciones: se muestran solo mientras se está dentro de la sección. */
+  children?: NavItem[]
+}
+
+const NAV: NavItem[] = [
   { to: '/mostrador', label: 'Mostrador', icon: 'store' },
   { to: '/ventas', label: 'Ventas', icon: 'receipt' },
   { to: '/clientes', label: 'Clientes', icon: 'users' },
-  { to: '/historial', label: 'Historial', icon: 'history' },
+  {
+    to: '/inventario',
+    label: 'Inventario',
+    icon: 'grid',
+    children: [
+      // Escaneo (alta y conteo de productos) vive en "/".
+      { to: '/', label: 'Agregar', icon: 'barcode', end: true },
+      { to: '/historial', label: 'Historial', icon: 'history' },
+    ],
+  },
 ]
+
+/** ¿La ruta actual es la sección o alguna de sus subsecciones? */
+function inSection(item: NavItem, pathname: string) {
+  const match = (n: NavItem) => (n.end ? pathname === n.to : pathname === n.to || pathname.startsWith(`${n.to}/`))
+  return match(item) || (item.children ?? []).some(match)
+}
 
 const ROLE_LABELS: Record<string, string> = { admin: 'Administrador', staff: 'Personal' }
 
 export function Layout() {
+  const { pathname } = useLocation()
   const { user, profile, signOut } = useAuth()
   const { queue } = useInventory()
   const navigate = useNavigate()
@@ -56,13 +79,31 @@ export function Layout() {
           <span className="text-heading">Inventario Hachiko</span>
         </div>
 
-        <div className="flex gap-0.5 md:flex-col">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={navItem}>
-              <Icon name={n.icon} size={20} />
-              <span>{n.label}</span>
-            </NavLink>
-          ))}
+        <div className="flex flex-wrap gap-0.5 md:flex-col md:flex-nowrap">
+          {NAV.map((n) => {
+            const open = !!n.children && inSection(n, pathname)
+            return (
+              <div key={n.to} className="contents md:block">
+                <NavLink to={n.to} end={n.end} className={navItem}>
+                  <Icon name={n.icon} size={20} />
+                  <span>{n.label}</span>
+                  {n.children && (
+                    <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} className="ml-auto hidden text-nav-ink-subtle md:block" />
+                  )}
+                </NavLink>
+                {open && (
+                  <div className="contents md:mt-0.5 md:ml-4 md:flex md:flex-col md:gap-0.5 md:border-l md:border-nav-border md:pl-2">
+                    {n.children!.map((c) => (
+                      <NavLink key={c.to} to={c.to} end={c.end} className={navItem}>
+                        <Icon name={c.icon} size={18} />
+                        <span>{c.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-3 md:mt-auto md:ml-0 md:flex-col md:flex-nowrap md:items-stretch">

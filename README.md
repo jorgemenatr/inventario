@@ -249,6 +249,12 @@ velocidad de lector en el campo con foco y manda Enter. Se apaga con `?simulador
 
 ---
 
+## Menú
+
+El menú lateral queda: **Mostrador · Ventas · Clientes · Inventario**. Al entrar a Inventario
+aparecen sus subsecciones: **Agregar** (la pantalla de escaneo para dar de alta y contar
+productos, en `/`) e **Historial**.
+
 ## Inventario
 
 En **Inventario** (`/inventario`) se consultan los productos dados de alta:
