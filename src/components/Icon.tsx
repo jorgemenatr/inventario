@@ -28,6 +28,7 @@ const ICONS = {
   history: '<path d="M4 12a8 8 0 102.3-5.7M4 4v4h4"/><path d="M12 8v4l3 2"/>',
   'chevron-down': '<path d="M6 9l6 6 6-6"/>',
   'chevron-up': '<path d="M6 15l6-6 6 6"/>',
+  users: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M15.5 5.2a3.5 3.5 0 010 6.6M18 14.2a6.5 6.5 0 013.5 5.8"/>',
 } as const
 
 export type IconName = keyof typeof ICONS
