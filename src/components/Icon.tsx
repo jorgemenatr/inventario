@@ -28,6 +28,7 @@ const ICONS = {
   history: '<path d="M4 12a8 8 0 102.3-5.7M4 4v4h4"/><path d="M12 8v4l3 2"/>',
   'chevron-down': '<path d="M6 9l6 6 6-6"/>',
   'chevron-up': '<path d="M6 15l6-6 6 6"/>',
+  grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1"/>',
 } as const
 
 export type IconName = keyof typeof ICONS

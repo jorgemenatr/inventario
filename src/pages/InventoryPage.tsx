@@ -1,0 +1,337 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Icon } from '../components/Icon'
+import { ProductImage } from '../components/ProductImage'
+import { formatInt, formatMoney } from '../lib/format'
+import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { useInventory } from '../store/useInventory'
+
+/*
+ * Inventario: consulta de productos en cuadrícula (fotos) o lista (tabla).
+ * Lee la copia local del catálogo de productos (la misma que usa Escaneo),
+ * así que también funciona sin conexión.
+ */
+
+type View = 'grid' | 'list'
+type SortKey = 'name' | 'barcode' | 'category' | 'quantity' | 'price'
+type StockFilter = 'all' | 'in' | 'out'
+
+const VIEW_KEY = 'hachiko.inventario.vista'
+const PAGE = 60
+const collator = new Intl.Collator('es-MX', { sensitivity: 'base', numeric: true })
+
+function loadView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'
+  } catch {
+    return 'grid'
+  }
+}
+
+const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+export function InventoryPage() {
+  const { products, productsLoaded, online } = useInventory()
+  const [view, setViewState] = useState<View>(loadView)
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('')
+  const [stock, setStock] = useState<StockFilter>('all')
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 })
+  const [limit, setLimit] = useState(PAGE)
+
+  // Al entrar, trae lo más reciente del servidor (si hay red; si no, se queda la copia local).
+  useEffect(() => {
+    if (online) void inventoryStore.refreshProducts()
+    // Solo al entrar a la página.
+  }, [])
+
+  function setView(v: View) {
+    setViewState(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      /* no crítico */
+    }
+  }
+
+  const all = useMemo(() => Object.values(products), [products])
+
+  const categories = useMemo(
+    () => [...new Set(all.map((p) => p.category).filter((c): c is string => !!c))].sort(collator.compare),
+    [all],
+  )
+
+  const filtered = useMemo(() => {
+    const words = normalize(search.trim()).split(/\s+/).filter(Boolean)
+    const list = all.filter((p) => {
+      if (category && p.category !== category) return false
+      if (stock === 'in' && p.quantity <= 0) return false
+      if (stock === 'out' && p.quantity > 0) return false
+      if (!words.length) return true
+      const text = normalize(`${p.name} ${p.barcode} ${p.category ?? ''} ${p.supplier ?? ''}`)
+      return words.every((w) => text.includes(w))
+    })
+    const { key, dir } = sort
+    return list.sort((a, b) => {
+      const r =
+        key === 'quantity' || key === 'price'
+          ? a[key] - b[key]
+          : collator.compare(a[key] ?? '', b[key] ?? '')
+      return r * dir || collator.compare(a.name, b.name)
+    })
+  }, [all, search, category, stock, sort])
+
+  // Al cambiar los filtros se vuelve a la primera página.
+  useEffect(() => setLimit(PAGE), [search, category, stock, sort, view])
+
+  const visible = useMemo(() => filtered.slice(0, limit), [filtered, limit])
+
+  const totals = useMemo(() => {
+    let pieces = 0
+    let value = 0
+    for (const p of filtered) {
+      pieces += Math.max(0, p.quantity)
+      value += Math.max(0, p.quantity) * p.price
+    }
+    return { products: filtered.length, pieces, value }
+  }, [filtered])
+
+  function toggleSort(key: SortKey) {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === 'quantity' || key === 'price' ? -1 : 1 }))
+  }
+
+  const filtersActive = search.trim() !== '' || category !== '' || stock !== 'all'
+
+  return (
+    <div className="flex flex-col gap-4 p-4 md:p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="mr-auto text-title">Inventario</h1>
+        <div className="flex h-control-md gap-0.5 rounded-md border border-control bg-surface p-0.5" role="group" aria-label="Vista">
+          {(
+            [
+              ['grid', 'grid', 'Cuadrícula'],
+              ['list', 'list', 'Lista'],
+            ] as const
+          ).map(([v, icon, text]) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 text-label ${view === v ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
+            >
+              <Icon name={icon} />
+              {text}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Resumen */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="card p-4">
+          <p className="text-label text-ink-muted">Productos</p>
+          <p className="text-kpi tabular-nums">{formatInt(totals.products)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-label text-ink-muted">Piezas en stock</p>
+          <p className="text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
+        </div>
+        <div className="card col-span-2 p-4 sm:col-span-1">
+          <p className="text-label text-ink-muted">Valor a precio de venta</p>
+          <p className="text-kpi tabular-nums">{formatMoney(totals.value)}</p>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+          <Icon name="search" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, código o categoría"
+            aria-label="Buscar por nombre, código o categoría"
+            className="min-w-0 flex-1 bg-transparent text-ink outline-none focus-visible:outline-none"
+          />
+        </label>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          aria-label="Categoría"
+          className="field w-auto min-w-44 cursor-pointer"
+        >
+          <option value="">Todas las categorías</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <select
+          value={stock}
+          onChange={(e) => setStock(e.target.value as StockFilter)}
+          aria-label="Existencias"
+          className="field w-auto cursor-pointer"
+        >
+          <option value="all">Con y sin stock</option>
+          <option value="in">Con stock</option>
+          <option value="out">Sin stock</option>
+        </select>
+        {view === 'grid' && (
+          <select
+            value={`${sort.key}:${sort.dir}`}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(':')
+              setSort({ key: key as SortKey, dir: Number(dir) as 1 | -1 })
+            }}
+            aria-label="Ordenar"
+            className="field w-auto cursor-pointer"
+          >
+            <option value="name:1">Nombre (A–Z)</option>
+            <option value="quantity:-1">Más stock</option>
+            <option value="quantity:1">Menos stock</option>
+            <option value="price:-1">Precio más alto</option>
+            <option value="price:1">Precio más bajo</option>
+          </select>
+        )}
+        {filtersActive && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('')
+              setCategory('')
+              setStock('all')
+            }}
+            className="btn btn-ghost btn-sm"
+          >
+            <Icon name="x" />
+            Quitar filtros
+          </button>
+        )}
+      </div>
+
+      {!productsLoaded && <p className="py-10 text-center text-ink-subtle">Cargando inventario…</p>}
+      {productsLoaded && filtered.length === 0 && (
+        <p className="card px-4 py-10 text-center text-ink-subtle">
+          {all.length === 0 ? 'Aún no hay productos. Dalos de alta desde Escaneo.' : 'Ningún producto coincide con los filtros.'}
+        </p>
+      )}
+
+      {visible.length > 0 && view === 'grid' && <ProductGrid products={visible} />}
+      {visible.length > 0 && view === 'list' && <ProductTable products={visible} sort={sort} onSort={toggleSort} />}
+
+      {filtered.length > visible.length && (
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-caption text-ink-muted">
+            Mostrando {formatInt(visible.length)} de {formatInt(filtered.length)}
+          </span>
+          <button type="button" onClick={() => setLimit((l) => l + PAGE)} className="btn btn-secondary">
+            Mostrar más
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StockBadge({ quantity }: { quantity: number }) {
+  if (quantity <= 0) return <span className="badge badge-danger">Sin stock</span>
+  if (quantity <= 2) return <span className="badge badge-warning">{formatInt(quantity)} pzas</span>
+  return <span className="badge badge-neutral">{formatInt(quantity)} pzas</span>
+}
+
+function PendingBadge({ product }: { product: CachedProduct }) {
+  return product.pending ? <span className="badge badge-warning">Pendiente</span> : null
+}
+
+function ProductGrid({ products }: { products: CachedProduct[] }) {
+  return (
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+      {products.map((p) => (
+        <li key={p.barcode} className="card flex flex-col overflow-hidden">
+          <ProductImage path={p.image_url} alt={p.name} className="aspect-square w-full border-0 border-b" />
+          <div className="flex flex-1 flex-col gap-1 p-3">
+            <p className="line-clamp-2 text-label text-ink" title={p.name}>
+              {p.name}
+            </p>
+            {p.category && <p className="truncate text-caption text-ink-subtle">{p.category}</p>}
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
+              <span className="text-heading tabular-nums">{formatMoney(p.price)}</span>
+              <StockBadge quantity={p.quantity} />
+            </div>
+            <PendingBadge product={p} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ProductTable({
+  products,
+  sort,
+  onSort,
+}: {
+  products: CachedProduct[]
+  sort: { key: SortKey; dir: 1 | -1 }
+  onSort: (key: SortKey) => void
+}) {
+  const th = (key: SortKey, label: string, right = false) => (
+    <th
+      className={`h-control-md px-4 font-medium ${right ? 'text-right' : ''}`}
+      aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(key)}
+        className={`inline-flex cursor-pointer items-center gap-1 hover:text-ink ${sort.key === key ? 'text-ink' : ''}`}
+      >
+        {label}
+        {sort.key === key && <Icon name={sort.dir === 1 ? 'chevron-up' : 'chevron-down'} size={14} />}
+      </button>
+    </th>
+  )
+
+  return (
+    <div className="card overflow-x-auto">
+      <table className="w-full border-collapse text-left">
+        <thead>
+          <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+            <th className="h-control-md w-14 px-4 font-medium">
+              <span className="sr-only">Imagen</span>
+            </th>
+            {th('name', 'Producto')}
+            {th('barcode', 'Código')}
+            {th('category', 'Categoría')}
+            <th className="h-control-md px-4 font-medium">Proveedor</th>
+            {th('quantity', 'Stock', true)}
+            {th('price', 'Precio', true)}
+          </tr>
+        </thead>
+        <tbody>
+          {products.map((p) => (
+            <tr key={p.barcode} className="border-t border-line hover:bg-subtle">
+              <td className="h-row px-4">
+                <ProductImage path={p.image_url} alt="" className="size-10 rounded-xs" />
+              </td>
+              <td className="h-row px-4 font-medium">
+                <span className="flex items-center gap-2">
+                  {p.name}
+                  <PendingBadge product={p} />
+                </span>
+              </td>
+              <td className="h-row px-4 font-mono text-[13px] whitespace-nowrap text-ink-muted">{p.barcode}</td>
+              <td className="h-row px-4 whitespace-nowrap text-ink-muted">{p.category ?? '—'}</td>
+              <td className="h-row px-4 whitespace-nowrap text-ink-muted">{p.supplier ?? '—'}</td>
+              <td className={`h-row px-4 text-right tabular-nums ${p.quantity <= 0 ? 'font-medium text-danger-fg' : ''}`}>
+                {formatInt(p.quantity)}
+              </td>
+              <td className="h-row px-4 text-right tabular-nums">{formatMoney(p.price)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}

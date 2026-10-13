@@ -3,6 +3,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { Layout } from './components/Layout'
 import { HistoryPage } from './pages/HistoryPage'
+import { InventoryPage } from './pages/InventoryPage'
 import { LabelPage } from './pages/LabelPage'
 import { LoginPage } from './pages/LoginPage'
 import { ScanPage } from './pages/ScanPage'
@@ -29,6 +30,7 @@ export function App() {
             }
           >
             <Route index element={<ScanPage />} />
+            <Route path="inventario" element={<InventoryPage />} />
             <Route path="historial" element={<HistoryPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
