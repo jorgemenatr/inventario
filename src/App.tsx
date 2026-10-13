@@ -2,6 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { Layout } from './components/Layout'
+import { CustomerDetailPage } from './pages/CustomerDetailPage'
+import { CustomersPage } from './pages/CustomersPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { InventoryPage } from './pages/InventoryPage'
 import { LabelPage } from './pages/LabelPage'
@@ -31,6 +33,8 @@ export function App() {
           >
             <Route index element={<ScanPage />} />
             <Route path="inventario" element={<InventoryPage />} />
+            <Route path="clientes" element={<CustomersPage />} />
+            <Route path="clientes/:id" element={<CustomerDetailPage />} />
             <Route path="historial" element={<HistoryPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

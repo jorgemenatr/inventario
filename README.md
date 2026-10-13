@@ -40,6 +40,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261012000400_storage.sql` | Bucket privado `product-images` y sus políticas |
 | `20261012000500_catalogo_tcg.sql` | Tabla `catalog_products`, vínculo en `products`, RPC `search_catalog` y `catalog_status` |
 | `20261013000100_catalogo_busqueda_accesorios.sql` | Búsqueda con palabras en español (micas, tapete, carpeta, colores…) |
+| `20261013000200_clientes.sql` | Tabla `customers` (clientes) y sus permisos |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -258,6 +259,20 @@ En **Inventario** (`/inventario`) se consultan los productos dados de alta:
 - Usa la misma copia local que Escaneo, así que también funciona sin conexión. Las fotos sí
   necesitan internet.
 
+## Clientes
+
+En **Clientes** (`/clientes`) se da de alta y se consulta a los clientes de la tienda:
+
+- **Nombre** obligatorio; **correo** y **teléfono** opcionales.
+- **Juegos que juega**: selección múltiple como tags. Un clic agrega o quita un juego de la
+  lista (Pokémon, Magic, Yu-Gi-Oh!, Lorcana, Star Wars Unlimited…) y "Otro juego" permite
+  escribir uno nuevo; los juegos que ya tiene algún cliente aparecen como opción para los
+  demás.
+- La lista se busca por nombre, correo o teléfono y se filtra por juego. Al abrir un
+  cliente se ven sus datos y se pueden editar.
+- Los clientes no se borran desde la app (solo desde el dashboard de Supabase), porque
+  después tendrán ventas ligadas.
+
 ## Decisiones de diseño
 
 ### Modelo de datos
@@ -349,7 +364,7 @@ src/
   lib/supabase.ts        Cliente único de Supabase + detección de errores de red/sesión
   auth/                  AuthProvider, useAuth, ProtectedRoute (listo para roles)
   store/                 Store de inventario: caché, cola offline, deshacer, sincronización
-  pages/                 Login, Escaneo, Inventario, Historial, Etiqueta
+  pages/                 Login, Escaneo, Inventario, Clientes, Historial, Etiqueta
   components/            Layout, formulario de producto, buscador del catálogo, webcam, imagen, foco
   lib/                   Exportación, imágenes, sonidos, normalización de códigos
 netlify.toml             Build + redirección SPA

@@ -87,3 +87,14 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   adjustment: 'Ajuste',
   sale: 'Venta',
 }
+
+export interface Customer {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  /** Juegos que juega (tags). */
+  games: string[]
+  created_at: string
+  updated_at: string
+}

@@ -9,6 +9,7 @@ import { ScannerSimulator, useSimulatorEnabled } from './ScannerSimulator'
 const NAV: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: '/', label: 'Escaneo', icon: 'barcode', end: true },
   { to: '/inventario', label: 'Inventario', icon: 'grid' },
+  { to: '/clientes', label: 'Clientes', icon: 'users' },
   { to: '/historial', label: 'Historial', icon: 'history' },
 ]
 
