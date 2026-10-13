@@ -16,7 +16,7 @@ function describeQueueItem(item: QueueItem) {
     case 'scan':
       return `Escaneo ${item.barcode} (${item.mode === 'add' ? '+' : '='}${item.quantity})`
     case 'sale':
-      return `Venta: ${item.sale.name} (${item.sale.items.reduce((n, i) => n + i.quantity, 0)} pzas)`
+      return `Venta sin folio aún (${item.sale.customerName ?? 'sin cliente'}, ${item.sale.items.reduce((n, i) => n + i.quantity, 0)} pzas)`
     default:
       return `Deshacer ${item.barcode}`
   }

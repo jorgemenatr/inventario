@@ -4,11 +4,11 @@ import { SalesTable } from '../components/SalesTable'
 import { formatDateTime, formatInt, formatMoney } from '../lib/format'
 import { listSales, salesSummary, SALES_PAGE, type SalesFilter } from '../lib/sales'
 import { isNetworkError } from '../lib/supabase'
-import { PAYMENT_LABELS, type PaymentMethod, type SaleRow } from '../lib/types'
+import { PAYMENT_LABELS, PAYMENT_METHODS, type SaleRow, type TicketPaymentMethod } from '../lib/types'
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
-const METHODS: PaymentMethod[] = ['cash', 'card', 'credit', 'transfer']
+const FILTER_METHODS: TicketPaymentMethod[] = [...PAYMENT_METHODS, 'mixed']
 
 function today() {
   const d = new Date()
@@ -71,9 +71,9 @@ export function VentasPage() {
         </div>
         <div>
           <label className="field-label" htmlFor="v-method">Forma de pago</label>
-          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as PaymentMethod | '' })} className="field cursor-pointer">
+          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as TicketPaymentMethod | '' })} className="field cursor-pointer">
             <option value="">Todas</option>
-            {METHODS.map((m) => (
+            {FILTER_METHODS.map((m) => (
               <option key={m} value={m}>
                 {PAYMENT_LABELS[m]}
               </option>
@@ -100,7 +100,7 @@ export function VentasPage() {
             <p className="text-label text-ink-muted">Total</p>
             <p className="text-kpi tabular-nums">{formatMoney(summary.total)}</p>
           </div>
-          {METHODS.map((m) => (
+          {PAYMENT_METHODS.map((m) => (
             <div key={m} className="card p-4">
               <p className="text-label text-ink-muted">{PAYMENT_LABELS[m]}</p>
               <p className="text-heading tabular-nums">{formatMoney(summary.byMethod[m] ?? 0)}</p>
@@ -127,8 +127,8 @@ export function VentasPage() {
             {pendingSales.map((q) => (
               <li key={q.opId} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="text-ink-muted">{formatDateTime(q.createdAt)}</span>
-                <span className="font-medium">{q.sale.name}</span>
-                {q.sale.customerName && <span className="text-ink-muted">{q.sale.customerName}</span>}
+                <span className="font-medium">Folio pendiente</span>
+                <span className="text-ink-muted">{q.sale.customerName ?? 'Sin cliente'}</span>
                 <span className="ml-auto">{PAYMENT_LABELS[q.sale.paymentMethod]}</span>
                 <span className="font-medium tabular-nums">
                   {formatMoney(q.sale.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))}

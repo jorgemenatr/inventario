@@ -203,7 +203,7 @@ export function ScanPage() {
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
       {/* Título y acciones de página */}
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-title">Escaneo</h1>
+        <h1 className="mr-auto text-title">Agregar</h1>
         <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
           <Icon name="download" />
           Exportar CSV

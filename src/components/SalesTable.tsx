@@ -1,8 +1,8 @@
 import { Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatDateTime, formatInt, formatMoney } from '../lib/format'
-import { getTicketItems } from '../lib/sales'
-import { PAYMENT_LABELS, type SaleRow, type TicketItemRow } from '../lib/types'
+import { getTicketItems, getTicketPayments } from '../lib/sales'
+import { PAYMENT_LABELS, PAYMENT_METHODS, type SaleRow, type TicketItemRow, type TicketPaymentRow } from '../lib/types'
 import { Icon } from './Icon'
 
 interface Props {
@@ -15,13 +15,13 @@ interface Props {
 /** Tabla de ventas cobradas; cada fila se despliega para ver los productos. */
 export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
   const [open, setOpen] = useState<string | null>(null)
-  const [items, setItems] = useState<Record<string, TicketItemRow[] | 'error'>>({})
+  const [items, setItems] = useState<Record<string, { items: TicketItemRow[]; payments: TicketPaymentRow[] } | 'error'>>({})
 
   function toggle(id: string) {
     setOpen((o) => (o === id ? null : id))
     if (!items[id]) {
-      getTicketItems(id)
-        .then((rows) => setItems((m) => ({ ...m, [id]: rows })))
+      Promise.all([getTicketItems(id), getTicketPayments(id)])
+        .then(([rows, payments]) => setItems((m) => ({ ...m, [id]: { items: rows, payments } })))
         .catch(() => setItems((m) => ({ ...m, [id]: 'error' })))
     }
   }
@@ -78,7 +78,9 @@ export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
                     </td>
                   )}
                   <td className="h-row px-3 text-right tabular-nums">{formatInt(s.item_count)}</td>
-                  <td className="h-row px-3 whitespace-nowrap">{PAYMENT_LABELS[s.payment_method]}</td>
+                  <td className="h-row px-3 whitespace-nowrap">
+                    {s.payment_method === 'mixed' ? <span className="badge badge-info">Mixto</span> : PAYMENT_LABELS[s.payment_method]}
+                  </td>
                   <td className="h-row px-3 text-right font-medium tabular-nums">{formatMoney(s.total)}</td>
                 </tr>
                 {expanded && (
@@ -87,10 +89,10 @@ export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
                     <td colSpan={cols - 1} className="px-3 pb-4">
                       {!detail && <p className="py-2 text-ink-subtle">Cargando productos…</p>}
                       {detail === 'error' && <p className="py-2 text-danger-fg">No se pudieron cargar los productos.</p>}
-                      {Array.isArray(detail) && (
+                      {detail && detail !== 'error' && (
                         <table className="w-full max-w-3xl border-collapse text-left">
                           <tbody>
-                            {detail.map((i) => (
+                            {detail.items.map((i) => (
                               <tr key={i.id} className="border-b border-line last:border-0">
                                 <td className="py-1.5 pr-3">
                                   {i.product_name}
@@ -104,6 +106,21 @@ export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
                             ))}
                           </tbody>
                         </table>
+                      )}
+                      {detail && detail !== 'error' && detail.payments.length > 0 && (
+                        <div className="mt-3 max-w-3xl">
+                          <p className="text-label text-ink-muted">{detail.payments.length > 1 ? 'Pago mixto' : 'Pago'}</p>
+                          <ul className="mt-1 flex flex-wrap gap-2">
+                            {[...detail.payments]
+                              .sort((a, b) => PAYMENT_METHODS.indexOf(a.method) - PAYMENT_METHODS.indexOf(b.method))
+                              .map((p) => (
+                                <li key={p.id} className="inline-flex items-center gap-2 rounded-pill border border-line bg-surface px-3 py-1 text-label">
+                                  {PAYMENT_LABELS[p.method]}
+                                  <span className="tabular-nums">{formatMoney(p.amount)}</span>
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
                       )}
                       <p className="mt-2 text-caption text-ink-subtle">
                         Cobró {s.created_by_name || s.created_by_email || '—'}

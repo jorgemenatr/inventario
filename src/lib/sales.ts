@@ -1,11 +1,11 @@
 import { supabase } from './supabase'
-import type { PaymentMethod, SaleRow, TicketItemRow } from './types'
+import type { PaymentMethod, SaleRow, TicketItemRow, TicketPaymentMethod, TicketPaymentRow } from './types'
 
 export interface SalesFilter {
   /** AAAA-MM-DD (día local, inclusive). */
   from?: string
   to?: string
-  method?: PaymentMethod | ''
+  method?: TicketPaymentMethod | ''
   customerId?: string
 }
 
@@ -39,26 +39,41 @@ export async function listSales(filter: SalesFilter, offset = 0): Promise<SaleRo
   return ((data ?? []) as SaleRow[]).map((r) => ({ ...r, subtotal: Number(r.subtotal), total: Number(r.total) }))
 }
 
-/** Totales del filtro (todas las páginas): número de ventas y suma por forma de pago. */
-export async function salesSummary(filter: SalesFilter) {
-  const rows: { payment_method: PaymentMethod; total: number }[] = []
+async function fetchAll<T>(build: (from: number) => PromiseLike<{ data: unknown; error: unknown }>) {
+  const rows: T[] = []
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await applyFilter(
-      supabase.from('tickets').select('payment_method, total').order('paid_at', { ascending: false }).range(from, from + 999),
-      filter,
-    )
+    const { data, error } = await build(from)
     if (error) throw error
-    rows.push(...((data ?? []) as typeof rows))
-    if (!data || data.length < 1000) break
+    const page = (data ?? []) as T[]
+    rows.push(...page)
+    if (page.length < 1000) break
   }
+  return rows
+}
+
+/**
+ * Totales del filtro (todas las páginas): número de ventas, total y suma por
+ * forma de pago. Los pagos mixtos se reparten en sus métodos reales.
+ */
+export async function salesSummary(filter: SalesFilter) {
+  const [tickets, payments] = await Promise.all([
+    fetchAll<{ total: number }>((from) =>
+      applyFilter(supabase.from('tickets').select('total').order('paid_at', { ascending: false }).range(from, from + 999), filter),
+    ),
+    fetchAll<{ method: PaymentMethod; amount: number }>((from) =>
+      applyFilter(supabase.from('sales_payments').select('method, amount').order('paid_at', { ascending: false }).range(from, from + 999), filter),
+    ),
+  ])
   const byMethod: Partial<Record<PaymentMethod, number>> = {}
-  let total = 0
-  for (const r of rows) {
-    const t = Number(r.total)
-    total += t
-    byMethod[r.payment_method] = (byMethod[r.payment_method] ?? 0) + t
-  }
-  return { count: rows.length, total, byMethod }
+  for (const p of payments) byMethod[p.method] = (byMethod[p.method] ?? 0) + Number(p.amount)
+  const total = tickets.reduce((s, t) => s + Number(t.total), 0)
+  return { count: tickets.length, total, byMethod }
+}
+
+export async function getTicketPayments(ticketId: string): Promise<TicketPaymentRow[]> {
+  const { data, error } = await supabase.from('ticket_payments').select('*').eq('ticket_id', ticketId)
+  if (error) throw error
+  return ((data ?? []) as TicketPaymentRow[]).map((p) => ({ ...p, amount: Number(p.amount) }))
 }
 
 export async function getTicketItems(ticketId: string): Promise<TicketItemRow[]> {

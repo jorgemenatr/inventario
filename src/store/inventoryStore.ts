@@ -1,7 +1,7 @@
 import { isAuthError, isNetworkError, probeConnection, supabase } from '../lib/supabase'
 import { normalizeBarcode } from '../lib/barcode'
 import { uploadProductImage } from '../lib/images'
-import type { CreateRpcResult, MovementResult, PaymentMethod, PayTicketResult, Product, ScanMode, ScanRpcResult } from '../lib/types'
+import type { CreateRpcResult, MovementResult, PaymentPart, PayTicketResult, Product, ScanMode, ScanRpcResult, TicketPaymentMethod } from '../lib/types'
 
 /*
  * Estado de inventario del lado del cliente:
@@ -47,10 +47,17 @@ export interface CreateInput {
 export interface SaleInput {
   /** Id del ticket: lo genera el mostrador y evita cobrar dos veces. */
   ticketId: string
+  /**
+   * Solo para mostrar mientras la venta está en la cola (p. ej. el cliente).
+   * El nombre real ("Ticket N") lo asigna el servidor al registrar la venta.
+   */
   name: string
   customerId: string | null
   customerName: string | null
-  paymentMethod: PaymentMethod
+  /** Método del ticket ('mixed' si hay varios pagos). */
+  paymentMethod: TicketPaymentMethod
+  /** Pagos por método; deben sumar el total. Las ventas de la cola anterior no lo traen. */
+  payments?: PaymentPart[]
   openedAt: string
   items: { barcode: string; name: string; quantity: number; unitPrice: number }[]
 }
@@ -114,7 +121,8 @@ export type CreateOutcome =
   | { type: 'error'; message: string }
 
 export type SaleOutcome =
-  | { type: 'ok'; pending: boolean; total: number }
+  /** ticketName: "Ticket N" (folio); null si quedó en la cola sin conexión. */
+  | { type: 'ok'; pending: boolean; total: number; ticketName: string | null }
   | { type: 'error'; message: string }
 
 export type UndoOutcome =
@@ -631,10 +639,16 @@ class InventoryStore {
         }
       }
 
-      if (await this.flushBeforeOnline()) {
+      const usesCredit = sale.payments?.some((p) => p.method === 'credit') ?? sale.paymentMethod === 'credit'
+      const online = await this.flushBeforeOnline()
+      if (usesCredit && !online) {
+        return { type: 'error', message: 'Pagar con créditos necesita conexión (para revisar el saldo del cliente).' }
+      }
+
+      if (online) {
         try {
-          await this.callPayTicket(sale, false)
-          return { type: 'ok', pending: false, total }
+          const res = await this.callPayTicket(sale, false)
+          return { type: 'ok', pending: false, total, ticketName: res.ticket.name }
         } catch (e) {
           if (e instanceof PermanentError || (!isNetworkError(e) && !isAuthError(e))) {
             return { type: 'error', message: errorMessage(e) }
@@ -651,26 +665,29 @@ class InventoryStore {
         if (p) products[item.barcode] = { ...p, quantity: p.quantity - item.quantity }
       }
       this.set({ products })
-      return { type: 'ok', pending: true, total }
+      return { type: 'ok', pending: true, total, ticketName: null }
     })
   }
 
   private async callPayTicket(sale: SaleInput, offline: boolean) {
     const { data, error } = await supabase.rpc('pay_ticket', {
       p_ticket_id: sale.ticketId,
-      p_name: sale.name,
+      p_name: sale.name || 'Ticket',
       p_payment_method: sale.paymentMethod,
       p_items: sale.items.map((i) => ({ barcode: i.barcode, quantity: i.quantity, unit_price: i.unitPrice })),
       p_customer_id: sale.customerId,
       p_opened_at: sale.openedAt,
       p_offline: offline,
+      p_payments: sale.payments ?? null,
     })
     if (error) {
       if (!isNetworkError(error) && !isAuthError(error)) throw new PermanentError(error.message)
       throw error
     }
     this.markOnline()
-    for (const p of (data as PayTicketResult).products) this.putServerProduct(toCached(p), sale.ticketId)
+    const res = data as PayTicketResult
+    for (const p of res.products) this.putServerProduct(toCached(p), sale.ticketId)
+    return res
   }
 
   // ---------- deshacer ----------

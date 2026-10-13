@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CreditsModal } from '../components/CreditsModal'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { GameTags } from '../components/GamesInput'
 import { Icon } from '../components/Icon'
 import { gameSuggestions, listCustomers } from '../lib/customers'
-import { formatInt } from '../lib/format'
+import { listCreditBalances } from '../lib/credits'
+import { formatInt, formatMoney } from '../lib/format'
 import { isNetworkError } from '../lib/supabase'
-import type { Customer } from '../lib/types'
+import type { CreditBalance, Customer } from '../lib/types'
 
 const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
@@ -17,6 +19,17 @@ export function CustomersPage() {
   const [search, setSearch] = useState('')
   const [game, setGame] = useState('')
   const [creating, setCreating] = useState(false)
+  const [granting, setGranting] = useState(false)
+  const [balances, setBalances] = useState<Map<string, CreditBalance> | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
+
+  // Saldos de créditos (si falla, la lista se ve igual, sin la columna llena).
+  const loadBalances = () => {
+    listCreditBalances()
+      .then(setBalances)
+      .catch(() => undefined)
+  }
+  useEffect(loadBalances, [])
 
   useEffect(() => {
     listCustomers()
@@ -43,6 +56,10 @@ export function CustomersPage() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-title">Clientes</h1>
+        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-secondary">
+          <Icon name="plus" />
+          Agregar créditos
+        </button>
         <button type="button" onClick={() => setCreating(true)} className="btn btn-primary">
           <Icon name="plus" />
           Nuevo cliente
@@ -76,6 +93,12 @@ export function CustomersPage() {
         )}
       </div>
 
+      {saved && (
+        <p className="notice bg-success-bg text-success-fg" role="status">
+          <Icon name="check" className="mt-0.5" />
+          {saved}
+        </p>
+      )}
       {error && (
         <p className="notice bg-danger-bg text-danger-fg">
           <Icon name="alert" className="mt-0.5" />
@@ -93,6 +116,7 @@ export function CustomersPage() {
                 <th className="h-control-md px-4 font-medium">Teléfono</th>
                 <th className="h-control-md px-4 font-medium">Correo</th>
                 <th className="h-control-md px-4 font-medium">Juegos que juega</th>
+                <th className="h-control-md px-4 text-right font-medium">Créditos</th>
               </tr>
             </thead>
             <tbody>
@@ -108,6 +132,13 @@ export function CustomersPage() {
                   <td className="h-row px-4 py-2">
                     <GameTags games={c.games} max={4} />
                   </td>
+                  <td className="h-row px-4 text-right whitespace-nowrap tabular-nums">
+                    {!balances ? '…' : (balances.get(c.id)?.balance ?? 0) > 0 ? (
+                      <span className="font-medium text-brand-ink">{formatMoney(balances.get(c.id)!.balance)}</span>
+                    ) : (
+                      <span className="text-ink-subtle">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -118,6 +149,18 @@ export function CustomersPage() {
             </p>
           )}
         </div>
+      )}
+
+      {granting && customers && (
+        <CreditsModal
+          customers={customers}
+          onCancel={() => setGranting(false)}
+          onSaved={(r) => {
+            setGranting(false)
+            setSaved(`Se agregaron ${formatMoney(r.total)} en créditos a ${r.count} cliente(s).`)
+            loadBalances()
+          }}
+        />
       )}
 
       {creating && (

@@ -99,13 +99,55 @@ export interface Customer {
   updated_at: string
 }
 
+/** Métodos con los que se puede pagar (uno o varios por ticket). */
 export type PaymentMethod = 'cash' | 'card' | 'credit' | 'transfer'
+/** Método del ticket: 'mixed' cuando se pagó con más de uno. */
+export type TicketPaymentMethod = PaymentMethod | 'mixed'
 
-export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+export const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'card', 'credit', 'transfer']
+
+export const PAYMENT_LABELS: Record<TicketPaymentMethod, string> = {
   cash: 'Efectivo',
   card: 'Tarjeta',
   credit: 'Créditos',
   transfer: 'Transferencia',
+  mixed: 'Mixto',
+}
+
+export interface PaymentPart {
+  method: PaymentMethod
+  amount: number
+}
+
+export interface TicketPaymentRow {
+  id: string
+  ticket_id: string
+  method: PaymentMethod
+  amount: number
+}
+
+/** Saldo de créditos de un cliente (vista customer_credit_balances). */
+export interface CreditBalance {
+  customer_id: string
+  earned: number
+  used: number
+  balance: number
+}
+
+/** Fila de la vista credit_movement_history. */
+export interface CreditMovementRow {
+  id: string
+  customer_id: string
+  kind: 'grant' | 'sale'
+  amount: number
+  note: string | null
+  ticket_id: string | null
+  ticket_name: string | null
+  batch_id: string | null
+  created_at: string
+  created_by: string | null
+  created_by_email: string | null
+  created_by_name: string | null
 }
 
 /** Ticket cobrado (tabla tickets). */
@@ -114,7 +156,7 @@ export interface Ticket {
   name: string
   status: 'open' | 'paid'
   customer_id: string | null
-  payment_method: PaymentMethod
+  payment_method: TicketPaymentMethod
   item_count: number
   subtotal: number
   total: number
