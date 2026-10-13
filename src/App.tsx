@@ -6,6 +6,8 @@ import { CustomerDetailPage } from './pages/CustomerDetailPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { InventoryPage } from './pages/InventoryPage'
+import { MostradorPage } from './pages/MostradorPage'
+import { VentasPage } from './pages/VentasPage'
 import { LabelPage } from './pages/LabelPage'
 import { LoginPage } from './pages/LoginPage'
 import { ScanPage } from './pages/ScanPage'
@@ -33,6 +35,8 @@ export function App() {
           >
             <Route index element={<ScanPage />} />
             <Route path="inventario" element={<InventoryPage />} />
+            <Route path="mostrador" element={<MostradorPage />} />
+            <Route path="ventas" element={<VentasPage />} />
             <Route path="clientes" element={<CustomersPage />} />
             <Route path="clientes/:id" element={<CustomerDetailPage />} />
             <Route path="historial" element={<HistoryPage />} />

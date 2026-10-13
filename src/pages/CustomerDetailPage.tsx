@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { GameTags } from '../components/GamesInput'
+import { SalesTable } from '../components/SalesTable'
 import { Icon } from '../components/Icon'
 import { gameSuggestions, getCustomer, listCustomers } from '../lib/customers'
-import { formatDateTime } from '../lib/format'
+import { formatDateTime, formatInt, formatMoney } from '../lib/format'
+import { listSales, salesSummary, SALES_PAGE } from '../lib/sales'
 import { isNetworkError } from '../lib/supabase'
-import type { Customer } from '../lib/types'
+import type { Customer, SaleRow } from '../lib/types'
 
 export function CustomerDetailPage() {
   const { id = '' } = useParams()
@@ -14,6 +16,32 @@ export function CustomerDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>(gameSuggestions([]))
+  const [sales, setSales] = useState<SaleRow[] | null>(null)
+  const [salesTotal, setSalesTotal] = useState<{ count: number; total: number } | null>(null)
+  const [salesMore, setSalesMore] = useState(false)
+  const [salesError, setSalesError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setSales(null)
+    setSalesTotal(null)
+    setSalesError(null)
+    Promise.all([listSales({ customerId: id }), salesSummary({ customerId: id })])
+      .then(([page, sum]) => {
+        setSales(page)
+        setSalesMore(page.length === SALES_PAGE)
+        setSalesTotal({ count: sum.count, total: sum.total })
+      })
+      .catch((e) => setSalesError(isNetworkError(e) ? 'Sin conexión: no se pueden cargar las compras.' : (e as Error).message))
+  }, [id])
+
+  function loadMoreSales() {
+    listSales({ customerId: id }, sales?.length ?? 0)
+      .then((page) => {
+        setSales((prev) => [...(prev ?? []), ...page])
+        setSalesMore(page.length === SALES_PAGE)
+      })
+      .catch((e) => setSalesError((e as Error).message))
+  }
 
   useEffect(() => {
     setCustomer(undefined)
@@ -78,6 +106,30 @@ export function CustomerDetailPage() {
               <p className="field-label">Juegos que juega</p>
               <GameTags games={customer.games} />
             </div>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <h2 className="mr-auto text-heading">Compras previas</h2>
+              {salesTotal && salesTotal.count > 0 && (
+                <span className="text-ink-muted">
+                  {formatInt(salesTotal.count)} compra(s) · <span className="font-medium text-ink tabular-nums">{formatMoney(salesTotal.total)}</span> en total
+                </span>
+              )}
+            </div>
+            {salesError && (
+              <p className="notice bg-danger-bg text-danger-fg">
+                <Icon name="alert" className="mt-0.5" />
+                {salesError}
+              </p>
+            )}
+            {!sales && !salesError && <p className="text-ink-subtle">Cargando compras…</p>}
+            {sales && <SalesTable sales={sales} hideCustomer emptyText="Este cliente aún no tiene compras." />}
+            {salesMore && (
+              <button type="button" onClick={loadMoreSales} className="btn btn-secondary self-end">
+                Cargar más
+              </button>
+            )}
           </section>
         </>
       )}

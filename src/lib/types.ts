@@ -98,3 +98,54 @@ export interface Customer {
   created_at: string
   updated_at: string
 }
+
+export type PaymentMethod = 'cash' | 'card' | 'credit' | 'transfer'
+
+export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Efectivo',
+  card: 'Tarjeta',
+  credit: 'Créditos',
+  transfer: 'Transferencia',
+}
+
+/** Ticket cobrado (tabla tickets). */
+export interface Ticket {
+  id: string
+  name: string
+  status: 'open' | 'paid'
+  customer_id: string | null
+  payment_method: PaymentMethod
+  item_count: number
+  subtotal: number
+  total: number
+  paid_offline: boolean
+  note: string | null
+  opened_at: string | null
+  paid_at: string
+}
+
+/** Fila de la vista sales_history. */
+export interface SaleRow extends Ticket {
+  customer_name: string | null
+  created_by: string | null
+  created_by_email: string | null
+  created_by_name: string | null
+}
+
+export interface TicketItemRow {
+  id: string
+  ticket_id: string
+  product_id: string
+  barcode: string
+  product_name: string
+  quantity: number
+  unit_price: number
+  line_total: number
+  position: number
+}
+
+export interface PayTicketResult {
+  status: 'ok' | 'duplicate'
+  ticket: Ticket
+  products: Product[]
+}
