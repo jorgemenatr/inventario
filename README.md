@@ -44,6 +44,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261013000300_ventas.sql` | Tablas `tickets` y `ticket_items`, RPC `pay_ticket` y vista `sales_history` |
 | `20261013000400_creditos.sql` | Créditos de tienda (`customer_credit_movements`, `grant_credits`) y pagos con varios métodos (`ticket_payments`) |
 | `20261013000500_folio_tickets.sql` | Folio consecutivo de tickets ("Ticket 1, 2, 3…") asignado al cobrar |
+| `20261013000600_folio_where.sql` | Corrección: el contador de folios necesita `WHERE` (Supabase rechaza `UPDATE` sin `WHERE`) |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
