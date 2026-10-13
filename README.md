@@ -42,6 +42,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261013000100_catalogo_busqueda_accesorios.sql` | Búsqueda con palabras en español (micas, tapete, carpeta, colores…) |
 | `20261013000200_clientes.sql` | Tabla `customers` (clientes) y sus permisos |
 | `20261013000300_ventas.sql` | Tablas `tickets` y `ticket_items`, RPC `pay_ticket` y vista `sales_history` |
+| `20261013000400_creditos.sql` | Créditos de tienda (`customer_credit_movements`, `grant_credits`) y pagos con varios métodos (`ticket_payments`) |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -284,8 +285,10 @@ En **Clientes** (`/clientes`) se da de alta y se consulta a los clientes de la t
    con "Nuevo cliente".
 3. **Agrega productos** con el lector (código + Enter) o escribiendo parte del nombre y
    eligiendo con flechas + Enter. La cantidad se cambia con − / + o escribiéndola.
-4. Elige la **forma de pago** (efectivo, tarjeta, créditos o transferencia). En efectivo, si
-   escribes lo recibido, calcula el cambio.
+4. Elige la **forma de pago** (efectivo, tarjeta, créditos o transferencia). Con un solo método,
+   un clic cubre todo el total. Para **pagar con varios**, elige también el segundo: aparece el
+   monto de cada uno y, con dos métodos, al cambiar uno el otro se ajusta para completar el
+   total. En efectivo, si escribes lo recibido, calcula el cambio.
 5. **Pagar** registra la venta, descuenta el inventario y crea un movimiento "Venta" por
    producto (se ve en Historial). El ticket se cierra.
 
@@ -316,6 +319,26 @@ por forma de pago. Al hacer clic en una venta se ven sus productos y quién cobr
 ventas que siguen en la cola sin conexión aparecen arriba como pendientes.
 
 En el detalle de cada cliente, **Compras previas** muestra sus ventas con el total gastado.
+
+Si una venta se pagó con más de un método, en la columna Pago dice **Mixto**; al abrirla se ve
+cuánto se pagó con cada método. Los totales por forma de pago de arriba reparten las ventas
+mixtas en sus métodos reales.
+
+## Créditos de tienda
+
+Cada cliente puede tener créditos (1 crédito = $1) para pagar productos en la tienda.
+
+- **Agregar a un cliente:** en su perfil, **Agregar crédito** → monto y concepto (p. ej.
+  "Premio torneo Pokémon"). Se guarda el monto, la fecha, el concepto y quién lo agregó.
+- **Agregar a varios:** en **Clientes**, **Agregar créditos** → un concepto y la lista de
+  clientes, cada uno con su monto (p. ej. los premios de un torneo).
+- **Perfil del cliente:** saldo disponible, créditos ganados y usados (histórico) y el
+  historial de movimientos. La lista de clientes muestra el saldo de cada uno.
+- **Pagar con créditos:** en el Mostrador elige "Créditos". El ticket necesita un cliente;
+  se muestra su saldo y no deja usar más de lo que tiene (si no alcanza, combínalo con otro
+  método). Necesita conexión para leer el saldo real; los demás métodos funcionan sin red.
+- Por ahora los créditos no se pueden quitar ni corregir desde la app: se registran al
+  agregarlos y se descuentan al usarlos. Nada se edita ni se borra.
 
 ## Decisiones de diseño
 

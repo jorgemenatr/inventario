@@ -4,11 +4,11 @@ import { SalesTable } from '../components/SalesTable'
 import { formatDateTime, formatInt, formatMoney } from '../lib/format'
 import { listSales, salesSummary, SALES_PAGE, type SalesFilter } from '../lib/sales'
 import { isNetworkError } from '../lib/supabase'
-import { PAYMENT_LABELS, type PaymentMethod, type SaleRow } from '../lib/types'
+import { PAYMENT_LABELS, PAYMENT_METHODS, type SaleRow, type TicketPaymentMethod } from '../lib/types'
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
-const METHODS: PaymentMethod[] = ['cash', 'card', 'credit', 'transfer']
+const FILTER_METHODS: TicketPaymentMethod[] = [...PAYMENT_METHODS, 'mixed']
 
 function today() {
   const d = new Date()
@@ -71,9 +71,9 @@ export function VentasPage() {
         </div>
         <div>
           <label className="field-label" htmlFor="v-method">Forma de pago</label>
-          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as PaymentMethod | '' })} className="field cursor-pointer">
+          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as TicketPaymentMethod | '' })} className="field cursor-pointer">
             <option value="">Todas</option>
-            {METHODS.map((m) => (
+            {FILTER_METHODS.map((m) => (
               <option key={m} value={m}>
                 {PAYMENT_LABELS[m]}
               </option>
@@ -100,7 +100,7 @@ export function VentasPage() {
             <p className="text-label text-ink-muted">Total</p>
             <p className="text-kpi tabular-nums">{formatMoney(summary.total)}</p>
           </div>
-          {METHODS.map((m) => (
+          {PAYMENT_METHODS.map((m) => (
             <div key={m} className="card p-4">
               <p className="text-label text-ink-muted">{PAYMENT_LABELS[m]}</p>
               <p className="text-heading tabular-nums">{formatMoney(summary.byMethod[m] ?? 0)}</p>

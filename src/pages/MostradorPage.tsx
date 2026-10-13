@@ -4,19 +4,19 @@ import { CustomerFormModal } from '../components/CustomerFormModal'
 import { Icon } from '../components/Icon'
 import { ProductImage } from '../components/ProductImage'
 import { CustomerPicker } from '../components/pos/CustomerPicker'
+import { PaymentPanel } from '../components/pos/PaymentPanel'
 import { ProductPicker } from '../components/pos/ProductPicker'
 import { gameSuggestions } from '../lib/customers'
-import { formatInt, formatMoney, parseMoney } from '../lib/format'
+import { formatInt, formatMoney } from '../lib/format'
 import { sounds } from '../lib/sounds'
-import { PAYMENT_LABELS, type PaymentMethod } from '../lib/types'
+import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
 import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { posStore, ticketPieces, ticketTotal, usePos, type OpenTicket, type PosLine } from '../store/posStore'
 
-const METHODS: PaymentMethod[] = ['cash', 'card', 'credit', 'transfer']
 
 type Notice = { kind: 'error' | 'info'; text: string } | null
-type LastSale = { name: string; total: number; method: PaymentMethod; change: number | null; pending: boolean } | null
+type LastSale = { name: string; total: number; payments: PaymentPart[]; change: number | null; pending: boolean } | null
 
 export function MostradorPage() {
   const { products, online } = useInventory()
@@ -25,8 +25,6 @@ export function MostradorPage() {
 
   const [newName, setNewName] = useState('')
   const [notice, setNotice] = useState<Notice>(null)
-  const [method, setMethod] = useState<PaymentMethod | null>(null)
-  const [received, setReceived] = useState('')
   const [paying, setPaying] = useState(false)
   const [lastSale, setLastSale] = useState<LastSale>(null)
   const [renaming, setRenaming] = useState(false)
@@ -46,8 +44,6 @@ export function MostradorPage() {
 
   // Cambiar de ticket reinicia el cobro.
   useEffect(() => {
-    setMethod(null)
-    setReceived('')
     setRenaming(false)
     setNotice(null)
     if (activeId) focusProduct()
@@ -78,13 +74,8 @@ export function MostradorPage() {
     focusProduct()
   }
 
-  const total = active ? ticketTotal(active) : 0
-  const cash = parseMoney(received)
-  const change = method === 'cash' && cash !== null && !Number.isNaN(cash) ? cash - total : null
-  const cashShort = change !== null && change < 0
-
-  async function pay() {
-    if (!active || !method || paying || active.lines.length === 0 || cashShort) return
+  async function pay(payments: PaymentPart[], change: number | null) {
+    if (!active || paying || active.lines.length === 0) return
     setPaying(true)
     setNotice(null)
     const out = await inventoryStore.paySale({
@@ -92,7 +83,8 @@ export function MostradorPage() {
       name: active.name,
       customerId: active.customer?.id ?? null,
       customerName: active.customer?.name ?? null,
-      paymentMethod: method,
+      paymentMethod: payments.length > 1 ? 'mixed' : payments[0].method,
+      payments,
       openedAt: active.openedAt,
       items: active.lines.map((l) => ({ barcode: l.barcode, name: l.name, quantity: l.quantity, unitPrice: l.unitPrice })),
     })
@@ -103,7 +95,7 @@ export function MostradorPage() {
       return
     }
     sounds.success()
-    setLastSale({ name: active.name, total: out.total, method, change, pending: out.pending })
+    setLastSale({ name: active.name, total: out.total, payments, change, pending: out.pending })
     posStore.closeTicket(active.id)
   }
 
@@ -133,7 +125,10 @@ export function MostradorPage() {
               {lastSale.pending ? 'Venta guardada sin conexión (pendiente)' : 'Venta registrada'} · {lastSale.name}
             </p>
             <p className="text-heading">
-              {formatMoney(lastSale.total)} con {PAYMENT_LABELS[lastSale.method].toLowerCase()}
+              {formatMoney(lastSale.total)} con{' '}
+              {lastSale.payments.length === 1
+                ? PAYMENT_LABELS[lastSale.payments[0].method].toLowerCase()
+                : lastSale.payments.map((p) => `${PAYMENT_LABELS[p.method].toLowerCase()} ${formatMoney(p.amount)}`).join(' + ')}
             </p>
           </div>
           {lastSale.change !== null && lastSale.change > 0 && (
@@ -246,69 +241,17 @@ export function MostradorPage() {
               <TicketLines ticket={active} products={products} onChanged={focusProduct} />
             </div>
 
-            {/* Cobro */}
-            <div className="card flex flex-col gap-4 p-5 2xl:sticky 2xl:top-4">
-              <div className="flex justify-between text-ink-muted">
-                <span>Artículos</span>
-                <span className="tabular-nums">{formatInt(ticketPieces(active))}</span>
-              </div>
-              <div className="flex justify-between text-ink-muted">
-                <span>Subtotal</span>
-                <span className="tabular-nums">{formatMoney(total)}</span>
-              </div>
-              <div className="flex items-baseline justify-between border-t border-line pt-3">
-                <span className="text-heading">Total</span>
-                <span className="text-display tabular-nums">{formatMoney(total)}</span>
-              </div>
-
-              <div>
-                <span className="field-label">Forma de pago</span>
-                <div className="grid grid-cols-2 gap-2" role="group" aria-label="Forma de pago">
-                  {METHODS.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      aria-pressed={method === m}
-                      onClick={() => setMethod(m)}
-                      className={`h-11 cursor-pointer rounded-md border text-label ${method === m ? 'border-brand bg-brand-soft text-brand-ink' : 'border-control bg-surface text-ink hover:bg-subtle'}`}
-                    >
-                      {PAYMENT_LABELS[m]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {method === 'cash' && (
-                <div>
-                  <label htmlFor="pos-received" className="field-label">Recibido (opcional, para calcular el cambio)</label>
-                  <input
-                    id="pos-received"
-                    value={received}
-                    onChange={(e) => setReceived(e.target.value)}
-                    inputMode="decimal"
-                    autoComplete="off"
-                    className="field h-10 tabular-nums"
-                  />
-                  {change !== null && (
-                    <p className={`mt-2 flex justify-between text-heading ${cashShort ? 'text-danger-fg' : ''}`}>
-                      <span>{cashShort ? 'Falta' : 'Cambio'}</span>
-                      <span className="tabular-nums">{formatMoney(Math.abs(change))}</span>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => void pay()}
-                disabled={paying || !method || active.lines.length === 0 || cashShort}
-                className="btn btn-primary btn-lg w-full"
-              >
-                <Icon name="check" size={20} />
-                {paying ? 'Cobrando…' : `Pagar ${formatMoney(total)}`}
-              </button>
-              {!method && active.lines.length > 0 && <p className="-mt-2 text-center text-caption text-ink-subtle">Elige la forma de pago.</p>}
-            </div>
+            {/* Cobro: se reinicia al cambiar de ticket */}
+            <PaymentPanel
+              key={active.id}
+              total={ticketTotal(active)}
+              pieces={ticketPieces(active)}
+              hasLines={active.lines.length > 0}
+              customer={active.customer}
+              online={online}
+              paying={paying}
+              onPay={(payments, change) => void pay(payments, change)}
+            />
           </section>
         )}
       </div>

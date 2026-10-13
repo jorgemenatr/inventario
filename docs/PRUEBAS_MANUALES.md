@@ -166,3 +166,23 @@ productos de prueba con poco stock (p. ej. 3 piezas).
 - [ ] En Ventas, filtra por forma de pago y por fechas; haz clic en una venta para ver sus
       productos.
 - [ ] En Clientes, abre el cliente de Mesa 1: aparece en "Compras previas".
+
+## 12. Créditos y pagos con varios métodos
+Antes: aplica la migración `…000400_creditos.sql`.
+- [ ] En Clientes, "Agregar créditos": sin concepto avisa. Pon "Premio torneo", agrega dos
+      clientes con montos distintos y guarda. Aparece el aviso y la columna Créditos se llena.
+- [ ] Un cliente ya elegido no se ofrece otra vez en el siguiente renglón.
+- [ ] En el perfil de un cliente, "Agregar crédito" con otro concepto. Se actualizan
+      Disponible y Ganados, y el historial muestra los dos movimientos con quién los registró.
+- [ ] En el Mostrador, un ticket sin cliente: al elegir "Créditos" avisa que falta el cliente.
+- [ ] Asigna al cliente con créditos y un producto que cueste más que su saldo. Con solo
+      "Créditos" avisa que no alcanza. Elige también "Efectivo": créditos queda en su saldo y
+      efectivo en el resto ("Cubierto").
+- [ ] Cambia el monto de efectivo: créditos se ajusta solo. Si pasa del saldo, avisa;
+      "Usar todo el saldo posible" lo corrige.
+- [ ] Paga con efectivo recibido: muestra el cambio. El aviso dice "con créditos $… + efectivo $…".
+- [ ] En el perfil, Disponible bajó y el historial muestra "Compra" con el monto en rojo.
+- [ ] En Ventas, esa venta dice "Mixto"; al abrirla se ve el desglose por método. Los totales
+      de arriba suman cada método por separado y el filtro "Mixto" la encuentra.
+- [ ] Paga otro ticket con tres métodos (p. ej. tarjeta + transferencia + efectivo).
+- [ ] Sin internet, "Créditos" avisa que necesita conexión; efectivo y tarjeta sí se cobran.

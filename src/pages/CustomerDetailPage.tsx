@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { CustomerCredits } from '../components/CustomerCredits'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { GameTags } from '../components/GamesInput'
 import { SalesTable } from '../components/SalesTable'
@@ -107,6 +108,8 @@ export function CustomerDetailPage() {
               <GameTags games={customer.games} />
             </div>
           </section>
+
+          <CustomerCredits customer={customer} />
 
           <section className="flex flex-col gap-3">
             <div className="flex flex-wrap items-baseline gap-3">

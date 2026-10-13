@@ -7,14 +7,19 @@ interface Props {
   customers: Customer[]
   onPick: (c: Customer) => void
   /** Abre el alta de cliente con lo que se escribió como nombre. */
-  onCreate: (name: string) => void
-  canCreate: boolean
+  /** Sin onCreate no se muestra el botón "Nuevo cliente". */
+  onCreate?: (name: string) => void
+  canCreate?: boolean
+  placeholder?: string
+  /** Clientes que no se ofrecen (p. ej. los ya elegidos). */
+  exclude?: string[]
+  autoFocus?: boolean
 }
 
 const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 /** Buscar y asignar un cliente existente al ticket (o darlo de alta ahí mismo). */
-export function CustomerPicker({ customers, onPick, onCreate, canCreate }: Props) {
+export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, placeholder, exclude, autoFocus }: Props) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -23,11 +28,12 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate }: Props
     const words = normalize(query.trim()).split(/\s+/).filter(Boolean)
     return customers
       .filter((c) => {
+        if (exclude?.includes(c.id)) return false
         const text = normalize(`${c.name} ${c.phone ?? ''} ${c.email ?? ''}`)
         return words.every((w) => text.includes(w))
       })
       .slice(0, 8)
-  }, [query, customers])
+  }, [query, customers, exclude])
 
   function pick(c: Customer) {
     onPick(c)
@@ -62,13 +68,17 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate }: Props
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
-          placeholder="Asignar cliente (nombre o teléfono)…"
-          aria-label="Asignar cliente"
+          placeholder={placeholder ?? 'Asignar cliente (nombre o teléfono)…'}
+          aria-label={placeholder ?? 'Asignar cliente'}
+          autoFocus={autoFocus}
           autoComplete="off"
           className="field pl-9"
         />
         {open && (results.length > 0 || query.trim()) && (
-          <ul className="absolute z-20 mt-1 max-h-80 w-full divide-y divide-line overflow-auto rounded-md border border-line bg-surface shadow-popover" role="listbox">
+          <ul
+            className="absolute z-20 mt-1 max-h-80 w-full divide-y divide-line overflow-auto rounded-md border border-line bg-surface shadow-popover"
+            role="listbox"
+          >
             {results.map((c, i) => (
               <li key={c.id} role="option" aria-selected={i === active}>
                 <button
@@ -90,16 +100,18 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate }: Props
           </ul>
         )}
       </div>
-      <button
-        type="button"
-        onClick={() => onCreate(query.trim())}
-        disabled={!canCreate}
-        title={canCreate ? undefined : 'Se necesita conexión para dar de alta clientes'}
-        className="btn btn-secondary"
-      >
-        <Icon name="plus" />
-        Nuevo cliente
-      </button>
+      {onCreate && (
+        <button
+          type="button"
+          onClick={() => onCreate(query.trim())}
+          disabled={!canCreate}
+          title={canCreate ? undefined : 'Se necesita conexión para dar de alta clientes'}
+          className="btn btn-secondary"
+        >
+          <Icon name="plus" />
+          Nuevo cliente
+        </button>
+      )}
     </div>
   )
 }

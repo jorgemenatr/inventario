@@ -1,7 +1,7 @@
 import { isAuthError, isNetworkError, probeConnection, supabase } from '../lib/supabase'
 import { normalizeBarcode } from '../lib/barcode'
 import { uploadProductImage } from '../lib/images'
-import type { CreateRpcResult, MovementResult, PaymentMethod, PayTicketResult, Product, ScanMode, ScanRpcResult } from '../lib/types'
+import type { CreateRpcResult, MovementResult, PaymentPart, PayTicketResult, Product, ScanMode, ScanRpcResult, TicketPaymentMethod } from '../lib/types'
 
 /*
  * Estado de inventario del lado del cliente:
@@ -50,7 +50,10 @@ export interface SaleInput {
   name: string
   customerId: string | null
   customerName: string | null
-  paymentMethod: PaymentMethod
+  /** Método del ticket ('mixed' si hay varios pagos). */
+  paymentMethod: TicketPaymentMethod
+  /** Pagos por método; deben sumar el total. Las ventas de la cola anterior no lo traen. */
+  payments?: PaymentPart[]
   openedAt: string
   items: { barcode: string; name: string; quantity: number; unitPrice: number }[]
 }
@@ -631,7 +634,13 @@ class InventoryStore {
         }
       }
 
-      if (await this.flushBeforeOnline()) {
+      const usesCredit = sale.payments?.some((p) => p.method === 'credit') ?? sale.paymentMethod === 'credit'
+      const online = await this.flushBeforeOnline()
+      if (usesCredit && !online) {
+        return { type: 'error', message: 'Pagar con créditos necesita conexión (para revisar el saldo del cliente).' }
+      }
+
+      if (online) {
         try {
           await this.callPayTicket(sale, false)
           return { type: 'ok', pending: false, total }
@@ -664,6 +673,7 @@ class InventoryStore {
       p_customer_id: sale.customerId,
       p_opened_at: sale.openedAt,
       p_offline: offline,
+      p_payments: sale.payments ?? null,
     })
     if (error) {
       if (!isNetworkError(error) && !isAuthError(error)) throw new PermanentError(error.message)
