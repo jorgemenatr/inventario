@@ -20,7 +20,7 @@
  * no se pierden.
  */
 
-import { writeFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 
 const TCGCSV = 'https://tcgcsv.com/tcgplayer'
 const USER_AGENT = 'inventario-hachiko/1.0 (importador de catalogo)'
@@ -234,6 +234,26 @@ async function upsert(rows, url, key) {
   if (process.stdout.isTTY) process.stdout.write('\n')
 }
 
+/** En GitHub Actions, deja el resumen como tabla en la página "Summary" de la corrida. */
+function writeStepSummary(resumen, total, prueba) {
+  const file = process.env.GITHUB_STEP_SUMMARY
+  if (!file) return
+  const fmt = (n) => n.toLocaleString('es-MX')
+  const lines = [
+    '### Catálogo TCG',
+    '',
+    '| Fuente | Grupos | Productos | Con código de barras |',
+    '| --- | ---: | ---: | ---: |',
+    ...resumen.map((r) => `| ${r.juego} | ${fmt(r.grupos)} | ${fmt(r.productos)} | ${fmt(r.con_upc)} |`),
+    '',
+    prueba
+      ? `Modo prueba: no se escribió nada en Supabase (${fmt(total)} productos).`
+      : `**${fmt(total)} productos** actualizados en el catálogo.`,
+    '',
+  ]
+  appendFileSync(file, lines.join('\n'))
+}
+
 // ---------- main ----------
 async function main() {
   const args = parseArgs(process.argv.slice(2))
@@ -270,10 +290,12 @@ async function main() {
     const file = 'catalogo-prueba.json'
     writeFileSync(file, JSON.stringify(unique, null, 1))
     console.log(`Modo prueba: no se escribió nada en Supabase. ${unique.length} productos en ${file}`)
+    writeStepSummary(resumen, unique.length, true)
     return
   }
   await upsert(unique, url, key)
   console.log(`Listo: ${unique.length} productos actualizados en el catálogo.`)
+  writeStepSummary(resumen, unique.length, false)
 }
 
 main().catch((e) => {
