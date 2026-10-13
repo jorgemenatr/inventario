@@ -1,0 +1,282 @@
+#!/usr/bin/env node
+/*
+ * Importa el catálogo de PRODUCTO SELLADO y ACCESORIOS de TCGplayer (vía
+ * https://tcgcsv.com, espejo público y gratuito que se actualiza a diario) a
+ * la tabla `catalog_products` de Supabase.
+ *
+ * Uso:
+ *   npm run catalogo                          # juegos por defecto, todo el historial
+ *   npm run catalogo -- --juegos pokemon,magic
+ *   npm run catalogo -- --juegos dragon-shield,ultra-pro-pokemon
+ *   npm run catalogo -- --desde 2025-01-01    # solo sets publicados desde esa fecha
+ *   npm run catalogo -- --prueba              # no escribe nada: guarda un JSON local
+ *
+ * Variables de entorno (en .env.catalogo o en los secrets de GitHub Actions):
+ *   SUPABASE_URL               https://xxxx.supabase.co
+ *   SUPABASE_SERVICE_ROLE_KEY  service_role / secret key (NUNCA en el frontend)
+ *
+ * Es seguro correrlo las veces que quieras: actualiza lo que ya existe (upsert
+ * por productId) y nunca borra filas, así que los vínculos con el inventario
+ * no se pierden.
+ */
+
+import { writeFileSync } from 'node:fs'
+
+const TCGCSV = 'https://tcgcsv.com/tcgplayer'
+const USER_AGENT = 'inventario-hachiko/1.0 (importador de catalogo)'
+const CONCURRENCY = 4
+const BATCH = 500
+
+// Categorías de accesorios en TCGplayer: micas, deck boxes, latas, contadores,
+// playmats, páginas, carpetas, almacenamiento y bundles. Ahí cada "set" es una
+// marca + tipo (p. ej. "Dragon Shield Card Sleeves").
+const ACCESORIOS = [31, 32, 33, 34, 35, 49, 50, 51, 52]
+// Accesorios de Pokémon: los que no dicen "Pokemon" sí nombran al personaje
+// ("Elite Pikachu PRO-Binder", "Elite Series: Charizard …").
+const POKEMON = /pok[eé]mon|pikachu|charizard|eevee|blastoise|venusaur|gengar|pok[eé] ?ball/i
+
+// Fuentes que se pueden importar. Lista de categorías de TCGplayer:
+// https://tcgcsv.com/tcgplayer/categories. Para agregar otra, súmala aquí.
+//   categorias: categoryIds de TCGplayer
+//   nombre:     lo que se guarda como "juego" (y queda como categoría en el alta)
+//   grupo:      solo los sets/grupos cuyo nombre coincide
+//   producto:   solo los productos cuyo nombre coincide
+const JUEGOS = {
+  pokemon: { categorias: [3] },
+  magic: { categorias: [1] },
+  yugioh: { categorias: [2] },
+  lorcana: { categorias: [71] },
+  'flesh-and-blood': { categorias: [62] },
+  'dragon-shield': { categorias: ACCESORIOS, nombre: 'Dragon Shield', grupo: /dragon shield/i },
+  'ultra-pro-pokemon': { categorias: ACCESORIOS, nombre: 'Ultra Pro', grupo: /ultra ?pro/i, producto: POKEMON },
+}
+const POR_DEFECTO = Object.keys(JUEGOS)
+
+// ---------- argumentos ----------
+function parseArgs(argv) {
+  const args = { juegos: POR_DEFECTO, desde: null, prueba: false }
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    const value = () => {
+      const v = a.includes('=') ? a.split('=').slice(1).join('=') : argv[++i]
+      if (!v) throw new Error(`Falta el valor de ${a}`)
+      return v
+    }
+    if (a.startsWith('--juegos')) args.juegos = value().split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+    else if (a.startsWith('--desde')) args.desde = value()
+    else if (a === '--prueba') args.prueba = true
+    else if (a === '--ayuda' || a === '--help') {
+      console.log(`Juegos disponibles: ${Object.keys(JUEGOS).join(', ')}`)
+      console.log(`Por defecto: ${POR_DEFECTO.join(', ')}`)
+      process.exit(0)
+    } else throw new Error(`Argumento desconocido: ${a} (usa --ayuda)`)
+  }
+  for (const j of args.juegos) {
+    if (!(j in JUEGOS)) {
+      throw new Error(`Juego desconocido: "${j}". Disponibles: ${Object.keys(JUEGOS).join(', ')}`)
+    }
+  }
+  if (args.desde && !/^\d{4}-\d{2}-\d{2}$/.test(args.desde)) throw new Error('--desde debe ser AAAA-MM-DD')
+  return args
+}
+
+// ---------- utilidades ----------
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+async function getJson(url, attempt = 1) {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const body = await res.json()
+    if (body.success === false) throw new Error(body.errors?.join('; ') || 'respuesta sin éxito')
+    return body.results ?? []
+  } catch (e) {
+    if (attempt >= 4) throw new Error(`${url}: ${e.message}`)
+    await sleep(1000 * 2 ** attempt)
+    return getJson(url, attempt + 1)
+  }
+}
+
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length)
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++
+        out[i] = await fn(items[i], i)
+      }
+    }),
+  )
+  return out
+}
+
+function ext(product, ...names) {
+  for (const n of names) {
+    const v = product.extendedData?.find((e) => e.name === n)?.value
+    if (v != null && String(v).trim()) return String(v)
+  }
+  return null
+}
+
+/** HTML de TCGplayer → texto plano. */
+function htmlToText(html) {
+  if (!html) return null
+  const text = html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h\d)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;|&rsquo;|&lsquo;/g, "'")
+    .replace(/&ldquo;|&rdquo;/g, '"')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&eacute;/g, 'é')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\r/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return text || null
+}
+
+/**
+ * Sellado = sin número de carta ni rareza. Las cartas sueltas traen "Number"
+ * y/o "Rarity" (las japonesas viejas solo "Rarity"); las Code Cards también.
+ */
+const isSealed = (p) => !p.extendedData?.some((e) => e.name === 'Number' || e.name === 'Rarity')
+
+/** La imagen por defecto es de 200 px; el CDN también sirve 1000×1000. */
+const bigImage = (url) => (url ? url.replace(/_200w\.jpg$/, '_in_1000x1000.jpg') : null)
+
+// ---------- descarga ----------
+let categoriesCache = null
+
+/** Importa una categoría de TCGplayer, opcionalmente filtrando grupos y productos. */
+async function importCategory(categoryId, { desde, nombre, grupo, producto } = {}) {
+  categoriesCache ??= await getJson(`${TCGCSV}/categories`)
+  const category = categoriesCache.find((c) => c.categoryId === categoryId)
+  if (!category) throw new Error(`No existe la categoría ${categoryId} en TCGplayer`)
+  const game = nombre ?? (category.displayName || category.name)
+  // En accesorios los grupos son marcas, no sets: --desde no aplica.
+  const accesorio = Boolean(grupo)
+
+  let groups = await getJson(`${TCGCSV}/${categoryId}/groups`)
+  if (grupo) groups = groups.filter((g) => grupo.test(g.name ?? ''))
+  if (desde && !accesorio) groups = groups.filter((g) => (g.publishedOn ?? '').slice(0, 10) >= desde)
+
+  let done = 0
+  const perGroup = await mapLimit(groups, CONCURRENCY, async (g) => {
+    const [products, prices] = await Promise.all([
+      getJson(`${TCGCSV}/${categoryId}/${g.groupId}/products`),
+      getJson(`${TCGCSV}/${categoryId}/${g.groupId}/prices`).catch(() => []),
+    ])
+    const price = new Map()
+    for (const p of prices) {
+      // Para sellado casi siempre hay un solo subtipo ("Normal").
+      if (!price.has(p.productId) || p.subTypeName === 'Normal') price.set(p.productId, p.marketPrice ?? p.midPrice ?? null)
+    }
+    done++
+    if (process.stdout.isTTY) process.stdout.write(`\r  ${game}: ${done}/${groups.length} grupos`)
+    return products
+      .filter((p) => isSealed(p) && (!producto || producto.test(p.name ?? '')))
+      .map((p) => ({
+        id: p.productId,
+        category_id: categoryId,
+        game,
+        group_id: g.groupId,
+        set_name: g.name ?? null,
+        set_code: g.abbreviation || null,
+        name: p.name,
+        description: htmlToText(ext(p, 'CardText', 'Description', 'OracleText')),
+        image_url: bigImage(p.imageUrl),
+        upc: ext(p, 'UPC'),
+        market_price: price.get(p.productId) ?? null,
+        // La fecha del grupo de un accesorio es la de la marca en TCGplayer, no la del producto.
+        released_on: (p.presaleInfo?.releasedOn ?? (accesorio ? '' : g.publishedOn) ?? '').slice(0, 10) || null,
+        tcgplayer_url: p.url ?? null,
+        source_modified_on: p.modifiedOn ?? null,
+      }))
+  })
+  if (process.stdout.isTTY) process.stdout.write('\n')
+  return { game, groups: groups.length, rows: perGroup.flat() }
+}
+
+// ---------- escritura en Supabase ----------
+async function upsert(rows, url, key) {
+  const headers = {
+    apikey: key,
+    'Content-Type': 'application/json',
+    Prefer: 'resolution=merge-duplicates,return=minimal',
+  }
+  // Las llaves "legacy" (service_role) son JWT; las nuevas (sb_secret_…) van solo en apikey.
+  if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`
+  const now = new Date().toISOString()
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = rows.slice(i, i + BATCH).map((r) => ({ ...r, imported_at: now }))
+    for (let attempt = 1; ; attempt++) {
+      const res = await fetch(`${url}/rest/v1/catalog_products?on_conflict=id`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(chunk),
+      })
+      if (res.ok) break
+      const text = await res.text()
+      if (res.status < 500 || attempt >= 4) throw new Error(`Supabase respondió ${res.status}: ${text}`)
+      await sleep(1000 * 2 ** attempt)
+    }
+    if (process.stdout.isTTY) process.stdout.write(`\r  Guardando: ${Math.min(i + BATCH, rows.length)}/${rows.length}`)
+  }
+  if (process.stdout.isTTY) process.stdout.write('\n')
+}
+
+// ---------- main ----------
+async function main() {
+  const args = parseArgs(process.argv.slice(2))
+  const url = process.env.SUPABASE_URL?.replace(/\/+$/, '')
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
+  if (!args.prueba && (!url || !key)) {
+    throw new Error(
+      'Faltan SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY. Copia .env.catalogo.example a .env.catalogo y llénalo ' +
+        '(o usa --prueba para solo descargar).',
+    )
+  }
+
+  console.log(`Juegos: ${args.juegos.join(', ')}${args.desde ? ` · sets desde ${args.desde}` : ''}`)
+  const all = []
+  const resumen = []
+  for (const j of args.juegos) {
+    const fuente = JUEGOS[j]
+    let grupos = 0
+    const rows = []
+    for (const id of fuente.categorias) {
+      const r = await importCategory(id, { ...fuente, desde: args.desde })
+      grupos += r.groups
+      rows.push(...r.rows)
+    }
+    const conUpc = rows.filter((r) => r.upc).length
+    resumen.push({ juego: j, grupos, productos: rows.length, con_upc: conUpc })
+    all.push(...rows)
+  }
+  console.table(resumen)
+  // Un mismo productId repetido en un lote hace fallar el upsert.
+  const unique = [...new Map(all.map((r) => [r.id, r])).values()]
+
+  if (args.prueba) {
+    const file = 'catalogo-prueba.json'
+    writeFileSync(file, JSON.stringify(unique, null, 1))
+    console.log(`Modo prueba: no se escribió nada en Supabase. ${unique.length} productos en ${file}`)
+    return
+  }
+  await upsert(unique, url, key)
+  console.log(`Listo: ${unique.length} productos actualizados en el catálogo.`)
+}
+
+main().catch((e) => {
+  console.error(`\nError: ${e.message}`)
+  process.exit(1)
+})

@@ -37,6 +37,10 @@ export interface CreateInput {
   category: string | null
   supplier: string | null
   initialQuantity: number
+  // Opcionales: las altas que ya estaban en la cola antes del catálogo no los traen.
+  description?: string | null
+  /** productId de TCGplayer (catalog_products) vinculado. */
+  catalogProductId?: number | null
 }
 
 type QueueItem =
@@ -403,6 +407,8 @@ class InventoryStore {
         name: raw.name.trim(),
         category: raw.category?.trim() || null,
         supplier: raw.supplier?.trim() || null,
+        description: raw.description?.trim() || null,
+        catalogProductId: raw.catalogProductId ?? null,
       }
       const opId = crypto.randomUUID()
       const online = await this.flushBeforeOnline()
@@ -499,6 +505,8 @@ class InventoryStore {
       p_initial_quantity: input.initialQuantity,
       p_image_url: imagePath,
       p_client_op_id: opId,
+      p_description: input.description ?? null,
+      p_catalog_product_id: input.catalogProductId ?? null,
     })
     if (error) {
       if (!isNetworkError(error) && !isAuthError(error)) throw new PermanentError(error.message)

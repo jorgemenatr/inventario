@@ -23,9 +23,32 @@ export interface Product {
   /** Ruta dentro del bucket privado `product-images`. */
   image_url: string | null
   is_internal_code: boolean
+  description: string | null
+  /** productId de TCGplayer (fila de catalog_products) con el que se vinculó. */
+  catalog_product_id: number | null
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+/** Fila de search_catalog (catálogo de producto sellado importado de TCGplayer). */
+export interface CatalogItem {
+  id: number
+  game: string
+  set_name: string | null
+  set_code: string | null
+  name: string
+  description: string | null
+  image_url: string | null
+  upc: string | null
+  market_price: number | null
+  released_on: string | null
+  tcgplayer_url: string | null
+  /** El código escaneado coincide con el UPC del catálogo. */
+  upc_match: boolean
+  /** Producto de inventario ya vinculado a esta fila (si hay). */
+  linked_barcode: string | null
+  linked_name: string | null
 }
 
 export interface MovementResult {

@@ -7,3 +7,5 @@ dist
 .DS_Store
 supabase/.temp
 supabase/.branches
+.env.catalogo
+catalogo-prueba.json

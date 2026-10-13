@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { catalogThumb, fetchCatalogImage, searchCatalog } from '../lib/catalog'
 import { compressImage } from '../lib/images'
 import { parseCount, parseMoney } from '../lib/format'
 import { createBurstDetector } from '../lib/scannerBurst'
+import type { CatalogItem } from '../lib/types'
 import { inventoryStore, type CreateOutcome } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
+import { CatalogSearch } from './CatalogSearch'
 import { Icon } from './Icon'
 import { WebcamCapture } from './WebcamCapture'
 
@@ -22,6 +25,7 @@ type Fields = {
   category: string
   supplier: string
   quantity: string
+  description: string
 }
 
 export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }: Props) {
@@ -33,17 +37,52 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     category: '',
     supplier: '',
     quantity: String(defaultQuantity),
+    description: '',
   })
   const [image, setImage] = useState<Blob | null>(null)
+  // De dónde salió la imagen: si es del catálogo, se quita al desvincular.
+  const [imageSource, setImageSource] = useState<'user' | 'catalog' | null>(null)
+  const [linked, setLinked] = useState<CatalogItem | null>(null)
+  const [linkedBy, setLinkedBy] = useState<'barcode' | 'search' | null>(null)
+  const [imageLoading, setImageLoading] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
   const [camera, setCamera] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  const priceRef = useRef<HTMLInputElement>(null)
+  const catalogRef = useRef<HTMLInputElement>(null)
   const detector = useRef(createBurstDetector())
+  const linkToken = useRef(0)
 
-  useEffect(() => nameRef.current?.focus(), [])
+  // Al abrir: si el código ya está en el catálogo (UPC), se vincula solo.
+  // Si no, el cursor queda en el buscador del catálogo (o en Nombre sin conexión).
+  useEffect(() => {
+    let active = true
+    if (!online) {
+      nameRef.current?.focus()
+      return
+    }
+    catalogRef.current?.focus()
+    if (barcode && /^\d{8,14}$/.test(barcode)) {
+      const token = linkToken.current
+      searchCatalog(barcode, 5)
+        .then((r) => {
+          const matches = r.filter((c) => c.upc_match)
+          // Si mientras tanto ya se eligió algo a mano, no se pisa.
+          if (active && token === linkToken.current && matches.length === 1) {
+            applyCatalog(matches[0], 'barcode')
+            priceRef.current?.focus()
+          }
+        })
+        .catch(() => undefined) // sin coincidencia automática: se busca a mano
+    }
+    return () => {
+      active = false
+    }
+    // Solo al abrir el formulario.
+  }, [])
 
   useEffect(() => {
     if (!image) return setPreview(null)
@@ -65,9 +104,57 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
   const set = (key: keyof Fields) => (e: { target: { value: string } }) =>
     setFields((f) => ({ ...f, [key]: e.target.value }))
 
+  function applyCatalog(item: CatalogItem, by: 'barcode' | 'search') {
+    const token = ++linkToken.current
+    setLinked(item)
+    setLinkedBy(by)
+    setError(null)
+    setFields((f) => ({
+      ...f,
+      name: item.name,
+      category: f.category || item.game,
+      description: item.description ?? '',
+    }))
+    // La foto del catálogo reemplaza a otra del catálogo, nunca a una propia.
+    if (imageSource === 'user' || !item.image_url) {
+      if (imageSource === 'catalog') {
+        setImage(null)
+        setImageSource(null)
+      }
+      return
+    }
+    setImageLoading(true)
+    fetchCatalogImage(item.image_url)
+      .then((blob) => {
+        if (token !== linkToken.current) return
+        setImage(blob)
+        setImageSource('catalog')
+      })
+      .catch(() => {
+        if (token !== linkToken.current) return
+        setWarning('No se pudo descargar la foto del catálogo. Puedes subir una o tomarla con la cámara.')
+      })
+      .finally(() => token === linkToken.current && setImageLoading(false))
+  }
+
+  function unlink() {
+    linkToken.current++
+    setLinked(null)
+    setLinkedBy(null)
+    setImageLoading(false)
+    if (imageSource === 'catalog') {
+      setImage(null)
+      setImageSource(null)
+    }
+    setTimeout(() => catalogRef.current?.focus(), 0)
+  }
+
   async function setImageFrom(blob: Blob) {
     try {
+      linkToken.current++ // una descarga del catálogo en curso ya no la pisa
+      setImageLoading(false)
       setImage(await compressImage(blob))
+      setImageSource('user')
       setCamera(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo procesar la imagen')
@@ -107,7 +194,17 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
 
     setSaving(true)
     const outcome = await inventoryStore.createProduct(
-      { barcode, name, price, cost, category: fields.category, supplier: fields.supplier, initialQuantity: quantity },
+      {
+        barcode,
+        name,
+        price,
+        cost,
+        category: fields.category,
+        supplier: fields.supplier,
+        initialQuantity: quantity,
+        description: fields.description,
+        catalogProductId: linked?.id ?? null,
+      },
       image,
     )
     setSaving(false)
@@ -155,6 +252,47 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
             </p>
           )}
 
+          <div className="rounded-md border border-line bg-subtle p-4">
+            {linked ? (
+              <div className="flex items-start gap-3">
+                {linked.image_url && (
+                  <img src={catalogThumb(linked.image_url) ?? ''} alt="" className="size-14 shrink-0 rounded-xs bg-white object-contain" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 text-label text-success-fg">
+                    <Icon name="check" />
+                    {linkedBy === 'barcode' ? 'Encontrado en el catálogo por código de barras' : 'Vinculado al catálogo'}
+                  </p>
+                  <p className="truncate text-heading">{linked.name}</p>
+                  <p className="truncate text-ink-muted">
+                    {linked.game} · {linked.set_name}
+                    {linked.market_price != null && ` · referencia TCGplayer US$ ${linked.market_price.toFixed(2)}`}
+                  </p>
+                  {linked.linked_barcode && (
+                    <p className="mt-2 notice bg-warning-bg text-warning-fg">
+                      <Icon name="alert" className="mt-0.5" />
+                      Este producto ya está en inventario con el código {linked.linked_barcode}
+                      {linked.linked_name && ` (${linked.linked_name})`}.
+                    </p>
+                  )}
+                </div>
+                <button type="button" onClick={unlink} className="btn btn-secondary btn-sm">
+                  Cambiar
+                </button>
+              </div>
+            ) : online ? (
+              <CatalogSearch
+                inputRef={catalogRef}
+                onSelect={(item) => {
+                  applyCatalog(item, 'search')
+                  setTimeout(() => priceRef.current?.focus(), 0)
+                }}
+              />
+            ) : (
+              <p className="text-ink-muted">El catálogo TCG necesita conexión. Captura los datos a mano.</p>
+            )}
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className={label} htmlFor="pf-name">Nombre *</label>
@@ -162,7 +300,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
             </div>
             <div>
               <label className={label} htmlFor="pf-price">Precio de venta * ($)</label>
-              <input id="pf-price" name="price" className={`${input} tabular-nums`} value={fields.price} onChange={set('price')} inputMode="decimal" autoComplete="off" />
+              <input id="pf-price" name="price" ref={priceRef} className={`${input} tabular-nums`} value={fields.price} onChange={set('price')} inputMode="decimal" autoComplete="off" />
             </div>
             <div>
               <label className={label} htmlFor="pf-cost">Costo ($)</label>
@@ -181,6 +319,17 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
             <div>
               <label className={label} htmlFor="pf-qty">Cantidad inicial</label>
               <input id="pf-qty" name="quantity" className={`${input} tabular-nums`} value={fields.quantity} onChange={set('quantity')} inputMode="numeric" autoComplete="off" />
+            </div>
+            <div className="md:col-span-2">
+              <label className={label} htmlFor="pf-description">Descripción</label>
+              <textarea
+                id="pf-description"
+                name="description"
+                rows={3}
+                className="field h-auto py-2"
+                value={fields.description}
+                onChange={set('description')}
+              />
             </div>
             <div>
               <span className={label}>Imagen (opcional)</span>
@@ -204,7 +353,14 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
                   Usar cámara
                 </button>
                 {image && (
-                  <button type="button" onClick={() => setImage(null)} className="btn btn-danger">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImage(null)
+                      setImageSource(null)
+                    }}
+                    className="btn btn-danger"
+                  >
                     Quitar
                   </button>
                 )}
@@ -213,6 +369,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
           </div>
 
           {camera && <WebcamCapture onCapture={(b) => void setImageFrom(b)} onClose={() => setCamera(false)} />}
+          {imageLoading && <p className="text-ink-muted">Descargando foto del catálogo…</p>}
           {preview && <img src={preview} alt="Vista previa" className="max-h-48 rounded-md border border-line" />}
 
           {error && (
@@ -224,7 +381,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
         </div>
 
         <div className="flex justify-end gap-3 border-t border-line bg-subtle px-6 py-4">
-          <button type="submit" disabled={saving} className="btn btn-primary btn-lg w-full sm:w-auto">
+          <button type="submit" disabled={saving || imageLoading} className="btn btn-primary btn-lg w-full sm:w-auto">
             <Icon name="check" size={20} />
             {saving ? 'Guardando…' : 'Guardar producto (Enter)'}
           </button>
