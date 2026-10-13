@@ -101,7 +101,7 @@ export function CatalogSearch({ inputRef, onSelect }: Props) {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
           autoComplete="off"
-          placeholder='Ej. "delta reign etb", "caja 151", "bloomburrow play"'
+          placeholder='Ej. "delta reign etb", "caja 151", "micas negras mate dragon"'
           className="w-full rounded-lg border-2 border-blue-500 bg-white px-3 py-2 text-xl focus:border-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
         />
       )}

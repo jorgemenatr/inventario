@@ -136,4 +136,9 @@ Antes: aplica la migración `20261012000500_catalogo_tcg.sql` y corre la importa
 - [ ] Si tienes producto de Magic o Yu-Gi-Oh! en inglés, escanéalo: si su código está en
       el catálogo, el formulario abre ya vinculado ("Encontrado en el catálogo por código de
       barras").
+- [ ] Accesorios: busca `micas negras mate dragon`, `tapete pikachu` y
+      `carpeta charizard 9 bolsillos`. Salen productos de Dragon Shield y Ultra Pro, y al
+      elegirlos la categoría queda como la marca.
+- [ ] Escanea unas micas Dragon Shield (p. ej. Classic negras de 100): si su código está en
+      el catálogo, se vinculan solas.
 - [ ] Sin internet, el formulario dice que el catálogo necesita conexión y deja capturar a mano.

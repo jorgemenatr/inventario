@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /*
- * Importa el catálogo de PRODUCTO SELLADO de TCGplayer (vía https://tcgcsv.com,
- * espejo público y gratuito que se actualiza a diario) a la tabla
- * `catalog_products` de Supabase.
+ * Importa el catálogo de PRODUCTO SELLADO y ACCESORIOS de TCGplayer (vía
+ * https://tcgcsv.com, espejo público y gratuito que se actualiza a diario) a
+ * la tabla `catalog_products` de Supabase.
  *
  * Uso:
  *   npm run catalogo                          # juegos por defecto, todo el historial
  *   npm run catalogo -- --juegos pokemon,magic
+ *   npm run catalogo -- --juegos dragon-shield,ultra-pro-pokemon
  *   npm run catalogo -- --desde 2025-01-01    # solo sets publicados desde esa fecha
  *   npm run catalogo -- --prueba              # no escribe nada: guarda un JSON local
  *
@@ -26,14 +27,28 @@ const USER_AGENT = 'inventario-hachiko/1.0 (importador de catalogo)'
 const CONCURRENCY = 4
 const BATCH = 500
 
-// Alias → categoryId de TCGplayer (lista completa: https://tcgcsv.com/tcgplayer/categories).
-// Para agregar otro juego, súmalo aquí y a POR_DEFECTO.
+// Categorías de accesorios en TCGplayer: micas, deck boxes, latas, contadores,
+// playmats, páginas, carpetas, almacenamiento y bundles. Ahí cada "set" es una
+// marca + tipo (p. ej. "Dragon Shield Card Sleeves").
+const ACCESORIOS = [31, 32, 33, 34, 35, 49, 50, 51, 52]
+// Accesorios de Pokémon: los que no dicen "Pokemon" sí nombran al personaje
+// ("Elite Pikachu PRO-Binder", "Elite Series: Charizard …").
+const POKEMON = /pok[eé]mon|pikachu|charizard|eevee|blastoise|venusaur|gengar|pok[eé] ?ball/i
+
+// Fuentes que se pueden importar. Lista de categorías de TCGplayer:
+// https://tcgcsv.com/tcgplayer/categories. Para agregar otra, súmala aquí.
+//   categorias: categoryIds de TCGplayer
+//   nombre:     lo que se guarda como "juego" (y queda como categoría en el alta)
+//   grupo:      solo los sets/grupos cuyo nombre coincide
+//   producto:   solo los productos cuyo nombre coincide
 const JUEGOS = {
-  pokemon: 3,
-  magic: 1,
-  yugioh: 2,
-  lorcana: 71,
-  'flesh-and-blood': 62,
+  pokemon: { categorias: [3] },
+  magic: { categorias: [1] },
+  yugioh: { categorias: [2] },
+  lorcana: { categorias: [71] },
+  'flesh-and-blood': { categorias: [62] },
+  'dragon-shield': { categorias: ACCESORIOS, nombre: 'Dragon Shield', grupo: /dragon shield/i },
+  'ultra-pro-pokemon': { categorias: ACCESORIOS, nombre: 'Ultra Pro', grupo: /ultra ?pro/i, producto: POKEMON },
 }
 const POR_DEFECTO = Object.keys(JUEGOS)
 
@@ -139,13 +154,20 @@ const isSealed = (p) => !p.extendedData?.some((e) => e.name === 'Number' || e.na
 const bigImage = (url) => (url ? url.replace(/_200w\.jpg$/, '_in_1000x1000.jpg') : null)
 
 // ---------- descarga ----------
-async function importCategory(categoryId, desde) {
-  const [category] = (await getJson(`${TCGCSV}/categories`)).filter((c) => c.categoryId === categoryId)
+let categoriesCache = null
+
+/** Importa una categoría de TCGplayer, opcionalmente filtrando grupos y productos. */
+async function importCategory(categoryId, { desde, nombre, grupo, producto } = {}) {
+  categoriesCache ??= await getJson(`${TCGCSV}/categories`)
+  const category = categoriesCache.find((c) => c.categoryId === categoryId)
   if (!category) throw new Error(`No existe la categoría ${categoryId} en TCGplayer`)
-  const game = category.displayName || category.name
+  const game = nombre ?? (category.displayName || category.name)
+  // En accesorios los grupos son marcas, no sets: --desde no aplica.
+  const accesorio = Boolean(grupo)
 
   let groups = await getJson(`${TCGCSV}/${categoryId}/groups`)
-  if (desde) groups = groups.filter((g) => (g.publishedOn ?? '').slice(0, 10) >= desde)
+  if (grupo) groups = groups.filter((g) => grupo.test(g.name ?? ''))
+  if (desde && !accesorio) groups = groups.filter((g) => (g.publishedOn ?? '').slice(0, 10) >= desde)
 
   let done = 0
   const perGroup = await mapLimit(groups, CONCURRENCY, async (g) => {
@@ -159,23 +181,26 @@ async function importCategory(categoryId, desde) {
       if (!price.has(p.productId) || p.subTypeName === 'Normal') price.set(p.productId, p.marketPrice ?? p.midPrice ?? null)
     }
     done++
-    if (process.stdout.isTTY) process.stdout.write(`\r  ${game}: ${done}/${groups.length} sets`)
-    return products.filter(isSealed).map((p) => ({
-      id: p.productId,
-      category_id: categoryId,
-      game,
-      group_id: g.groupId,
-      set_name: g.name ?? null,
-      set_code: g.abbreviation || null,
-      name: p.name,
-      description: htmlToText(ext(p, 'CardText', 'Description', 'OracleText')),
-      image_url: bigImage(p.imageUrl),
-      upc: ext(p, 'UPC'),
-      market_price: price.get(p.productId) ?? null,
-      released_on: (p.presaleInfo?.releasedOn ?? g.publishedOn ?? '').slice(0, 10) || null,
-      tcgplayer_url: p.url ?? null,
-      source_modified_on: p.modifiedOn ?? null,
-    }))
+    if (process.stdout.isTTY) process.stdout.write(`\r  ${game}: ${done}/${groups.length} grupos`)
+    return products
+      .filter((p) => isSealed(p) && (!producto || producto.test(p.name ?? '')))
+      .map((p) => ({
+        id: p.productId,
+        category_id: categoryId,
+        game,
+        group_id: g.groupId,
+        set_name: g.name ?? null,
+        set_code: g.abbreviation || null,
+        name: p.name,
+        description: htmlToText(ext(p, 'CardText', 'Description', 'OracleText')),
+        image_url: bigImage(p.imageUrl),
+        upc: ext(p, 'UPC'),
+        market_price: price.get(p.productId) ?? null,
+        // La fecha del grupo de un accesorio es la de la marca en TCGplayer, no la del producto.
+        released_on: (p.presaleInfo?.releasedOn ?? (accesorio ? '' : g.publishedOn) ?? '').slice(0, 10) || null,
+        tcgplayer_url: p.url ?? null,
+        source_modified_on: p.modifiedOn ?? null,
+      }))
   })
   if (process.stdout.isTTY) process.stdout.write('\n')
   return { game, groups: groups.length, rows: perGroup.flat() }
@@ -225,10 +250,16 @@ async function main() {
   const all = []
   const resumen = []
   for (const j of args.juegos) {
-    const id = JUEGOS[j]
-    const { game, groups, rows } = await importCategory(id, args.desde)
+    const fuente = JUEGOS[j]
+    let grupos = 0
+    const rows = []
+    for (const id of fuente.categorias) {
+      const r = await importCategory(id, { ...fuente, desde: args.desde })
+      grupos += r.groups
+      rows.push(...r.rows)
+    }
     const conUpc = rows.filter((r) => r.upc).length
-    resumen.push({ juego: game, sets: groups, sellados: rows.length, con_upc: conUpc })
+    resumen.push({ juego: j, grupos, productos: rows.length, con_upc: conUpc })
     all.push(...rows)
   }
   console.table(resumen)
@@ -242,7 +273,7 @@ async function main() {
     return
   }
   await upsert(unique, url, key)
-  console.log(`Listo: ${unique.length} productos sellados actualizados en el catálogo.`)
+  console.log(`Listo: ${unique.length} productos actualizados en el catálogo.`)
 }
 
 main().catch((e) => {

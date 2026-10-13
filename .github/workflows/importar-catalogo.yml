@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       juegos:
-        description: 'Juegos separados por coma (vacío = todos: pokemon,magic,yugioh,lorcana,flesh-and-blood)'
+        description: 'Separados por coma (vacío = todos: pokemon,magic,yugioh,lorcana,flesh-and-blood,dragon-shield,ultra-pro-pokemon)'
         required: false
         default: ''
 

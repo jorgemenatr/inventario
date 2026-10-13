@@ -39,6 +39,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261012000300_funciones_rpc.sql` | RPC `register_scan`, `create_product`, `undo_movement`, `inventory_totals` y la vista `movement_history` |
 | `20261012000400_storage.sql` | Bucket privado `product-images` y sus políticas |
 | `20261012000500_catalogo_tcg.sql` | Tabla `catalog_products`, vínculo en `products`, RPC `search_catalog` y `catalog_status` |
+| `20261013000100_catalogo_busqueda_accesorios.sql` | Búsqueda con palabras en español (micas, tapete, carpeta, colores…) |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -113,16 +114,18 @@ a mano con cada expansión).
 
 Para no capturar a mano nombre, foto y descripción del producto sellado, la app tiene una
 copia del catálogo de **TCGplayer** (vía [tcgcsv.com](https://tcgcsv.com), un espejo
-público y gratuito que se actualiza a diario). Solo incluye **producto sellado** (cajas,
-sobres, ETB, blisters, mazos, latas…), no cartas sueltas, de estos juegos:
+público y gratuito que se actualiza a diario). Incluye **producto sellado** (cajas,
+sobres, ETB, blisters, mazos, latas…, sin cartas sueltas) y **accesorios**:
 
-| Juego | Productos aprox. | Con código de barras |
-| --- | --- | --- |
-| Pokémon (inglés) | 2,900 | ~950 |
-| Magic: The Gathering | 3,700 | ~1,050 |
-| Yu-Gi-Oh! | 1,200 | ~440 |
-| Disney Lorcana | 180 | — |
-| Flesh and Blood | 230 | — |
+| Fuente (`--juegos`) | Qué trae | Productos aprox. | Con código de barras |
+| --- | --- | --- | --- |
+| `pokemon` | Pokémon (inglés), sellado | 2,900 | ~950 |
+| `magic` | Magic: The Gathering, sellado | 3,800 | ~1,050 |
+| `yugioh` | Yu-Gi-Oh!, sellado | 1,200 | ~440 |
+| `lorcana` | Disney Lorcana, sellado | 180 | — |
+| `flesh-and-blood` | Flesh and Blood, sellado | 230 | — |
+| `dragon-shield` | **Todo** Dragon Shield: micas, deck boxes, playmats, carpetas, páginas, contadores | 800 | ~130 |
+| `ultra-pro-pokemon` | Ultra Pro **solo de Pokémon**: carpetas, portafolios, deck boxes, micas, playmats | 430 | ~45 |
 
 (Cifras de octubre de 2026.)
 
@@ -134,8 +137,10 @@ sobres, ETB, blisters, mazos, latas…), no cartas sueltas, de estos juegos:
 3. Si no, el cursor queda en **Buscar en el catálogo TCG**. Escribe palabras del nombre en
    cualquier orden, como aparecen en TCGplayer (en inglés): `delta reign etb`,
    `151 booster bundle`, `bloomburrow play box`. También entiende `etb`, `upc`
-   (Ultra Premium Collection), `caja`, `sobre`, `mazo` y `lata`. Flechas para moverte y
-   Enter para elegir.
+   (Ultra Premium Collection), `caja`, `sobre`, `mazo` y `lata`, y para accesorios
+   `micas`, `carpeta`, `tapete`, `portafolio`, `bolsillos`, `mate` y los colores
+   (`micas negras mate dragon`, `tapete pikachu`, `carpeta charizard 9 bolsillos`).
+   Flechas para moverte y Enter para elegir.
 4. Se llenan **nombre, categoría (el juego), descripción y foto**. Tú solo pones precio,
    costo y cantidad, y guardas. El nombre y la descripción se pueden editar (p. ej. agregar
    "(español)").
@@ -144,6 +149,7 @@ sobres, ETB, blisters, mazos, latas…), no cartas sueltas, de estos juegos:
 
 Detalles:
 
+- En accesorios, la categoría queda como la marca (`Dragon Shield` o `Ultra Pro`).
 - La foto se **descarga y se guarda en el bucket propio** (`product-images`), igual que una
   foto tomada con la cámara. No depende de TCGplayer después del alta. Si subes o tomas una
   foto propia, tiene prioridad sobre la del catálogo.
@@ -188,16 +194,19 @@ variables `VITE_` ni en el código de la app.
 cp .env.catalogo.example .env.catalogo   # y llénalo (está en .gitignore)
 npm run catalogo                          # todos los juegos
 npm run catalogo -- --juegos pokemon      # solo un juego
-npm run catalogo -- --desde 2026-01-01    # solo sets publicados desde esa fecha (más rápido)
+npm run catalogo -- --desde 2026-01-01    # solo sets publicados desde esa fecha (no aplica a accesorios)
+npm run catalogo -- --juegos dragon-shield,ultra-pro-pokemon   # solo accesorios
 npm run catalogo -- --prueba              # descarga sin escribir en Supabase (catalogo-prueba.json)
 ```
 
 En la app, el buscador muestra cuántos productos tiene el catálogo y la fecha de la última
 importación.
 
-**Agregar otro juego** (p. ej. One Piece): súmalo a `JUEGOS` en
+**Agregar otro juego o marca** (p. ej. One Piece o Ultimate Guard): súmalo a `JUEGOS` en
 `scripts/importar-catalogo.mjs` con su `categoryId` de TCGplayer (la lista está en
-<https://tcgcsv.com/tcgplayer/categories>) y vuelve a importar.
+<https://tcgcsv.com/tcgplayer/categories>) y vuelve a importar. Para accesorios se filtra
+por el nombre del grupo (la marca) y, si quieres, por el nombre del producto, como se
+hace con Ultra Pro y Pokémon.
 
 ---
 
