@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import JsBarcode from 'jsbarcode'
+import { Icon } from '../components/Icon'
 import { formatMoney } from '../lib/format'
 import { useInventory } from '../store/useInventory'
 
@@ -28,7 +29,7 @@ export function LabelPage() {
   }, [code, params])
 
   return (
-    <div className="min-h-full bg-white p-6">
+    <div className="min-h-full bg-app p-6 print:bg-white">
       <style>{`
         @page { size: 50mm 30mm; margin: 0; }
         @media print {
@@ -36,16 +37,20 @@ export function LabelPage() {
           .label { width: 50mm; height: 30mm; padding: 1.5mm 2mm; border: none !important; margin: 0 !important; }
         }
       `}</style>
-      <div className="mb-6 flex gap-3 print:hidden">
-        <button type="button" onClick={() => window.print()} className="rounded-xl bg-blue-700 px-6 py-3 text-xl font-black text-white">
-          🖨 Imprimir
-        </button>
-        <button type="button" onClick={() => window.close()} className="rounded-xl bg-slate-200 px-6 py-3 text-xl font-black">
+      <div className="mb-6 flex flex-wrap items-center gap-3 print:hidden">
+        <h1 className="mr-auto text-title">Etiqueta</h1>
+        <button type="button" onClick={() => window.close()} className="btn btn-secondary">
           Cerrar
         </button>
-        <p className="self-center text-slate-600">Tamaño de etiqueta: 50 × 30 mm. Ajusta la escala en el diálogo de impresión si hace falta.</p>
+        <button type="button" onClick={() => window.print()} className="btn btn-primary">
+          <Icon name="printer" />
+          Imprimir
+        </button>
+        <p className="w-full text-caption text-ink-muted">
+          Tamaño de etiqueta: 50 × 30 mm. Ajusta la escala en el diálogo de impresión si hace falta.
+        </p>
       </div>
-      <div className="label mx-auto flex w-[50mm] flex-col items-center justify-center overflow-hidden border border-dashed border-slate-400 text-black" style={{ height: '30mm' }}>
+      <div className="label mx-auto flex w-[50mm] flex-col items-center justify-center overflow-hidden border border-dashed border-control bg-white font-sans text-black" style={{ height: '30mm' }}>
         {product && <p className="w-full truncate text-center text-[9pt] font-bold leading-tight">{product.name}</p>}
         <svg ref={svgRef} className="h-auto max-w-full" />
         {product && <p className="text-[9pt] font-bold leading-tight">{formatMoney(product.price)}</p>}

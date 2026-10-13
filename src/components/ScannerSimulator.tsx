@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useInventory } from '../store/useInventory'
+import { Icon } from './Icon'
 
 /*
  * Simulador de lector de código de barras (para probar sin lector físico).
@@ -101,46 +102,47 @@ export function ScannerSimulator() {
     setTimeout(() => typeLikeScanner(target, code), 0)
   }
 
-  const btn = 'rounded-md px-2 py-1 text-left text-sm font-semibold'
+  const btn = 'w-full cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1.5 text-left hover:bg-subtle'
   // onMouseDown preventDefault: los botones del simulador no roban el foco.
   const keep = { onMouseDown: (e: MouseEvent) => e.preventDefault() }
 
   return (
     <div
       ref={panelRef}
-      className="fixed bottom-3 left-3 z-[60] w-80 rounded-xl border-4 border-fuchsia-600 bg-white shadow-2xl print:hidden"
+      className="fixed right-3 bottom-3 z-[60] w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-popover print:hidden"
     >
       <button
         type="button"
         {...keep}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between bg-fuchsia-600 px-3 py-1.5 text-left font-black text-white"
+        className="flex w-full cursor-pointer items-center gap-2 bg-nav-bg px-3 py-2 text-left text-label text-nav-ink"
       >
-        <span>🔫 Simulador de lector</span>
-        <span>{open ? '▾' : '▸'}</span>
+        <Icon name="barcode" />
+        <span className="flex-1">Simulador de lector</span>
+        <Icon name={open ? 'chevron-down' : 'chevron-up'} />
       </button>
       {open && (
         <div className="max-h-[60vh] space-y-3 overflow-auto p-3">
-          <p className="text-xs text-slate-600">
+          <p className="text-caption text-ink-muted">
             Escribe en el campo que tenga el foco, rápido y con Enter al final, como un lector USB.
-            Para apagarlo abre la app con <code>?simulador=0</code>.
+            Para apagarlo abre la app con <code className="font-mono">?simulador=0</code>.
           </p>
 
           <div>
-            <p className="mb-1 text-xs font-bold uppercase text-slate-500">Código nuevo</p>
-            <button type="button" {...keep} onClick={() => { scan(newCode); setNewCode(randomEan13()) }} className={`${btn} w-full bg-blue-100 font-mono hover:bg-blue-200`}>
+            <p className="mb-1 text-caption font-medium text-ink-subtle">Código nuevo</p>
+            <button type="button" {...keep} onClick={() => { scan(newCode); setNewCode(randomEan13()) }} className={`${btn} font-mono`}>
               {newCode}
             </button>
           </div>
 
           {known.length > 0 && (
             <div>
-              <p className="mb-1 text-xs font-bold uppercase text-slate-500">Productos existentes</p>
+              <p className="mb-1 text-caption font-medium text-ink-subtle">Productos existentes</p>
               <div className="space-y-1">
                 {known.map((p) => (
-                  <button key={p.barcode} type="button" {...keep} onClick={() => scan(p.barcode)} className={`${btn} block w-full bg-emerald-50 hover:bg-emerald-100`}>
-                    <span className="block truncate">{p.name}</span>
-                    <span className="font-mono text-xs text-slate-600">{p.barcode}</span>
+                  <button key={p.barcode} type="button" {...keep} onClick={() => scan(p.barcode)} className={`${btn} block`}>
+                    <span className="block truncate font-medium">{p.name}</span>
+                    <span className="font-mono text-caption text-ink-muted">{p.barcode}</span>
                   </button>
                 ))}
               </div>
@@ -149,14 +151,14 @@ export function ScannerSimulator() {
 
           {known.some((p) => p.is_internal_code) && (
             <div>
-              <p className="mb-1 text-xs font-bold uppercase text-slate-500">Lector con teclado de EE. UU.</p>
+              <p className="mb-1 text-caption font-medium text-ink-subtle">Lector con teclado de EE. UU.</p>
               {known
                 .filter((p) => p.is_internal_code)
                 .slice(0, 3)
                 .map((p) => {
                   const wrong = p.barcode.replace('-', "'")
                   return (
-                    <button key={wrong} type="button" {...keep} onClick={() => scan(wrong)} className={`${btn} block w-full bg-amber-50 font-mono hover:bg-amber-100`}>
+                    <button key={wrong} type="button" {...keep} onClick={() => scan(wrong)} className={`${btn} block font-mono`}>
                       {wrong}
                     </button>
                   )
@@ -165,12 +167,12 @@ export function ScannerSimulator() {
           )}
 
           <div>
-            <p className="mb-1 text-xs font-bold uppercase text-slate-500">Código personalizado</p>
+            <p className="mb-1 text-caption font-medium text-ink-subtle">Código personalizado</p>
             <div className="flex gap-1" data-keep-focus>
               <input
                 value={custom}
                 onChange={(e) => setCustom(e.target.value)}
-                className="min-w-0 flex-1 rounded-md border-2 border-slate-300 px-2 py-1 font-mono text-sm"
+                className="field h-control-sm min-w-0 flex-1 px-2 font-mono"
                 placeholder="p. ej. 7501055300075"
               />
               <button
@@ -178,7 +180,7 @@ export function ScannerSimulator() {
                 {...keep}
                 disabled={!custom.trim()}
                 onClick={() => scan(custom.trim())}
-                className="rounded-md bg-fuchsia-600 px-3 text-sm font-bold text-white disabled:opacity-40"
+                className="btn btn-primary btn-sm"
               >
                 Escanear
               </button>
