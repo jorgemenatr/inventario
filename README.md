@@ -43,6 +43,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261013000200_clientes.sql` | Tabla `customers` (clientes) y sus permisos |
 | `20261013000300_ventas.sql` | Tablas `tickets` y `ticket_items`, RPC `pay_ticket` y vista `sales_history` |
 | `20261013000400_creditos.sql` | Créditos de tienda (`customer_credit_movements`, `grant_credits`) y pagos con varios métodos (`ticket_payments`) |
+| `20261013000500_folio_tickets.sql` | Folio consecutivo de tickets ("Ticket 1, 2, 3…") asignado al cobrar |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -285,8 +286,11 @@ En **Clientes** (`/clientes`) se da de alta y se consulta a los clientes de la t
 
 ### Mostrador (`/mostrador`)
 
-1. **Abre un ticket** con un nombre ("Mesa 3", "Torneo", el nombre del cliente…). Puede
-   haber varios abiertos a la vez; se cambia entre ellos en la columna izquierda.
+1. **Abre un ticket** con "Nuevo ticket". Puede haber varios abiertos a la vez; en la
+   columna izquierda se identifican por su cliente (o "Sin cliente"), la hora en que se
+   abrieron, las piezas y el total. No llevan nombre: **al cobrarlos reciben su folio**
+   ("Ticket 1", "Ticket 2", …), consecutivo y sin repetirse nunca. Las ventas cobradas sin
+   conexión reciben su folio al sincronizarse.
 2. **Asigna un cliente** (opcional): búscalo por nombre o teléfono, o dalo de alta ahí mismo
    con "Nuevo cliente".
 3. **Agrega productos** con el lector (código + Enter) o escribiendo parte del nombre y

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { Icon } from '../components/Icon'
@@ -12,25 +12,22 @@ import { sounds } from '../lib/sounds'
 import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
 import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
-import { posStore, ticketPieces, ticketTotal, usePos, type OpenTicket, type PosLine } from '../store/posStore'
+import { posStore, ticketLabel, ticketOpenedTime, ticketPieces, ticketTotal, usePos, type OpenTicket, type PosLine } from '../store/posStore'
 
 
 type Notice = { kind: 'error' | 'info'; text: string } | null
-type LastSale = { name: string; total: number; payments: PaymentPart[]; change: number | null; pending: boolean } | null
+type LastSale = { name: string | null; total: number; payments: PaymentPart[]; change: number | null; pending: boolean } | null
 
 export function MostradorPage() {
   const { products, online } = useInventory()
   const { tickets, activeId, customers } = usePos()
   const active = tickets.find((t) => t.id === activeId) ?? null
 
-  const [newName, setNewName] = useState('')
   const [notice, setNotice] = useState<Notice>(null)
   const [paying, setPaying] = useState(false)
   const [lastSale, setLastSale] = useState<LastSale>(null)
-  const [renaming, setRenaming] = useState(false)
   const [creatingCustomer, setCreatingCustomer] = useState<string | null>(null)
   const productRef = useRef<HTMLInputElement>(null)
-  const newRef = useRef<HTMLInputElement>(null)
 
   const focusProduct = useCallback(() => setTimeout(() => productRef.current?.focus(), 0), [])
 
@@ -44,7 +41,6 @@ export function MostradorPage() {
 
   // Cambiar de ticket reinicia el cobro.
   useEffect(() => {
-    setRenaming(false)
     setNotice(null)
     if (activeId) focusProduct()
   }, [activeId, focusProduct])
@@ -52,11 +48,8 @@ export function MostradorPage() {
   // Depende de los tickets: lo apartado cambia al agregar o cobrar.
   const available = useCallback((p: CachedProduct) => posStore.available(p), [tickets])
 
-  function createTicket(e: FormEvent) {
-    e.preventDefault()
-    const name = newName.trim() || `Ticket ${tickets.length + 1}`
-    posStore.createTicket(name)
-    setNewName('')
+  function createTicket() {
+    posStore.createTicket()
     setLastSale(null)
   }
 
@@ -80,7 +73,8 @@ export function MostradorPage() {
     setNotice(null)
     const out = await inventoryStore.paySale({
       ticketId: active.id,
-      name: active.name,
+      // Solo para mostrarla mientras esté en la cola; el folio lo pone el servidor.
+      name: ticketLabel(active),
       customerId: active.customer?.id ?? null,
       customerName: active.customer?.name ?? null,
       paymentMethod: payments.length > 1 ? 'mixed' : payments[0].method,
@@ -95,7 +89,7 @@ export function MostradorPage() {
       return
     }
     sounds.success()
-    setLastSale({ name: active.name, total: out.total, payments, change, pending: out.pending })
+    setLastSale({ name: out.ticketName, total: out.total, payments, change, pending: out.pending })
     posStore.closeTicket(active.id)
   }
 
@@ -122,7 +116,9 @@ export function MostradorPage() {
           <Icon name="check" size={32} />
           <div className="mr-auto">
             <p className="text-title">
-              {lastSale.pending ? 'Venta guardada sin conexión (pendiente)' : 'Venta registrada'} · {lastSale.name}
+              {lastSale.pending
+                ? 'Venta guardada sin conexión (el folio se asigna al sincronizar)'
+                : `Venta registrada · ${lastSale.name}`}
             </p>
             <p className="text-heading">
               {formatMoney(lastSale.total)} con{' '}
@@ -157,8 +153,14 @@ export function MostradorPage() {
                   aria-current={t.id === activeId}
                   className={`flex w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left ${t.id === activeId ? 'bg-brand-soft' : 'hover:bg-subtle'}`}
                 >
-                  <span className={`truncate text-label ${t.id === activeId ? 'text-brand-ink' : 'text-ink'}`}>{t.name}</span>
-                  {t.customer && <span className="truncate text-caption text-ink-muted">{t.customer.name}</span>}
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span
+                      className={`truncate text-label ${t.id === activeId ? 'text-brand-ink' : t.customer ? 'text-ink' : 'text-ink-muted'}`}
+                    >
+                      {ticketLabel(t)}
+                    </span>
+                    <span className="shrink-0 text-caption text-ink-subtle">{ticketOpenedTime(t)}</span>
+                  </span>
                   <span className="flex justify-between text-caption text-ink-subtle">
                     <span>{formatInt(ticketPieces(t))} pzas</span>
                     <span className="tabular-nums">{formatMoney(ticketTotal(t))}</span>
@@ -167,20 +169,12 @@ export function MostradorPage() {
               </li>
             ))}
           </ul>
-          <form onSubmit={createTicket} className="flex gap-2 border-t border-line p-3">
-            <input
-              ref={newRef}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder={`Ticket ${tickets.length + 1}`}
-              aria-label="Nombre del ticket nuevo"
-              className="field"
-            />
-            <button type="submit" className="btn btn-primary" title="Abrir ticket nuevo">
+          <div className="border-t border-line p-3">
+            <button type="button" onClick={createTicket} className="btn btn-primary w-full">
               <Icon name="plus" />
-              Nuevo
+              Nuevo ticket
             </button>
-          </form>
+          </div>
         </aside>
 
         {/* Ticket activo */}
@@ -188,8 +182,8 @@ export function MostradorPage() {
           <section className="card flex min-h-80 flex-col items-center justify-center gap-3 p-8 text-center">
             <Icon name="receipt" size={40} className="text-ink-subtle" />
             <p className="text-title-lg text-ink-muted">Abre un ticket para empezar a vender</p>
-            <p className="text-ink-subtle">Ponle un nombre (p. ej. "Mesa 3" o el nombre del cliente) y presiona "Nuevo".</p>
-            <button type="button" onClick={() => newRef.current?.focus()} className="btn btn-primary btn-lg mt-2">
+            <p className="text-ink-subtle">Al cobrarlo recibe su folio (Ticket 1, 2, 3…).</p>
+            <button type="button" onClick={createTicket} className="btn btn-primary btn-lg mt-2">
               <Icon name="plus" size={20} />
               Nuevo ticket
             </button>
@@ -197,12 +191,7 @@ export function MostradorPage() {
         ) : (
           <section className="grid items-start gap-4 2xl:grid-cols-[1fr_320px]">
             <div className="card flex min-w-0 flex-col gap-4 p-5">
-              <TicketHeader
-                ticket={active}
-                renaming={renaming}
-                setRenaming={setRenaming}
-                onRemove={() => posStore.removeTicket(active.id)}
-              />
+              <TicketHeader ticket={active} onRemove={() => posStore.removeTicket(active.id)} />
 
               <div>
                 <span className="field-label">Cliente</span>
@@ -274,51 +263,16 @@ export function MostradorPage() {
   )
 }
 
-function TicketHeader({
-  ticket,
-  renaming,
-  setRenaming,
-  onRemove,
-}: {
-  ticket: OpenTicket
-  renaming: boolean
-  setRenaming: (v: boolean) => void
-  onRemove: () => void
-}) {
-  const [name, setName] = useState(ticket.name)
-  useEffect(() => setName(ticket.name), [ticket.name, renaming])
-
-  if (renaming) {
-    return (
-      <form
-        className="flex flex-wrap gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          posStore.rename(ticket.id, name)
-          setRenaming(false)
-        }}
-      >
-        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus aria-label="Nombre del ticket" className="field h-10 max-w-sm" />
-        <button type="submit" className="btn btn-primary" disabled={!name.trim()}>
-          Guardar
-        </button>
-        <button type="button" className="btn btn-ghost" onClick={() => setRenaming(false)}>
-          Cancelar
-        </button>
-      </form>
-    )
-  }
+function TicketHeader({ ticket, onRemove }: { ticket: OpenTicket; onRemove: () => void }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="mr-auto min-w-0">
-        <h2 className="truncate text-title">{ticket.name}</h2>
+        <h2 className="truncate text-title">Ticket abierto</h2>
         <p className="text-caption text-ink-subtle">
-          Abierto {new Date(ticket.openedAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+          Abierto {new Date(ticket.openedAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })} · el folio se
+          asigna al cobrar
         </p>
       </div>
-      <button type="button" onClick={() => setRenaming(true)} className="btn btn-ghost btn-sm">
-        Renombrar
-      </button>
       {ticket.lines.length === 0 && (
         <button type="button" onClick={onRemove} className="btn btn-danger btn-sm">
           Eliminar ticket

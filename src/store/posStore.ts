@@ -26,7 +26,12 @@ export interface PosLine {
 export interface OpenTicket {
   /** También es el id con el que se registra la venta (idempotencia). */
   id: string
-  name: string
+  /**
+   * Ya no se usa: los tickets abiertos no llevan nombre; al cobrar, el
+   * servidor les asigna su folio ("Ticket N"). Solo queda en tickets
+   * guardados por versiones anteriores.
+   */
+  name?: string
   customer: { id: string; name: string } | null
   lines: PosLine[]
   openedAt: string
@@ -94,10 +99,9 @@ class PosStore {
   }
 
   // ---------- tickets ----------
-  createTicket(name: string) {
+  createTicket() {
     const ticket: OpenTicket = {
       id: crypto.randomUUID(),
-      name: name.trim(),
       customer: null,
       lines: [],
       openedAt: new Date().toISOString(),
@@ -108,11 +112,6 @@ class PosStore {
 
   select(id: string) {
     this.set({ activeId: id })
-  }
-
-  rename(id: string, name: string) {
-    if (!name.trim()) return
-    this.updateTicket(id, (t) => ({ ...t, name: name.trim() }))
   }
 
   setCustomer(id: string, customer: { id: string; name: string } | null) {
@@ -226,3 +225,10 @@ export function usePos() {
 
 export const ticketTotal = (t: OpenTicket) => t.lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0)
 export const ticketPieces = (t: OpenTicket) => t.lines.reduce((n, l) => n + l.quantity, 0)
+
+/** Hora en que se abrió el ticket (para distinguir tickets sin cliente). */
+export const ticketOpenedTime = (t: OpenTicket) =>
+  new Date(t.openedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+
+/** Cómo se identifica un ticket abierto: por su cliente, o "Sin cliente". */
+export const ticketLabel = (t: OpenTicket) => t.customer?.name ?? 'Sin cliente'

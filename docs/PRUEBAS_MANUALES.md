@@ -146,26 +146,30 @@ Antes: aplica la migración `20261012000500_catalogo_tcg.sql` y corre la importa
 ## 11. Mostrador y ventas
 Antes: aplica las migraciones `…000200_clientes.sql` y `…000300_ventas.sql`. Usa 2 o 3
 productos de prueba con poco stock (p. ej. 3 piezas).
-- [ ] En Mostrador, abre "Mesa 1". El cursor queda en "Agregar producto".
+- [ ] Al iniciar sesión llegas al Mostrador. "Nuevo ticket" abre un ticket sin pedir nombre y
+      el cursor queda en "Agregar producto".
 - [ ] Escanea un producto: se agrega con bip. Escanéalo de nuevo: sube la cantidad.
 - [ ] Sube la cantidad hasta el stock: el botón + se deshabilita y escanear otra vez avisa
       "No hay más stock".
-- [ ] Abre "Mesa 2" e intenta agregar el mismo producto: avisa que está apartado en otros
-      tickets.
+- [ ] Abre otro ticket e intenta agregar el mismo producto: avisa que está apartado en otros
+      tickets. En la lista, los dos dicen "Sin cliente" con su hora, piezas y total.
 - [ ] Busca un producto escribiendo parte del nombre y agrégalo con Enter.
-- [ ] Asigna un cliente existente; luego quítalo y da de alta uno nuevo desde el ticket.
+- [ ] Asigna un cliente existente (en la lista, el ticket ahora muestra su nombre); luego
+      quítalo y da de alta uno nuevo desde el ticket.
 - [ ] Recarga la página (F5): los tickets abiertos siguen ahí.
-- [ ] En Mesa 1 elige Efectivo, escribe lo recibido: muestra el cambio. Si es menos que el
+- [ ] En el primer ticket elige Efectivo, escribe lo recibido: muestra el cambio. Si es menos que el
       total, dice "Falta" y no deja pagar.
-- [ ] Paga: aparece "Venta registrada" con el cambio. En Supabase hay un ticket nuevo, el
-      stock bajó y en Historial hay movimientos "Venta".
-- [ ] Apaga el Wi-Fi, cobra Mesa 2 con Tarjeta: "Venta guardada sin conexión (pendiente)".
-      En Ventas aparece en "Ventas por sincronizar".
-- [ ] Prende el Wi-Fi: en unos segundos la venta aparece en la tabla con la marca
+- [ ] Paga: aparece "Venta registrada · Ticket N" con el cambio. En Supabase hay un ticket
+      nuevo con su folio, el stock bajó y en Historial hay movimientos "Venta: Ticket N".
+      El siguiente cobro recibe el folio siguiente (N + 1).
+- [ ] Apaga el Wi-Fi, cobra el otro ticket con Tarjeta: "Venta guardada sin conexión (el
+      folio se asigna al sincronizar)". En Ventas aparece en "Ventas por sincronizar" como
+      "Folio pendiente".
+- [ ] Prende el Wi-Fi: en unos segundos la venta aparece en la tabla con su folio y la marca
       "Sin conexión", y solo una vez.
 - [ ] En Ventas, filtra por forma de pago y por fechas; haz clic en una venta para ver sus
       productos.
-- [ ] En Clientes, abre el cliente de Mesa 1: aparece en "Compras previas".
+- [ ] En Clientes, abre el cliente del ticket cobrado: aparece en "Compras previas".
 
 ## 12. Créditos y pagos con varios métodos
 Antes: aplica la migración `…000400_creditos.sql`.

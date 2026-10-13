@@ -47,6 +47,10 @@ export interface CreateInput {
 export interface SaleInput {
   /** Id del ticket: lo genera el mostrador y evita cobrar dos veces. */
   ticketId: string
+  /**
+   * Solo para mostrar mientras la venta está en la cola (p. ej. el cliente).
+   * El nombre real ("Ticket N") lo asigna el servidor al registrar la venta.
+   */
   name: string
   customerId: string | null
   customerName: string | null
@@ -117,7 +121,8 @@ export type CreateOutcome =
   | { type: 'error'; message: string }
 
 export type SaleOutcome =
-  | { type: 'ok'; pending: boolean; total: number }
+  /** ticketName: "Ticket N" (folio); null si quedó en la cola sin conexión. */
+  | { type: 'ok'; pending: boolean; total: number; ticketName: string | null }
   | { type: 'error'; message: string }
 
 export type UndoOutcome =
@@ -642,8 +647,8 @@ class InventoryStore {
 
       if (online) {
         try {
-          await this.callPayTicket(sale, false)
-          return { type: 'ok', pending: false, total }
+          const res = await this.callPayTicket(sale, false)
+          return { type: 'ok', pending: false, total, ticketName: res.ticket.name }
         } catch (e) {
           if (e instanceof PermanentError || (!isNetworkError(e) && !isAuthError(e))) {
             return { type: 'error', message: errorMessage(e) }
@@ -660,14 +665,14 @@ class InventoryStore {
         if (p) products[item.barcode] = { ...p, quantity: p.quantity - item.quantity }
       }
       this.set({ products })
-      return { type: 'ok', pending: true, total }
+      return { type: 'ok', pending: true, total, ticketName: null }
     })
   }
 
   private async callPayTicket(sale: SaleInput, offline: boolean) {
     const { data, error } = await supabase.rpc('pay_ticket', {
       p_ticket_id: sale.ticketId,
-      p_name: sale.name,
+      p_name: sale.name || 'Ticket',
       p_payment_method: sale.paymentMethod,
       p_items: sale.items.map((i) => ({ barcode: i.barcode, quantity: i.quantity, unit_price: i.unitPrice })),
       p_customer_id: sale.customerId,
@@ -680,7 +685,9 @@ class InventoryStore {
       throw error
     }
     this.markOnline()
-    for (const p of (data as PayTicketResult).products) this.putServerProduct(toCached(p), sale.ticketId)
+    const res = data as PayTicketResult
+    for (const p of res.products) this.putServerProduct(toCached(p), sale.ticketId)
+    return res
   }
 
   // ---------- deshacer ----------

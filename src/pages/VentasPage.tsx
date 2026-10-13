@@ -127,8 +127,8 @@ export function VentasPage() {
             {pendingSales.map((q) => (
               <li key={q.opId} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="text-ink-muted">{formatDateTime(q.createdAt)}</span>
-                <span className="font-medium">{q.sale.name}</span>
-                {q.sale.customerName && <span className="text-ink-muted">{q.sale.customerName}</span>}
+                <span className="font-medium">Folio pendiente</span>
+                <span className="text-ink-muted">{q.sale.customerName ?? 'Sin cliente'}</span>
                 <span className="ml-auto">{PAYMENT_LABELS[q.sale.paymentMethod]}</span>
                 <span className="font-medium tabular-nums">
                   {formatMoney(q.sale.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))}
