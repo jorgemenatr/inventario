@@ -2,7 +2,7 @@ export type UserRole = 'admin' | 'mostrador'
 
 export const ROLE_LABELS: Record<UserRole, string> = { admin: 'Administrador', mostrador: 'Mostrador' }
 
-export type MovementType = 'initial_count' | 'scan_add' | 'set_total' | 'adjustment' | 'sale'
+export type MovementType = 'initial_count' | 'scan_add' | 'set_total' | 'adjustment' | 'sale' | 'barcode_unlink'
 
 export type ScanMode = 'add' | 'set'
 
@@ -81,6 +81,13 @@ export interface MovementHistoryRow {
   created_by: string | null
   created_by_email: string | null
   created_by_name: string | null
+  /** Código que tenía el producto (solo en 'barcode_unlink'). */
+  old_barcode?: string | null
+  /** Si se canceló: el movimiento que lo revirtió, cuándo, quién y la nota con el motivo. */
+  cancelled_by_movement_id?: string | null
+  cancelled_at?: string | null
+  cancel_note?: string | null
+  cancelled_by_name?: string | null
 }
 
 export const MOVEMENT_LABELS: Record<MovementType, string> = {
@@ -89,6 +96,7 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   set_total: 'Escaneo (fijar total)',
   adjustment: 'Ajuste',
   sale: 'Venta',
+  barcode_unlink: 'Desvinculado',
 }
 
 export interface Customer {

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import { catalogThumb, fetchCatalogImage, searchCatalog } from '../lib/catalog'
 import { categoryFromGame } from '../lib/categories'
 import { compressImage } from '../lib/images'
-import { parseCount, parseMoney } from '../lib/format'
+import { formatDateTime, parseCount, parseMoney } from '../lib/format'
+import { findUnlink } from '../lib/products'
 import { createBurstDetector } from '../lib/scannerBurst'
 import type { CatalogItem } from '../lib/types'
 import { inventoryStore, type CreateOutcome } from '../store/inventoryStore'
@@ -52,13 +53,16 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
+  // El código se desvinculó antes de otro producto: no se vincula solo al catálogo.
+  const [unlinked, setUnlinked] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
   const priceRef = useRef<HTMLInputElement>(null)
   const catalogRef = useRef<HTMLInputElement>(null)
   const detector = useRef(createBurstDetector())
   const linkToken = useRef(0)
 
-  // Al abrir: si el código ya está en el catálogo (UPC), se vincula solo.
+  // Al abrir: si el código ya está en el catálogo (UPC), se vincula solo (salvo que
+  // ese código se haya desvinculado antes: entonces se elige a mano).
   // Si no, el cursor queda en el buscador del catálogo (o en Nombre sin conexión).
   useEffect(() => {
     let active = true
@@ -69,7 +73,21 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     catalogRef.current?.focus()
     if (barcode && /^\d{8,14}$/.test(barcode)) {
       const token = linkToken.current
-      searchCatalog(barcode, 5)
+      findUnlink(barcode)
+        .catch(() => null)
+        .then((prev) => {
+          if (prev) {
+            if (active) {
+              setUnlinked(
+                `Este código se desvinculó de "${prev.product_name}" el ${formatDateTime(prev.created_at)}` +
+                  `${prev.created_by_name || prev.created_by_email ? ` (${prev.created_by_name || prev.created_by_email})` : ''}. ` +
+                  'No se vinculó solo: busca y elige el producto correcto del catálogo.',
+              )
+            }
+            return []
+          }
+          return searchCatalog(barcode, 5)
+        })
         .then((r) => {
           const matches = r.filter((c) => c.upc_match)
           // Si mientras tanto ya se eligió algo a mano, no se pisa.
@@ -241,6 +259,12 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
             <p className="notice bg-warning-bg text-warning-fg">
               <Icon name="wifi-off" className="mt-0.5" />
               Sin conexión: el producto se guardará en la cola y se sincronizará después (sin imagen).
+            </p>
+          )}
+          {unlinked && (
+            <p className="notice bg-info-bg text-info-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {unlinked}
             </p>
           )}
           {warning && (

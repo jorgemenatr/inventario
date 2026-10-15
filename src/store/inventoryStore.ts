@@ -850,9 +850,12 @@ class InventoryStore {
     this.putServerProduct(toCached((data as MovementResult).product), item.opId)
   }
 
-  /** Producto editado (ProductEditModal): actualiza la copia local. */
-  productEdited(p: Product) {
-    this.putServerProduct(toCached(p), '')
+  /**
+   * Producto editado, ajustado o desvinculado: actualiza la copia local.
+   * oldBarcode: el código que tenía si se desvinculó (se quita de la caché).
+   */
+  productEdited(p: Product, oldBarcode?: string) {
+    this.putServerProduct(toCached(p), '', oldBarcode && oldBarcode !== p.barcode ? oldBarcode : undefined)
   }
 
   dismissFailed(index: number) {

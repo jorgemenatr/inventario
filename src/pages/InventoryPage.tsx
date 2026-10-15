@@ -288,6 +288,7 @@ export function InventoryPage() {
           productId={editing}
           suppliers={suppliers}
           onCancel={() => setEditing(null)}
+          onChanged={(p, oldBarcode) => inventoryStore.productEdited(p, oldBarcode)}
           onSaved={(p) => {
             inventoryStore.productEdited(p)
             setEditing(null)

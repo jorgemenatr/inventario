@@ -48,6 +48,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261015000100_roles_usuarios.sql` | Roles **admin** y **mostrador** (`staff` → `mostrador`), `is_admin()` y candados: solo admin agrega/edita inventario y usuarios |
 | `20261015000200_categorias.sql` | Acomoda las categorías existentes a la lista fija (TCG con sus juegos, Accesorios, Cafetería, …) |
 | `20261015000300_puntos_liga.sql` | Puntos de liga (`customer_league_points`, `grant_league_points`, vistas de total e historial) |
+| `20261015000400_correcciones_inventario.sql` | Correcciones con motivo: `unlink_product` (desvincular código/catálogo), `cancel_movement`, `adjust_stock`; el historial muestra lo cancelado |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -163,6 +164,23 @@ sugiere sola según el juego. En Inventario se filtra con los botones de categor
 TCG, por juego). Para editar un producto (nombre, precio, costo, categoría, proveedor,
 descripción y foto), un admin usa el lápiz en la tarjeta o el renglón. La cantidad no se
 edita ahí: cambia con escaneos y ventas para que quede en el historial.
+
+## Correcciones de inventario
+
+Solo admin. Todas piden un **motivo** y quedan en el **Historial** con quién y cuándo;
+nunca se borra un movimiento.
+
+- **Cancelar un movimiento** (Historial → *Cancelar*): alta, escaneo o ajuste. Se registra
+  una *Cancelación* que revierte la cantidad y el original queda marcado como **Cancelado**.
+  Las ventas no se cancelan desde aquí.
+- **Ajustar existencias** (Editar producto → *Ajustar existencias*): pones la cantidad
+  correcta y el motivo.
+- **Desvincular código** (Editar producto → *Desvincular código*): el producto se queda
+  con un código interno `HCH-` (imprime su etiqueta nueva) y pierde el vínculo con el
+  catálogo. El código real queda libre: al escanearlo en *Agregar* se toma como nuevo y,
+  como ya se había desvinculado, no se vincula solo al catálogo: avisa y se elige el
+  producto correcto a mano. Si el producto ya tenía código interno, solo se quita el
+  vínculo con el catálogo.
 
 ## Puntos de liga
 

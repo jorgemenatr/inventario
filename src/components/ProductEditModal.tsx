@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { compressImage } from '../lib/images'
-import { formatInt, parseMoney } from '../lib/format'
-import { getProduct, updateProduct } from '../lib/products'
+import { formatInt, parseCount, parseMoney } from '../lib/format'
+import { adjustStock, getCatalogName, getProduct, unlinkProduct, updateProduct } from '../lib/products'
 import { isNetworkError } from '../lib/supabase'
 import type { Product } from '../lib/types'
 import { CategorySelect } from './CategorySelect'
@@ -15,6 +15,8 @@ interface Props {
   suppliers: string[]
   onCancel: () => void
   onSaved: (product: Product) => void
+  /** Cambios que se aplican al momento (ajuste de existencias, desvincular). */
+  onChanged: (product: Product, oldBarcode?: string) => void
 }
 
 type Fields = { name: string; price: string; cost: string; category: string; supplier: string; description: string }
@@ -26,7 +28,7 @@ const moneyText = (n: number | null) => (n == null ? '' : String(n))
  * foto. El código y la cantidad no se editan aquí (la cantidad cambia con
  * escaneos y ventas, para que quede en el historial).
  */
-export function ProductEditModal({ productId, suppliers, onCancel, onSaved }: Props) {
+export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onChanged }: Props) {
   const [product, setProduct] = useState<Product | null>(null)
   const [fields, setFields] = useState<Fields | null>(null)
   // undefined = sin cambios; null = quitar; Blob = foto nueva.
@@ -36,6 +38,8 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved }: Pr
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  const [catalogName, setCatalogName] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
 
   useEffect(() => {
     getProduct(productId)
@@ -51,6 +55,7 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved }: Pr
           description: p.description ?? '',
         })
         setTimeout(() => nameRef.current?.focus(), 0)
+        if (p.catalog_product_id != null) void getCatalogName(p.catalog_product_id).then(setCatalogName)
       })
       .catch((e) => setError(isNetworkError(e) ? 'Sin conexión: editar un producto necesita internet.' : (e as Error).message))
   }, [productId])
@@ -72,6 +77,15 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved }: Pr
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo procesar la imagen')
     }
+  }
+
+  /** Ajuste o desvinculado ya guardado: refleja el producto sin cerrar el formulario. */
+  function applied(p: Product, message: string) {
+    const oldBarcode = product?.barcode
+    setProduct(p)
+    if (p.catalog_product_id == null) setCatalogName(null)
+    setDone(message)
+    onChanged(p, oldBarcode)
   }
 
   async function onSubmit(e: FormEvent) {
@@ -204,6 +218,70 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved }: Pr
             </div>
           )}
 
+          {product && fields && (
+            <>
+              {done && (
+                <p className="notice bg-success-bg text-success-fg" role="status">
+                  <Icon name="check" className="mt-0.5" />
+                  {done}
+                </p>
+              )}
+              <CorrectionSection
+                title="Existencias"
+                summary={
+                  <>
+                    Stock actual: <span className="font-medium text-ink tabular-nums">{formatInt(product.quantity)}</span>
+                  </>
+                }
+                action="Ajustar existencias"
+                valueLabel="Cantidad correcta"
+                placeholder="Ej. 3"
+                reasonPlaceholder="Ej. Se escaneó de más / merma / producto dañado"
+                confirm="Aplicar ajuste"
+                run={async (value, reason) => {
+                  const qty = parseCount(value)
+                  if (Number.isNaN(qty)) throw new Error('La cantidad debe ser un número entero (0 o más).')
+                  const p = await adjustStock(product.id, qty, reason)
+                  applied(p, `Existencias ajustadas a ${formatInt(p.quantity)}. Quedó en el historial.`)
+                }}
+              />
+              <CorrectionSection
+                title="Código de barras y catálogo"
+                summary={
+                  <>
+                    {product.is_internal_code ? 'Código interno ' : 'Código '}
+                    <span className="font-mono text-ink">{product.barcode}</span>
+                    {product.catalog_product_id != null && (
+                      <>
+                        {' '}
+                        · Vinculado al catálogo: <span className="text-ink">{catalogName ?? `#${product.catalog_product_id}`}</span>
+                      </>
+                    )}
+                  </>
+                }
+                help={
+                  product.is_internal_code
+                    ? 'Quita el vínculo con el catálogo TCGplayer. Los datos del producto no cambian.'
+                    : 'El producto se queda con un código interno HCH- y pierde el vínculo con el catálogo. Si después escaneas este código, se tomará como nuevo y podrás asignarlo al producto correcto del catálogo.'
+                }
+                action={product.is_internal_code ? 'Desvincular del catálogo' : 'Desvincular código'}
+                disabled={product.is_internal_code && product.catalog_product_id == null}
+                reasonPlaceholder="Ej. Se escaneó el código de otro producto / el catálogo lo vinculó mal"
+                confirm="Desvincular"
+                danger
+                run={async (_value, reason) => {
+                  const p = await unlinkProduct(product.id, reason)
+                  applied(
+                    p,
+                    p.barcode === product.barcode
+                      ? 'Producto desvinculado del catálogo.'
+                      : `Código ${product.barcode} desvinculado. El producto ahora es ${p.barcode} (imprime su etiqueta nueva).`,
+                  )
+                }}
+              />
+            </>
+          )}
+
           {camera && <WebcamCapture onCapture={(b) => void setImageFrom(b)} onClose={() => setCamera(false)} />}
 
           {error && (
@@ -222,5 +300,139 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved }: Pr
         </div>
       </form>
     </div>
+  )
+}
+
+/**
+ * Corrección que se aplica al momento y pide motivo (queda en el historial).
+ * Con valueLabel pide además un valor (p. ej. la cantidad correcta).
+ */
+function CorrectionSection({
+  title,
+  summary,
+  help,
+  action,
+  valueLabel,
+  placeholder,
+  reasonPlaceholder,
+  confirm,
+  danger,
+  disabled,
+  run,
+}: {
+  title: string
+  summary: ReactNode
+  help?: string
+  action: string
+  valueLabel?: string
+  placeholder?: string
+  reasonPlaceholder: string
+  confirm: string
+  danger?: boolean
+  disabled?: boolean
+  run: (value: string, reason: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function apply() {
+    if (busy) return
+    setError(null)
+    if (valueLabel && !value.trim()) return setError(`Escribe la ${valueLabel.toLowerCase()}.`)
+    if (!reason.trim()) return setError('El motivo es obligatorio.')
+    setBusy(true)
+    try {
+      await run(value, reason)
+      setOpen(false)
+      setValue('')
+      setReason('')
+    } catch (e) {
+      setError(isNetworkError(e) ? 'Sin conexión: intenta cuando vuelva el internet.' : (e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rounded-md border border-line p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="mr-auto min-w-0">
+          <p className="text-label">{title}</p>
+          <p className="text-ink-muted">{summary}</p>
+        </div>
+        {!open && (
+          <button type="button" onClick={() => setOpen(true)} disabled={disabled} className="btn btn-secondary btn-sm">
+            {action}
+          </button>
+        )}
+      </div>
+      {open && (
+        // No es un <form> (ya estamos dentro de uno): Enter aplica la corrección.
+        <div
+          className="mt-3 space-y-3"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              void apply()
+            }
+          }}
+        >
+          {help && <p className="text-caption text-ink-muted">{help}</p>}
+          <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+            {valueLabel && (
+              <div>
+                <label className="field-label" htmlFor={`cs-${title}-value`}>{valueLabel} *</label>
+                <input
+                  id={`cs-${title}-value`}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  inputMode="numeric"
+                  placeholder={placeholder}
+                  autoFocus
+                  autoComplete="off"
+                  className="field h-10 tabular-nums"
+                />
+              </div>
+            )}
+            <div className={valueLabel ? '' : 'sm:col-span-2'}>
+              <label className="field-label" htmlFor={`cs-${title}-reason`}>Motivo *</label>
+              <input
+                id={`cs-${title}-reason`}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={reasonPlaceholder}
+                autoFocus={!valueLabel}
+                autoComplete="off"
+                className="field h-10"
+              />
+            </div>
+          </div>
+          {error && (
+            <p className="notice bg-danger-bg text-danger-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setError(null)
+              }}
+              className="btn btn-ghost btn-sm"
+            >
+              Cancelar
+            </button>
+            <button type="button" onClick={() => void apply()} disabled={busy} className={`btn btn-sm ${danger ? 'btn-danger' : 'btn-primary'}`}>
+              {busy ? 'Aplicando…' : confirm}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
