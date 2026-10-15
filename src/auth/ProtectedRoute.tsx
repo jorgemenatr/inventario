@@ -5,7 +5,7 @@ import { useAuth } from './useAuth'
 
 interface Props {
   children: ReactNode
-  /** Para fases futuras (POS): restringir por rol. Sin valor = cualquier usuario. */
+  /** Roles que pueden ver la página. Sin valor = cualquier usuario. */
   roles?: UserRole[]
 }
 
@@ -18,6 +18,9 @@ export function ProtectedRoute({ children, roles }: Props) {
   }
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />
+  }
+  if (roles && !profile) {
+    return <div className="grid h-full place-items-center text-heading text-ink-muted">Cargando…</div>
   }
   if (roles && profile && !roles.includes(profile.role)) {
     return <div className="grid h-full place-items-center text-heading text-ink">No tienes permiso para ver esta página.</div>

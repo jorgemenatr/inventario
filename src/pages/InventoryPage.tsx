@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useAuth } from '../auth/useAuth'
 import { Icon } from '../components/Icon'
+import { ProductEditModal } from '../components/ProductEditModal'
 import { ProductImage } from '../components/ProductImage'
+import { CATEGORY_VALUES, MAIN_CATEGORIES, TCG, TCG_GAMES, mainCategory, matchesCategory, tcgCategory } from '../lib/categories'
 import { formatInt, formatMoney } from '../lib/format'
 import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
@@ -31,6 +34,9 @@ const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-�
 
 export function InventoryPage() {
   const { products, productsLoaded, online } = useInventory()
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
+  const [editing, setEditing] = useState<string | null>(null)
   const [view, setViewState] = useState<View>(loadView)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
@@ -55,15 +61,34 @@ export function InventoryPage() {
 
   const all = useMemo(() => Object.values(products), [products])
 
-  const categories = useMemo(
-    () => [...new Set(all.map((p) => p.category).filter((c): c is string => !!c))].sort(collator.compare),
+  // Categorías fuera de la lista fija (productos viejos): se pueden filtrar igual.
+  const legacyCategories = useMemo(
+    () =>
+      [...new Set(all.map((p) => p.category).filter((c): c is string => !!c && !CATEGORY_VALUES.includes(c)))].sort(
+        collator.compare,
+      ),
     [all],
   )
+
+  const suppliers = useMemo(
+    () => [...new Set(all.map((p) => p.supplier).filter((s): s is string => !!s))].sort(collator.compare),
+    [all],
+  )
+
+  const countByMain = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of all) {
+      const c = mainCategory(p.category)
+      if (c) m.set(c, (m.get(c) ?? 0) + 1)
+      if (p.category && c === TCG) m.set(p.category, (m.get(p.category) ?? 0) + 1)
+    }
+    return m
+  }, [all])
 
   const filtered = useMemo(() => {
     const words = normalize(search.trim()).split(/\s+/).filter(Boolean)
     const list = all.filter((p) => {
-      if (category && p.category !== category) return false
+      if (!matchesCategory(p.category, category)) return false
       if (stock === 'in' && p.quantity <= 0) return false
       if (stock === 'out' && p.quantity > 0) return false
       if (!words.length) return true
@@ -142,6 +167,43 @@ export function InventoryPage() {
         </div>
       </div>
 
+      {/* Categorías */}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Categoría">
+          <Chip active={category === ''} onClick={() => setCategory('')}>
+            Todas
+          </Chip>
+          {MAIN_CATEGORIES.map((c) => (
+            <Chip key={c} active={mainCategory(category) === c} count={countByMain.get(c)} onClick={() => setCategory(c)}>
+              {c}
+            </Chip>
+          ))}
+          {legacyCategories.map((c) => (
+            <Chip key={c} active={category === c} count={countByMain.get(c)} onClick={() => setCategory(c)} subtle>
+              {c}
+            </Chip>
+          ))}
+        </div>
+        {mainCategory(category) === TCG && (
+          <div className="flex flex-wrap gap-2 border-l-2 border-line pl-3" role="group" aria-label="Juego">
+            <Chip active={category === TCG} onClick={() => setCategory(TCG)} small>
+              Todos los TCG
+            </Chip>
+            {TCG_GAMES.map((g) => (
+              <Chip
+                key={g}
+                active={category === tcgCategory(g)}
+                count={countByMain.get(tcgCategory(g))}
+                onClick={() => setCategory(tcgCategory(g))}
+                small
+              >
+                {g}
+              </Chip>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
@@ -155,19 +217,6 @@ export function InventoryPage() {
             className="min-w-0 flex-1 bg-transparent text-ink outline-none focus-visible:outline-none"
           />
         </label>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          aria-label="Categoría"
-          className="field w-auto min-w-44 cursor-pointer"
-        >
-          <option value="">Todas las categorías</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
         <select
           value={stock}
           onChange={(e) => setStock(e.target.value as StockFilter)}
@@ -218,8 +267,10 @@ export function InventoryPage() {
         </p>
       )}
 
-      {visible.length > 0 && view === 'grid' && <ProductGrid products={visible} />}
-      {visible.length > 0 && view === 'list' && <ProductTable products={visible} sort={sort} onSort={toggleSort} />}
+      {visible.length > 0 && view === 'grid' && <ProductGrid products={visible} onEdit={isAdmin ? setEditing : undefined} />}
+      {visible.length > 0 && view === 'list' && (
+        <ProductTable products={visible} sort={sort} onSort={toggleSort} onEdit={isAdmin ? setEditing : undefined} />
+      )}
 
       {filtered.length > visible.length && (
         <div className="flex items-center justify-between gap-4">
@@ -231,7 +282,70 @@ export function InventoryPage() {
           </button>
         </div>
       )}
+
+      {editing && (
+        <ProductEditModal
+          productId={editing}
+          suppliers={suppliers}
+          onCancel={() => setEditing(null)}
+          onChanged={(p, oldBarcode) => inventoryStore.productEdited(p, oldBarcode)}
+          onSaved={(p) => {
+            inventoryStore.productEdited(p)
+            setEditing(null)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function Chip({
+  active,
+  count,
+  onClick,
+  small,
+  subtle,
+  children,
+}: {
+  active: boolean
+  count?: number
+  onClick: () => void
+  small?: boolean
+  subtle?: boolean
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-pill border px-3 ${small ? 'h-control-sm text-caption' : 'h-control-md text-label'} ${
+        active
+          ? 'border-transparent bg-brand-soft font-medium text-brand-ink'
+          : `border-control bg-surface hover:bg-subtle ${subtle ? 'text-ink-subtle' : 'text-ink-muted'}`
+      }`}
+    >
+      {children}
+      {count != null && <span className="tabular-nums opacity-70">{formatInt(count)}</span>}
+    </button>
+  )
+}
+
+/** Un producto aún en la cola (sin id real) no se puede editar. */
+const editable = (p: CachedProduct) => !p.pending && !p.id.startsWith('pending:')
+
+function EditButton({ product, onEdit }: { product: CachedProduct; onEdit?: (id: string) => void }) {
+  if (!onEdit || !editable(product)) return null
+  return (
+    <button
+      type="button"
+      onClick={() => onEdit(product.id)}
+      title="Editar producto"
+      aria-label={`Editar ${product.name}`}
+      className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink"
+    >
+      <Icon name="pencil" />
+    </button>
   )
 }
 
@@ -245,16 +359,19 @@ function PendingBadge({ product }: { product: CachedProduct }) {
   return product.pending ? <span className="badge badge-warning">Pendiente</span> : null
 }
 
-function ProductGrid({ products }: { products: CachedProduct[] }) {
+function ProductGrid({ products, onEdit }: { products: CachedProduct[]; onEdit?: (id: string) => void }) {
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
       {products.map((p) => (
         <li key={p.barcode} className="card flex flex-col overflow-hidden">
           <ProductImage path={p.image_url} alt={p.name} className="aspect-square w-full border-0 border-b" />
           <div className="flex flex-1 flex-col gap-1 p-3">
-            <p className="line-clamp-2 text-label text-ink" title={p.name}>
-              {p.name}
-            </p>
+            <div className="flex items-start gap-1">
+              <p className="line-clamp-2 flex-1 text-label text-ink" title={p.name}>
+                {p.name}
+              </p>
+              <EditButton product={p} onEdit={onEdit} />
+            </div>
             {p.category && <p className="truncate text-caption text-ink-subtle">{p.category}</p>}
             <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
               <span className="text-heading tabular-nums">{formatMoney(p.price)}</span>
@@ -272,10 +389,12 @@ function ProductTable({
   products,
   sort,
   onSort,
+  onEdit,
 }: {
   products: CachedProduct[]
   sort: { key: SortKey; dir: 1 | -1 }
   onSort: (key: SortKey) => void
+  onEdit?: (id: string) => void
 }) {
   const th = (key: SortKey, label: string, right = false) => (
     <th
@@ -307,6 +426,11 @@ function ProductTable({
             <th className="h-control-md px-4 font-medium">Proveedor</th>
             {th('quantity', 'Stock', true)}
             {th('price', 'Precio', true)}
+            {onEdit && (
+              <th className="h-control-md w-12 px-2 font-medium">
+                <span className="sr-only">Editar</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -328,6 +452,11 @@ function ProductTable({
                 {formatInt(p.quantity)}
               </td>
               <td className="h-row px-4 text-right tabular-nums">{formatMoney(p.price)}</td>
+              {onEdit && (
+                <td className="h-row px-2">
+                  <EditButton product={p} onEdit={onEdit} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

@@ -45,6 +45,10 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261013000400_creditos.sql` | Créditos de tienda (`customer_credit_movements`, `grant_credits`) y pagos con varios métodos (`ticket_payments`) |
 | `20261013000500_folio_tickets.sql` | Folio consecutivo de tickets ("Ticket 1, 2, 3…") asignado al cobrar |
 | `20261013000600_folio_where.sql` | Corrección: el contador de folios necesita `WHERE` (Supabase rechaza `UPDATE` sin `WHERE`) |
+| `20261015000100_roles_usuarios.sql` | Roles **admin** y **mostrador** (`staff` → `mostrador`), `is_admin()` y candados: solo admin agrega/edita inventario y usuarios |
+| `20261015000200_categorias.sql` | Acomoda las categorías existentes a la lista fija (TCG con sus juegos, Accesorios, Cafetería, …) |
+| `20261015000300_puntos_liga.sql` | Puntos de liga (`customer_league_points`, `grant_league_points`, vistas de total e historial) |
+| `20261015000400_correcciones_inventario.sql` | Correcciones con motivo: `unlink_product` (desvincular código/catálogo), `cancel_movement`, `adjust_stock`; el historial muestra lo cancelado |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -62,17 +66,38 @@ npx supabase db push
 1. **Authentication → Users → Add user → Create new user**.
 2. Escribe correo y contraseña y marca **Auto Confirm User**. Si no lo marcas, el login dirá
    que el correo no está confirmado.
-3. El perfil se crea solo en `public.profiles` con rol `staff` (lo hace un trigger).
-4. Opcional: para que la primera cuenta sea administradora, corre esto en el SQL Editor:
+3. El perfil se crea solo en `public.profiles` con rol `mostrador` (lo hace un trigger).
+4. Haz administradora a esa primera cuenta en el SQL Editor:
 
    ```sql
    update public.profiles set role = 'admin' where email = 'tu-correo@ejemplo.com';
    ```
 
-   (En esta fase el rol solo se guarda; todavía no restringe nada.)
+   (La migración `20261015000100_roles_usuarios.sql` hace admin a los usuarios que ya
+   existían si todavía no había ningún admin.)
 
-Para agregar más personas, repite el paso 1. Para quitar el acceso a alguien, bórralo o
-bloquéalo desde la misma pantalla.
+Las demás personas se dan de alta desde la app en **Usuarios** (ver
+[Usuarios y roles](#usuarios-y-roles)). Para quitar el acceso a alguien, bórralo o
+bloquéalo en **Authentication → Users**.
+
+### 4b. Publicar la Edge Function `crear-usuario`
+
+La pantalla **Usuarios** crea cuentas con una Edge Function, porque crear usuarios
+necesita la `service_role` key y esa nunca puede ir en el navegador.
+
+**Opción A: dashboard.** **Edge Functions → Deploy a new function → Via Editor**, ponle de
+nombre `crear-usuario`, pega el contenido de `supabase/functions/crear-usuario/index.ts`
+y presiona **Deploy**. Deja activado **Verify JWT** (la función además revisa que quien la
+llama sea admin).
+
+**Opción B: Supabase CLI.**
+
+```bash
+npx supabase functions deploy crear-usuario
+```
+
+No hay que configurar secretos: Supabase le da a la función `SUPABASE_URL`,
+`SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### 5. Variables de entorno
 
@@ -114,6 +139,55 @@ Ver [Catálogo TCG](#catálogo-tcg). Se hace una vez al inicio y luego se mantie
 a mano con cada expansión).
 
 ---
+
+## Usuarios y roles
+
+| Rol | Puede |
+| --- | --- |
+| **Administrador** (`admin`) | Todo: vender, clientes, créditos, puntos de liga, **agregar inventario** (alta, sumar, fijar total, deshacer), **editar productos** y administrar usuarios |
+| **Mostrador** (`mostrador`) | Vender, clientes, créditos y puntos de liga. **No** puede agregar ni editar inventario (no ve *Agregar* ni el lápiz de editar) |
+
+La regla se aplica también en la base de datos (triggers en `products` e
+`inventory_movements`), no solo escondiendo botones. Las ventas descuentan stock con
+cualquier rol.
+
+En **Usuarios** (solo admin) se crea una cuenta con nombre, correo, rol y una contraseña
+temporal que le compartes a la persona. Ahí mismo se cambia el nombre o el rol; siempre
+debe quedar al menos un administrador.
+
+## Categorías de producto
+
+Las categorías son fijas (`src/lib/categories.ts`): **TCG** (Pokémon, Yu-Gi-Oh!, Lorcana,
+Magic, Flesh and Blood y "otros juegos TCG"), **Accesorios**, **Cafetería**, **Comida**,
+**Juegos de Mesa** y **Torneos**. Al vincular un producto con el catálogo, la categoría se
+sugiere sola según el juego. En Inventario se filtra con los botones de categoría (y, en
+TCG, por juego). Para editar un producto (nombre, precio, costo, categoría, proveedor,
+descripción y foto), un admin usa el lápiz en la tarjeta o el renglón. La cantidad no se
+edita ahí: cambia con escaneos y ventas para que quede en el historial.
+
+## Correcciones de inventario
+
+Solo admin. Todas piden un **motivo** y quedan en el **Historial** con quién y cuándo;
+nunca se borra un movimiento.
+
+- **Cancelar un movimiento** (Historial → *Cancelar*): alta, escaneo o ajuste. Se registra
+  una *Cancelación* que revierte la cantidad y el original queda marcado como **Cancelado**.
+  Las ventas no se cancelan desde aquí.
+- **Ajustar existencias** (Editar producto → *Ajustar existencias*): pones la cantidad
+  correcta y el motivo.
+- **Desvincular código** (Editar producto → *Desvincular código*): el producto se queda
+  con un código interno `HCH-` (imprime su etiqueta nueva) y pierde el vínculo con el
+  catálogo. El código real queda libre: al escanearlo en *Agregar* se toma como nuevo y,
+  como ya se había desvinculado, no se vincula solo al catálogo: avisa y se elige el
+  producto correcto a mano. Si el producto ya tenía código interno, solo se quita el
+  vínculo con el catálogo.
+
+## Puntos de liga
+
+Cada cliente tiene un total de **puntos de liga**. Se agregan desde el perfil del cliente
+o desde **Clientes** (botón *Agregar puntos de liga* para varios a la vez, o el **+** de
+cada renglón). Cada registro guarda cantidad, comentario, fecha y quién los asignó (el
+usuario con sesión iniciada). Para corregir, se registran puntos negativos.
 
 ## Catálogo TCG
 

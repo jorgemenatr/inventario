@@ -5,7 +5,7 @@ import type { Profile } from '../lib/types'
 export interface AuthContextValue {
   session: Session | null
   user: User | null
-  /** Perfil (rol incluido). Listo para restringir funciones en el POS. */
+  /** Perfil (rol incluido): admin o mostrador. */
   profile: Profile | null
   loading: boolean
   /** Devuelve null si todo salió bien, o un mensaje de error en español. */

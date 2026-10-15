@@ -4,9 +4,11 @@ import { CreditsModal } from '../components/CreditsModal'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { GameTags } from '../components/GamesInput'
 import { Icon } from '../components/Icon'
+import { LeaguePointsModal } from '../components/LeaguePointsModal'
 import { gameSuggestions, listCustomers } from '../lib/customers'
 import { listCreditBalances } from '../lib/credits'
 import { formatInt, formatMoney } from '../lib/format'
+import { formatPoints, listLeagueTotals } from '../lib/league'
 import { isNetworkError } from '../lib/supabase'
 import type { CreditBalance, Customer } from '../lib/types'
 
@@ -22,6 +24,9 @@ export function CustomersPage() {
   const [granting, setGranting] = useState(false)
   const [balances, setBalances] = useState<Map<string, CreditBalance> | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+  const [league, setLeague] = useState<Map<string, number> | null>(null)
+  // Puntos de liga: a un cliente (renglón) o a varios ('many'); null = cerrado.
+  const [pointsFor, setPointsFor] = useState<Customer | 'many' | null>(null)
 
   // Saldos de créditos (si falla, la lista se ve igual, sin la columna llena).
   const loadBalances = () => {
@@ -30,6 +35,13 @@ export function CustomersPage() {
       .catch(() => undefined)
   }
   useEffect(loadBalances, [])
+
+  const loadLeague = () => {
+    listLeagueTotals()
+      .then(setLeague)
+      .catch(() => undefined)
+  }
+  useEffect(loadLeague, [])
 
   useEffect(() => {
     listCustomers()
@@ -56,6 +68,10 @@ export function CustomersPage() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-title">Clientes</h1>
+        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-secondary">
+          <Icon name="trophy" />
+          Agregar puntos de liga
+        </button>
         <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-secondary">
           <Icon name="plus" />
           Agregar créditos
@@ -116,6 +132,7 @@ export function CustomersPage() {
                 <th className="h-control-md px-4 font-medium">Teléfono</th>
                 <th className="h-control-md px-4 font-medium">Correo</th>
                 <th className="h-control-md px-4 font-medium">Juegos que juega</th>
+                <th className="h-control-md px-4 text-right font-medium">Puntos de liga</th>
                 <th className="h-control-md px-4 text-right font-medium">Créditos</th>
               </tr>
             </thead>
@@ -131,6 +148,27 @@ export function CustomersPage() {
                   <td className="h-row px-4 text-ink-muted">{c.email ?? '—'}</td>
                   <td className="h-row px-4 py-2">
                     <GameTags games={c.games} max={4} />
+                  </td>
+                  <td className="h-row px-4 text-right whitespace-nowrap tabular-nums">
+                    <span className="inline-flex items-center gap-1">
+                      {!league ? '…' : (league.get(c.id) ?? 0) !== 0 ? (
+                        <span className="font-medium">{(league.get(c.id) ?? 0).toLocaleString('es-MX')}</span>
+                      ) : (
+                        <span className="text-ink-subtle">—</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPointsFor(c)
+                        }}
+                        title="Agregar puntos de liga"
+                        aria-label={`Agregar puntos de liga a ${c.name}`}
+                        className="grid size-7 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-brand-soft hover:text-brand-ink"
+                      >
+                        <Icon name="plus" />
+                      </button>
+                    </span>
                   </td>
                   <td className="h-row px-4 text-right whitespace-nowrap tabular-nums">
                     {!balances ? '…' : (balances.get(c.id)?.balance ?? 0) > 0 ? (
@@ -159,6 +197,19 @@ export function CustomersPage() {
             setGranting(false)
             setSaved(`Se agregaron ${formatMoney(r.total)} en créditos a ${r.count} cliente(s).`)
             loadBalances()
+          }}
+        />
+      )}
+
+      {pointsFor && customers && (
+        <LeaguePointsModal
+          customers={customers}
+          fixedCustomer={pointsFor === 'many' ? undefined : pointsFor}
+          onCancel={() => setPointsFor(null)}
+          onSaved={(r) => {
+            setPointsFor(null)
+            setSaved(`Se registraron ${formatPoints(r.total)} puntos de liga a ${r.count} cliente(s).`)
+            loadLeague()
           }}
         />
       )}

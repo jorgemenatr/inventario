@@ -11,6 +11,7 @@ import { VentasPage } from './pages/VentasPage'
 import { LabelPage } from './pages/LabelPage'
 import { LoginPage } from './pages/LoginPage'
 import { ScanPage } from './pages/ScanPage'
+import { UsersPage } from './pages/UsersPage'
 
 export function App() {
   return (
@@ -35,13 +36,28 @@ export function App() {
           >
             {/* La app abre en el Mostrador. */}
             <Route index element={<Navigate to="/mostrador" replace />} />
-            <Route path="agregar" element={<ScanPage />} />
+            <Route
+              path="agregar"
+              element={
+                <ProtectedRoute roles={['admin']}>
+                  <ScanPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="inventario" element={<InventoryPage />} />
             <Route path="mostrador" element={<MostradorPage />} />
             <Route path="ventas" element={<VentasPage />} />
             <Route path="clientes" element={<CustomersPage />} />
             <Route path="clientes/:id" element={<CustomerDetailPage />} />
             <Route path="historial" element={<HistoryPage />} />
+            <Route
+              path="usuarios"
+              element={
+                <ProtectedRoute roles={['admin']}>
+                  <UsersPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

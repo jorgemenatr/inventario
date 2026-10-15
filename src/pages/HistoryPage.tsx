@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useAuth } from '../auth/useAuth'
 import { buildMovementRows, exportCsv, exportXlsx } from '../lib/export'
 import { formatDateTime, formatInt } from '../lib/format'
+import { cancelMovement } from '../lib/products'
 import { isNetworkError, supabase } from '../lib/supabase'
 import { Icon } from '../components/Icon'
-import { MOVEMENT_LABELS, type MovementHistoryRow } from '../lib/types'
+import { MOVEMENT_LABELS, type MovementHistoryRow, type Product } from '../lib/types'
 import { inventoryStore, type QueueItem } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
 const PAGE = 100
+
+/** Movimientos que se pueden cancelar (las ventas y los desvinculados no). */
+const cancellable = (m: MovementHistoryRow) =>
+  ['initial_count', 'scan_add', 'set_total', 'adjustment'].includes(m.type) && !m.reverts_movement_id && !m.cancelled_by_movement_id
 
 function describeQueueItem(item: QueueItem) {
   switch (item.kind) {
@@ -30,6 +36,10 @@ export function HistoryPage() {
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
+  const [cancelling, setCancelling] = useState<MovementHistoryRow | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
 
   const load = useCallback(async (offset: number, search: string) => {
     setLoading(true)
@@ -40,7 +50,7 @@ export function HistoryPage() {
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE - 1)
     const s = search.trim().replace(/[%,()]/g, '')
-    if (s) query = query.or(`barcode.ilike.%${s}%,product_name.ilike.%${s}%`)
+    if (s) query = query.or(`barcode.ilike.%${s}%,product_name.ilike.%${s}%,old_barcode.ilike.%${s}%`)
     const { data, error } = await query
     setLoading(false)
     if (error) {
@@ -137,6 +147,12 @@ export function HistoryPage() {
         />
       </label>
 
+      {saved && (
+        <p className="notice bg-success-bg text-success-fg" role="status">
+          <Icon name="check" className="mt-0.5" />
+          {saved}
+        </p>
+      )}
       {error && (
         <p className="notice bg-danger-bg text-danger-fg">
           <Icon name="alert" className="mt-0.5" />
@@ -156,22 +172,67 @@ export function HistoryPage() {
               <th className="h-control-md px-4 text-right font-medium">Cantidad</th>
               <th className="h-control-md px-4 font-medium">Usuario</th>
               <th className="h-control-md px-4 font-medium">Nota</th>
+              {isAdmin && (
+                <th className="h-control-md px-4 font-medium">
+                  <span className="sr-only">Acciones</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.map((m) => (
-              <tr key={m.id} className="border-t border-line hover:bg-subtle">
+              <tr key={m.id} className={`border-t border-line hover:bg-subtle ${m.cancelled_by_movement_id ? 'text-ink-subtle' : ''}`}>
                 <td className="h-row px-4 whitespace-nowrap text-ink-muted">{formatDateTime(m.created_at)}</td>
                 <td className="h-row px-4 font-mono text-[13px] text-ink-muted">{m.barcode}</td>
                 <td className="h-row px-4 font-medium">{m.product_name}</td>
-                <td className="h-row px-4 whitespace-nowrap">{MOVEMENT_LABELS[m.type]}</td>
-                <td className={`h-row px-4 text-right font-medium tabular-nums ${m.delta > 0 ? 'text-success-fg' : m.delta < 0 ? 'text-danger-fg' : ''}`}>
+                <td className="h-row px-4 whitespace-nowrap">
+                  <span className="flex flex-col items-start gap-1 py-1">
+                    {MOVEMENT_LABELS[m.type] ?? m.type}
+                    {m.reverts_movement_id && <span className="badge badge-info">Cancelación</span>}
+                    {m.cancelled_by_movement_id && (
+                      <span
+                        className="badge badge-danger"
+                        title={`${m.cancel_note ?? ''}${m.cancelled_by_name ? ` · ${m.cancelled_by_name}` : ''}${m.cancelled_at ? ` · ${formatDateTime(m.cancelled_at)}` : ''}`}
+                      >
+                        Cancelado
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <td
+                  className={`h-row px-4 text-right font-medium tabular-nums ${m.cancelled_by_movement_id ? 'line-through' : m.delta > 0 ? 'text-success-fg' : m.delta < 0 ? 'text-danger-fg' : ''}`}
+                >
                   {m.delta > 0 ? '+' : ''}
                   {formatInt(m.delta)}
                 </td>
                 <td className="h-row px-4 text-right tabular-nums">{formatInt(m.quantity_after)}</td>
                 <td className="h-row px-4">{m.created_by_name || m.created_by_email || '—'}</td>
-                <td className="h-row px-4 text-ink-muted">{m.note}</td>
+                <td className="h-row px-4 text-ink-muted">
+                  {m.note}
+                  {m.cancelled_by_movement_id && (
+                    <span className="block text-caption text-danger-fg">
+                      Cancelado{m.cancelled_by_name ? ` por ${m.cancelled_by_name}` : ''}
+                      {m.cancelled_at ? ` el ${formatDateTime(m.cancelled_at)}` : ''}
+                    </span>
+                  )}
+                </td>
+                {isAdmin && (
+                  <td className="h-row px-4 text-right">
+                    {cancellable(m) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSaved(null)
+                          setCancelling(m)
+                        }}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        <Icon name="undo" />
+                        Cancelar
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -186,6 +247,109 @@ export function HistoryPage() {
           </button>
         </div>
       )}
+
+      {cancelling && (
+        <CancelMovementModal
+          movement={cancelling}
+          onCancel={() => setCancelling(null)}
+          onDone={(product) => {
+            inventoryStore.productEdited(product)
+            setCancelling(null)
+            setSaved(`Movimiento cancelado. ${product.name} quedó en ${formatInt(product.quantity)} pzas.`)
+            void load(0, filter)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Cancelar un movimiento: pide el motivo. El movimiento no se borra, queda marcado. */
+function CancelMovementModal({
+  movement,
+  onCancel,
+  onDone,
+}: {
+  movement: MovementHistoryRow
+  onCancel: () => void
+  onDone: (product: Product) => void
+}) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (busy) return
+    if (!reason.trim()) return setError('El motivo es obligatorio.')
+    setBusy(true)
+    setError(null)
+    try {
+      onDone(await cancelMovement(movement.id, reason))
+    } catch (err) {
+      setError(isNetworkError(err) ? 'Sin conexión: intenta cuando vuelva el internet.' : (err as Error).message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cm-title">
+      <form
+        noValidate
+        onSubmit={onSubmit}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            onCancel()
+          }
+        }}
+        className="w-full max-w-lg rounded-lg border border-line bg-surface shadow-popover"
+      >
+        <div className="border-b border-line px-6 py-5">
+          <h2 id="cm-title" className="text-title">Cancelar movimiento</h2>
+          <p className="mt-1 text-ink-muted">
+            {MOVEMENT_LABELS[movement.type]} de <span className="text-ink">{movement.product_name}</span> ·{' '}
+            <span className="tabular-nums">
+              {movement.delta > 0 ? '+' : ''}
+              {formatInt(movement.delta)}
+            </span>{' '}
+            · {formatDateTime(movement.created_at)}
+          </p>
+        </div>
+        <div className="space-y-4 px-6 py-5">
+          <p className="text-ink-muted">
+            Se revierte la cantidad ({movement.delta > 0 ? '−' : '+'}
+            {formatInt(Math.abs(movement.delta))} pzas). El movimiento no se borra: queda marcado como cancelado con tu
+            nombre, la fecha y el motivo.
+          </p>
+          <div>
+            <label className="field-label" htmlFor="cm-reason">Motivo *</label>
+            <input
+              id="cm-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ej. Se escaneó dos veces la misma caja"
+              autoFocus
+              autoComplete="off"
+              className="field h-10"
+            />
+          </div>
+          {error && (
+            <p className="notice bg-danger-bg text-danger-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {error}
+            </p>
+          )}
+        </div>
+        <div className="flex justify-end gap-3 border-t border-line bg-subtle px-6 py-4">
+          <button type="button" onClick={onCancel} className="btn btn-ghost">
+            Volver
+          </button>
+          <button type="submit" disabled={busy} className="btn btn-danger">
+            {busy ? 'Cancelando…' : 'Cancelar movimiento'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

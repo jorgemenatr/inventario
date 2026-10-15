@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { ROLE_LABELS } from '../lib/types'
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { ConnectionBadge } from './ConnectionBadge'
@@ -11,6 +12,8 @@ interface NavItem {
   label: string
   icon: IconName
   end?: boolean
+  /** Solo para administradores. */
+  admin?: boolean
   /** Subsecciones: se muestran solo mientras se está dentro de la sección. */
   children?: NavItem[]
 }
@@ -25,10 +28,11 @@ const NAV: NavItem[] = [
     icon: 'grid',
     children: [
       // Escaneo: alta y conteo de productos con el lector.
-      { to: '/agregar', label: 'Agregar', icon: 'barcode' },
+      { to: '/agregar', label: 'Agregar', icon: 'barcode', admin: true },
       { to: '/historial', label: 'Historial', icon: 'history' },
     ],
   },
+  { to: '/usuarios', label: 'Usuarios', icon: 'shield', admin: true },
 ]
 
 /** ¿La ruta actual es la sección o alguna de sus subsecciones? */
@@ -37,14 +41,14 @@ function inSection(item: NavItem, pathname: string) {
   return match(item) || (item.children ?? []).some(match)
 }
 
-const ROLE_LABELS: Record<string, string> = { admin: 'Administrador', staff: 'Personal' }
-
 export function Layout() {
   const { pathname } = useLocation()
   const { user, profile, signOut } = useAuth()
   const { queue } = useInventory()
   const navigate = useNavigate()
   const simulator = useSimulatorEnabled()
+  const isAdmin = profile?.role === 'admin'
+  const allowed = (n: NavItem) => !n.admin || isAdmin
 
   async function handleSignOut() {
     if (queue.length > 0) {
@@ -80,20 +84,21 @@ export function Layout() {
         </div>
 
         <div className="flex flex-wrap gap-0.5 md:flex-col md:flex-nowrap">
-          {NAV.map((n) => {
-            const open = !!n.children && inSection(n, pathname)
+          {NAV.filter(allowed).map((n) => {
+            const children = n.children?.filter(allowed)
+            const open = !!children?.length && inSection(n, pathname)
             return (
               <div key={n.to} className="contents md:block">
                 <NavLink to={n.to} end={n.end} className={navItem}>
                   <Icon name={n.icon} size={20} />
                   <span>{n.label}</span>
-                  {n.children && (
+                  {!!children?.length && (
                     <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} className="ml-auto hidden text-nav-ink-subtle md:block" />
                   )}
                 </NavLink>
                 {open && (
                   <div className="contents md:mt-0.5 md:ml-4 md:flex md:flex-col md:gap-0.5 md:border-l md:border-nav-border md:pl-2">
-                    {n.children!.map((c) => (
+                    {children!.map((c) => (
                       <NavLink key={c.to} to={c.to} end={c.end} className={navItem}>
                         <Icon name={c.icon} size={18} />
                         <span>{c.label}</span>

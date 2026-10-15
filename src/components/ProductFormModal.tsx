@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { catalogThumb, fetchCatalogImage, searchCatalog } from '../lib/catalog'
+import { categoryFromGame } from '../lib/categories'
 import { compressImage } from '../lib/images'
-import { parseCount, parseMoney } from '../lib/format'
+import { formatDateTime, parseCount, parseMoney } from '../lib/format'
+import { findUnlink } from '../lib/products'
 import { createBurstDetector } from '../lib/scannerBurst'
 import type { CatalogItem } from '../lib/types'
 import { inventoryStore, type CreateOutcome } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { CatalogSearch } from './CatalogSearch'
+import { CategorySelect } from './CategorySelect'
 import { Icon } from './Icon'
 import { WebcamCapture } from './WebcamCapture'
 
@@ -50,13 +53,16 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
+  // El código se desvinculó antes de otro producto: no se vincula solo al catálogo.
+  const [unlinked, setUnlinked] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
   const priceRef = useRef<HTMLInputElement>(null)
   const catalogRef = useRef<HTMLInputElement>(null)
   const detector = useRef(createBurstDetector())
   const linkToken = useRef(0)
 
-  // Al abrir: si el código ya está en el catálogo (UPC), se vincula solo.
+  // Al abrir: si el código ya está en el catálogo (UPC), se vincula solo (salvo que
+  // ese código se haya desvinculado antes: entonces se elige a mano).
   // Si no, el cursor queda en el buscador del catálogo (o en Nombre sin conexión).
   useEffect(() => {
     let active = true
@@ -67,7 +73,21 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     catalogRef.current?.focus()
     if (barcode && /^\d{8,14}$/.test(barcode)) {
       const token = linkToken.current
-      searchCatalog(barcode, 5)
+      findUnlink(barcode)
+        .catch(() => null)
+        .then((prev) => {
+          if (prev) {
+            if (active) {
+              setUnlinked(
+                `Este código se desvinculó de "${prev.product_name}" el ${formatDateTime(prev.created_at)}` +
+                  `${prev.created_by_name || prev.created_by_email ? ` (${prev.created_by_name || prev.created_by_email})` : ''}. ` +
+                  'No se vinculó solo: busca y elige el producto correcto del catálogo.',
+              )
+            }
+            return []
+          }
+          return searchCatalog(barcode, 5)
+        })
         .then((r) => {
           const matches = r.filter((c) => c.upc_match)
           // Si mientras tanto ya se eligió algo a mano, no se pisa.
@@ -91,14 +111,10 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     return () => URL.revokeObjectURL(url)
   }, [image])
 
-  const { categories, suppliers } = useMemo(() => {
-    const c = new Set<string>()
+  const suppliers = useMemo(() => {
     const s = new Set<string>()
-    for (const p of Object.values(products)) {
-      if (p.category) c.add(p.category)
-      if (p.supplier) s.add(p.supplier)
-    }
-    return { categories: [...c].sort(), suppliers: [...s].sort() }
+    for (const p of Object.values(products)) if (p.supplier) s.add(p.supplier)
+    return [...s].sort()
   }, [products])
 
   const set = (key: keyof Fields) => (e: { target: { value: string } }) =>
@@ -112,7 +128,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     setFields((f) => ({
       ...f,
       name: item.name,
-      category: f.category || item.game,
+      category: f.category || categoryFromGame(item.game),
       description: item.description ?? '',
     }))
     // La foto del catálogo reemplaza a otra del catálogo, nunca a una propia.
@@ -245,6 +261,12 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
               Sin conexión: el producto se guardará en la cola y se sincronizará después (sin imagen).
             </p>
           )}
+          {unlinked && (
+            <p className="notice bg-info-bg text-info-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {unlinked}
+            </p>
+          )}
           {warning && (
             <p className="notice bg-warning-bg text-warning-fg">
               <Icon name="alert" className="mt-0.5" />
@@ -308,8 +330,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
             </div>
             <div>
               <label className={label} htmlFor="pf-category">Categoría</label>
-              <input id="pf-category" name="category" className={input} value={fields.category} onChange={set('category')} list="pf-categories" autoComplete="off" />
-              <datalist id="pf-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+              <CategorySelect id="pf-category" value={fields.category} onChange={(category) => setFields((f) => ({ ...f, category }))} />
             </div>
             <div>
               <label className={label} htmlFor="pf-supplier">Proveedor</label>

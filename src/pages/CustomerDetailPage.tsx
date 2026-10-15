@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CustomerCredits } from '../components/CustomerCredits'
 import { CustomerFormModal } from '../components/CustomerFormModal'
+import { CustomerLeaguePoints } from '../components/CustomerLeaguePoints'
 import { GameTags } from '../components/GamesInput'
 import { SalesTable } from '../components/SalesTable'
 import { Icon } from '../components/Icon'
@@ -108,6 +109,8 @@ export function CustomerDetailPage() {
               <GameTags games={customer.games} />
             </div>
           </section>
+
+          <CustomerLeaguePoints customer={customer} />
 
           <CustomerCredits customer={customer} />
 
