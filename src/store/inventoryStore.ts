@@ -850,6 +850,11 @@ class InventoryStore {
     this.putServerProduct(toCached((data as MovementResult).product), item.opId)
   }
 
+  /** Producto editado (ProductEditModal): actualiza la copia local. */
+  productEdited(p: Product) {
+    this.putServerProduct(toCached(p), '')
+  }
+
   dismissFailed(index: number) {
     this.set({ failed: this.state.failed.filter((_, i) => i !== index) })
   }

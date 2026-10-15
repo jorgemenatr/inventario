@@ -1,4 +1,6 @@
-export type UserRole = 'admin' | 'staff'
+export type UserRole = 'admin' | 'mostrador'
+
+export const ROLE_LABELS: Record<UserRole, string> = { admin: 'Administrador', mostrador: 'Mostrador' }
 
 export type MovementType = 'initial_count' | 'scan_add' | 'set_total' | 'adjustment' | 'sale'
 
@@ -9,6 +11,7 @@ export interface Profile {
   email: string
   full_name: string | null
   role: UserRole
+  created_at?: string
 }
 
 export interface Product {
@@ -190,4 +193,19 @@ export interface PayTicketResult {
   status: 'ok' | 'duplicate'
   ticket: Ticket
   products: Product[]
+}
+
+/** Fila de la vista league_points_history. */
+export interface LeaguePointsRow {
+  id: string
+  customer_id: string
+  points: number
+  note: string | null
+  /** Fecha (YYYY-MM-DD) en que se ganaron. */
+  awarded_on: string
+  batch_id: string | null
+  created_at: string
+  created_by: string | null
+  created_by_email: string | null
+  created_by_name: string | null
 }

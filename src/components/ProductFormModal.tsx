@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { catalogThumb, fetchCatalogImage, searchCatalog } from '../lib/catalog'
+import { categoryFromGame } from '../lib/categories'
 import { compressImage } from '../lib/images'
 import { parseCount, parseMoney } from '../lib/format'
 import { createBurstDetector } from '../lib/scannerBurst'
@@ -7,6 +8,7 @@ import type { CatalogItem } from '../lib/types'
 import { inventoryStore, type CreateOutcome } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { CatalogSearch } from './CatalogSearch'
+import { CategorySelect } from './CategorySelect'
 import { Icon } from './Icon'
 import { WebcamCapture } from './WebcamCapture'
 
@@ -91,14 +93,10 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     return () => URL.revokeObjectURL(url)
   }, [image])
 
-  const { categories, suppliers } = useMemo(() => {
-    const c = new Set<string>()
+  const suppliers = useMemo(() => {
     const s = new Set<string>()
-    for (const p of Object.values(products)) {
-      if (p.category) c.add(p.category)
-      if (p.supplier) s.add(p.supplier)
-    }
-    return { categories: [...c].sort(), suppliers: [...s].sort() }
+    for (const p of Object.values(products)) if (p.supplier) s.add(p.supplier)
+    return [...s].sort()
   }, [products])
 
   const set = (key: keyof Fields) => (e: { target: { value: string } }) =>
@@ -112,7 +110,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
     setFields((f) => ({
       ...f,
       name: item.name,
-      category: f.category || item.game,
+      category: f.category || categoryFromGame(item.game),
       description: item.description ?? '',
     }))
     // La foto del catálogo reemplaza a otra del catálogo, nunca a una propia.
@@ -308,8 +306,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
             </div>
             <div>
               <label className={label} htmlFor="pf-category">Categoría</label>
-              <input id="pf-category" name="category" className={input} value={fields.category} onChange={set('category')} list="pf-categories" autoComplete="off" />
-              <datalist id="pf-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+              <CategorySelect id="pf-category" value={fields.category} onChange={(category) => setFields((f) => ({ ...f, category }))} />
             </div>
             <div>
               <label className={label} htmlFor="pf-supplier">Proveedor</label>

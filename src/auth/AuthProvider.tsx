@@ -32,6 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       return
     }
+    // Copia local: sin internet se conserva el rol de la última vez.
+    setProfile(loadCachedProfile(userId))
+    let active = true
     // Se hace fuera de onAuthStateChange (supabase-js recomienda no llamar a la
     // API dentro del callback).
     supabase
@@ -39,7 +42,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('id, email, full_name, role')
       .eq('id', userId)
       .maybeSingle()
-      .then(({ data }) => setProfile((data as Profile | null) ?? null))
+      .then(({ data, error }) => {
+        if (!active || error) return
+        const p = (data as Profile | null) ?? null
+        setProfile(p)
+        saveCachedProfile(p)
+      })
+    return () => {
+      active = false
+    }
   }, [userId])
 
   const signIn = useCallback<AuthContextValue['signIn']>(async (email, password) => {
@@ -63,6 +74,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+const PROFILE_KEY = 'hachiko.perfil'
+
+function loadCachedProfile(userId: string): Profile | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null') as Profile | null
+    return p?.id === userId ? p : null
+  } catch {
+    return null
+  }
+}
+
+function saveCachedProfile(p: Profile | null) {
+  try {
+    if (p) localStorage.setItem(PROFILE_KEY, JSON.stringify(p))
+    else localStorage.removeItem(PROFILE_KEY)
+  } catch {
+    /* no crítico */
+  }
 }
 
 function translateAuthError(error: unknown): string {
