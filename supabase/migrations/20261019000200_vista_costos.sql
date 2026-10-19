@@ -1,19 +1,12 @@
 -- =====================================================================
--- Inventario Hachiko · El costo del producto solo lo ve un admin
+-- Inventario Hachiko · El costo del producto solo lo ve un admin (1 de 2)
 --
--- products.cost (último costo de compra) ya no se puede leer con el rol de
--- la app: se quita el SELECT de esa columna. El admin lo lee con la vista
--- product_costs, que solo devuelve filas a un administrador.
---
--- OJO: al agregar columnas nuevas a products hay que darles SELECT aquí
--- (grant select (columna) on public.products to authenticated).
+-- Aquí va lo que no rompe a la versión anterior de la app: la vista
+-- product_costs (de donde el admin lee el costo) y quitar el costo de las
+-- respuestas de las funciones para quien no es admin. Quitar el SELECT de
+-- products.cost al rol de la app va en 20261019000300_costo_solo_admin.sql,
+-- que se aplica cuando la app nueva ya está publicada.
 -- =====================================================================
-
-revoke select on public.products from authenticated;
-grant select (
-  id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity,
-  image_url, is_internal_code, description, catalog_product_id, created_by, created_at, updated_at
-) on public.products to authenticated;
 
 -- Sin security_invoker: corre con los permisos de su dueño (sí lee cost) y
 -- el WHERE deja ver los costos solo a un administrador.
