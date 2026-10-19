@@ -1,6 +1,6 @@
 import { uploadProductImage } from './images'
 import { supabase } from './supabase'
-import type { MovementHistoryRow, MovementResult, Product } from './types'
+import type { LotPick, MovementHistoryRow, MovementResult, Product, StockLocation } from './types'
 
 export interface ProductPatch {
   name: string
@@ -12,7 +12,7 @@ export interface ProductPatch {
 }
 
 const COLUMNS =
-  'id, barcode, name, category, supplier, cost, price, quantity, image_url, is_internal_code, description, catalog_product_id, created_by, created_at, updated_at'
+  'id, barcode, name, category, supplier, supplier_id, cost, price, quantity, warehouse_quantity, image_url, is_internal_code, description, catalog_product_id, created_by, created_at, updated_at'
 
 const num = (p: Product): Product => ({ ...p, price: Number(p.price), cost: p.cost == null ? null : Number(p.cost) })
 
@@ -58,24 +58,38 @@ export async function unlinkProduct(id: string, reason: string): Promise<Product
   return rpcProduct(data)
 }
 
-/** Fija la cantidad correcta con un ajuste y su motivo. */
-export async function adjustStock(id: string, quantity: number, reason: string): Promise<Product> {
+export interface AdjustInput {
+  location: StockLocation
+  /** Si baja: de qué lotes salen las piezas (null = el único lote que hay). */
+  lots?: LotPick[] | null
+  /** Si sube: proveedor y costo del lote nuevo (null = los últimos del producto). */
+  supplierId?: string | null
+  unitCost?: number | null
+}
+
+/** Fija la cantidad correcta de una ubicación con un ajuste y su motivo. */
+export async function adjustStock(id: string, quantity: number, reason: string, opts: AdjustInput): Promise<Product> {
   const { data, error } = await supabase.rpc('adjust_stock', {
     p_product_id: id,
     p_quantity: quantity,
     p_reason: reason.trim(),
     p_client_op_id: crypto.randomUUID(),
+    p_location: opts.location,
+    p_lots: opts.lots?.length ? opts.lots : null,
+    p_supplier_id: opts.supplierId ?? null,
+    p_unit_cost: opts.unitCost ?? null,
   })
   if (error) throw error
   return rpcProduct(data)
 }
 
 /** Cancela un movimiento (no se borra: queda marcado y se revierte la cantidad). */
-export async function cancelMovement(movementId: string, reason: string): Promise<Product> {
+export async function cancelMovement(movementId: string, reason: string, lots?: LotPick[] | null): Promise<Product> {
   const { data, error } = await supabase.rpc('cancel_movement', {
     p_movement_id: movementId,
     p_reason: reason.trim(),
     p_client_op_id: crypto.randomUUID(),
+    p_lots: lots?.length ? lots : null,
   })
   if (error) throw error
   const res = data as MovementResult

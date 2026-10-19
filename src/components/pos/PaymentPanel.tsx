@@ -145,6 +145,7 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
   const invalidAmount = parts.some((p, i) => !single && (Number.isNaN(parseMoney(p.amount) ?? 0) || amounts[i] <= 0))
   const canPay =
     hasLines &&
+    online &&
     !paying &&
     parts.length > 0 &&
     remaining === 0 &&
@@ -275,6 +276,7 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
         {paying ? 'Cobrando…' : `Pagar ${formatMoney(total)}`}
       </button>
       {parts.length === 0 && hasLines && <p className="-mt-2 text-center text-caption text-ink-subtle">Elige la forma de pago.</p>}
+      {!online && hasLines && <p className="-mt-2 text-center text-caption text-warning-fg">Sin conexión: cobra cuando vuelva el internet.</p>}
     </div>
   )
 }

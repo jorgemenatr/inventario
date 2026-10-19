@@ -1,7 +1,19 @@
 import { isAuthError, isNetworkError, probeConnection, supabase } from '../lib/supabase'
 import { normalizeBarcode } from '../lib/barcode'
 import { uploadProductImage } from '../lib/images'
-import type { CreateRpcResult, MovementResult, PaymentPart, PayTicketResult, Product, ScanMode, ScanRpcResult, TicketPaymentMethod } from '../lib/types'
+import { needsLotChoice } from '../lib/lots'
+import type {
+  CreateRpcResult,
+  LotPick,
+  MovementResult,
+  PaymentPart,
+  PayTicketResult,
+  Product,
+  ScanMode,
+  ScanRpcResult,
+  StockLocation,
+  TicketPaymentMethod,
+} from '../lib/types'
 
 /*
  * Estado de inventario del lado del cliente:
@@ -13,6 +25,10 @@ import type { CreateRpcResult, MovementResult, PaymentPart, PayTicketResult, Pro
  *
  * Todas las operaciones se ejecutan en serie (una tras otra) para respetar el
  * orden de escaneo, tanto en línea como al sincronizar la cola.
+ *
+ * Cada producto tiene piezas en tienda (quantity) y en bodega
+ * (warehouse_quantity). Escaneos, altas y ajustes van a una ubicación; las
+ * ventas siempre salen de la tienda y solo se cobran con conexión.
  */
 
 export interface CachedProduct {
@@ -22,7 +38,10 @@ export interface CachedProduct {
   category: string | null
   supplier: string | null
   price: number
+  /** Piezas en tienda (las que se pueden vender). */
   quantity: number
+  /** Piezas en bodega. */
+  warehouse_quantity: number
   image_url: string | null
   is_internal_code: boolean
   /** Alta que aún está en la cola (no existe en el servidor todavía). */
@@ -37,6 +56,8 @@ export interface CreateInput {
   category: string | null
   supplier: string | null
   initialQuantity: number
+  /** Dónde está la cantidad inicial (las altas de la cola anterior no lo traen: tienda). */
+  location?: StockLocation
   // Opcionales: las altas que ya estaban en la cola antes del catálogo no los traen.
   description?: string | null
   /** productId de TCGplayer (catalog_products) vinculado. */
@@ -62,8 +83,21 @@ export interface SaleInput {
   items: { barcode: string; name: string; quantity: number; unitPrice: number }[]
 }
 
+/** Con qué se registra cada escaneo de una sesión de conteo. */
+export interface ScanContext {
+  location: StockLocation
+  /** Proveedor y costo del lote nuevo (null = los últimos del producto). */
+  supplierId: string | null
+  unitCost: number | null
+  /** Los escaneos de la misma sesión suman al mismo lote (uno por producto). */
+  sessionId: string | null
+}
+
+const DEFAULT_CONTEXT: ScanContext = { location: 'store', supplierId: null, unitCost: null, sessionId: null }
+
 export type QueueItem =
-  | { kind: 'scan'; opId: string; createdAt: string; barcode: string; mode: ScanMode; quantity: number }
+  // ctx falta en los escaneos que ya estaban en la cola antes de las ubicaciones (tienda).
+  | { kind: 'scan'; opId: string; createdAt: string; barcode: string; mode: ScanMode; quantity: number; ctx?: ScanContext }
   | { kind: 'create'; opId: string; createdAt: string; input: CreateInput; imagePath: string | null }
   | { kind: 'undo'; opId: string; createdAt: string; movementId: string; barcode: string }
   | { kind: 'sale'; opId: string; createdAt: string; sale: SaleInput }
@@ -79,7 +113,10 @@ export interface RecentEntry {
   mode: ScanMode | null
   amount: number
   delta: number
+  /** Cantidad en la ubicación del movimiento después de aplicarlo. */
   quantityAfter: number
+  /** Las entradas anteriores a las ubicaciones no lo traen (tienda). */
+  location?: StockLocation
   movementId: string | null
   pending: boolean
   undone: boolean
@@ -106,6 +143,8 @@ export interface InventoryState {
 export type ScanOutcome =
   | { type: 'ok'; product: CachedProduct; delta: number; quantityAfter: number; mode: ScanMode; pending: boolean }
   | { type: 'not_found'; barcode: string; offline: boolean }
+  /** Fijar total hacia abajo con varios lotes: hay que elegir de cuáles salen `remove` piezas. */
+  | { type: 'choose_lot'; product: CachedProduct; remove: number; quantity: number }
   | { type: 'error'; message: string }
 
 export type CreateOutcome =
@@ -121,7 +160,7 @@ export type CreateOutcome =
   | { type: 'error'; message: string }
 
 export type SaleOutcome =
-  /** ticketName: "Ticket N" (folio); null si quedó en la cola sin conexión. */
+  /** ticketName: "Ticket N" (folio). pending siempre es false: ya no se cobra sin conexión. */
   | { type: 'ok'; pending: boolean; total: number; ticketName: string | null }
   | { type: 'error'; message: string }
 
@@ -129,6 +168,13 @@ export type UndoOutcome =
   | { type: 'ok'; entry: RecentEntry; quantityAfter: number; pending: boolean }
   | { type: 'nothing' }
   | { type: 'error'; message: string }
+
+/** Piezas de un producto en una ubicación. */
+export const qtyAt = (p: Pick<CachedProduct, 'quantity' | 'warehouse_quantity'>, location: StockLocation) =>
+  location === 'store' ? p.quantity : (p.warehouse_quantity ?? 0)
+
+const withQtyAt = (p: CachedProduct, location: StockLocation, n: number): CachedProduct =>
+  location === 'store' ? { ...p, quantity: n } : { ...p, warehouse_quantity: n }
 
 const KEYS = {
   products: 'hachiko.products.v1',
@@ -167,6 +213,7 @@ function toCached(p: Product): CachedProduct {
     supplier: p.supplier,
     price: Number(p.price),
     quantity: p.quantity,
+    warehouse_quantity: p.warehouse_quantity ?? 0,
     image_url: p.image_url,
     is_internal_code: p.is_internal_code,
   }
@@ -186,6 +233,21 @@ function queueBarcodes(q: QueueItem): string[] {
 
 function rpcError(error: unknown): never {
   throw error
+}
+
+function scanParams(ctx: ScanContext) {
+  return {
+    p_location: ctx.location,
+    p_supplier_id: ctx.supplierId,
+    p_unit_cost: ctx.unitCost,
+    p_session_id: ctx.sessionId,
+  }
+}
+
+/** ", y N en bodega: pide un movimiento" cuando la tienda no alcanza pero hay en bodega. */
+export function warehouseHint(p: Pick<CachedProduct, 'warehouse_quantity'>) {
+  const w = p.warehouse_quantity ?? 0
+  return w > 0 ? ` y ${w} en bodega: pide un movimiento` : ''
 }
 
 class InventoryStore {
@@ -280,7 +342,7 @@ class InventoryStore {
         for (let from = 0; ; from += PAGE) {
           const { data, error } = await supabase
             .from('products')
-            .select('id, barcode, name, category, supplier, price, quantity, image_url, is_internal_code')
+            .select('id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code')
             .order('created_at', { ascending: true })
             .range(from, from + PAGE - 1)
           if (error) throw error
@@ -312,7 +374,10 @@ class InventoryStore {
     const keys = new Set([product.barcode, removeBarcode].filter(Boolean))
     const othersQueued = this.state.queue.some((q) => q.opId !== opId && queueBarcodes(q).some((b) => keys.has(b)))
     const local = this.state.products[removeBarcode ?? product.barcode]
-    this.putProduct(othersQueued && local ? { ...product, quantity: local.quantity } : product, removeBarcode)
+    this.putProduct(
+      othersQueued && local ? { ...product, quantity: local.quantity, warehouse_quantity: local.warehouse_quantity ?? 0 } : product,
+      removeBarcode,
+    )
   }
 
   private addRecent(entry: RecentEntry) {
@@ -339,7 +404,11 @@ class InventoryStore {
   }
 
   // ---------- escaneo ----------
-  scan(rawCode: string, mode: ScanMode, quantity: number): Promise<ScanOutcome> {
+  /**
+   * Escaneo en la ubicación de la sesión (ctx). lots: de qué lotes salen las
+   * piezas cuando "fijar total" baja la cantidad y hay más de un lote.
+   */
+  scan(rawCode: string, mode: ScanMode, quantity: number, ctx: ScanContext = DEFAULT_CONTEXT, lots?: LotPick[]): Promise<ScanOutcome> {
     return this.run(async () => {
       const barcode = normalizeBarcode(rawCode)
       if (!barcode) return { type: 'error', message: 'Código vacío' }
@@ -355,8 +424,16 @@ class InventoryStore {
             p_mode: mode,
             p_quantity: quantity,
             p_client_op_id: opId,
+            ...scanParams(ctx),
+            p_lots: lots?.length ? lots : null,
           })
-          if (error) rpcError(error)
+          if (error) {
+            const cached = this.state.products[barcode]
+            if (needsLotChoice(error) && cached) {
+              return { type: 'choose_lot', product: cached, remove: qtyAt(cached, ctx.location) - quantity, quantity }
+            }
+            rpcError(error)
+          }
           const res = data as ScanRpcResult
           if (res.status === 'not_found') {
             if (this.state.products[barcode]) {
@@ -366,18 +443,18 @@ class InventoryStore {
             }
             return { type: 'not_found', barcode, offline: false }
           }
-          return this.applyScanResult(res, opId, mode, quantity)
+          return this.applyScanResult(res, opId, mode, quantity, ctx.location)
         } catch (e) {
           if (!isNetworkError(e) && !isAuthError(e)) return { type: 'error', message: errorMessage(e) }
           if (isNetworkError(e)) this.markOffline()
           // Se encola con el mismo opId: si sí llegó al servidor, no se duplica.
         }
       }
-      return this.scanOffline(barcode, mode, quantity, opId)
+      return this.scanOffline(barcode, mode, quantity, opId, ctx)
     })
   }
 
-  private applyScanResult(res: MovementResult, opId: string, mode: ScanMode, amount: number): ScanOutcome {
+  private applyScanResult(res: MovementResult, opId: string, mode: ScanMode, amount: number, location: StockLocation): ScanOutcome {
     this.markOnline()
     const product = toCached(res.product)
     this.putProduct(product)
@@ -392,6 +469,7 @@ class InventoryStore {
       amount,
       delta: res.delta,
       quantityAfter: res.quantity_after,
+      location,
       movementId: res.movement_id,
       pending: false,
       undone: false,
@@ -399,13 +477,18 @@ class InventoryStore {
     return { type: 'ok', product, delta: res.delta, quantityAfter: res.quantity_after, mode, pending: false }
   }
 
-  private scanOffline(barcode: string, mode: ScanMode, quantity: number, opId: string): ScanOutcome {
+  private scanOffline(barcode: string, mode: ScanMode, quantity: number, opId: string, ctx: ScanContext): ScanOutcome {
     const cached = this.state.products[barcode]
     if (!cached) return { type: 'not_found', barcode, offline: true }
-    const quantityAfter = mode === 'add' ? cached.quantity + quantity : quantity
-    const delta = quantityAfter - cached.quantity
-    const product = { ...cached, quantity: quantityAfter }
-    this.enqueue({ kind: 'scan', opId, createdAt: new Date().toISOString(), barcode, mode, quantity })
+    const current = qtyAt(cached, ctx.location)
+    const quantityAfter = mode === 'add' ? current + quantity : quantity
+    if (quantityAfter < current) {
+      // Bajar existencias pide elegir el lote, y los lotes solo se ven en línea.
+      return { type: 'error', message: 'Sin conexión no se pueden bajar existencias (hay que elegir el lote). Intenta cuando vuelva el internet.' }
+    }
+    const delta = quantityAfter - current
+    const product = withQtyAt(cached, ctx.location, quantityAfter)
+    this.enqueue({ kind: 'scan', opId, createdAt: new Date().toISOString(), barcode, mode, quantity, ctx })
     this.putProduct(product)
     this.addRecent({
       key: opId,
@@ -418,6 +501,7 @@ class InventoryStore {
       amount: quantity,
       delta,
       quantityAfter,
+      location: ctx.location,
       movementId: null,
       pending: true,
       undone: false,
@@ -436,7 +520,9 @@ class InventoryStore {
         supplier: raw.supplier?.trim() || null,
         description: raw.description?.trim() || null,
         catalogProductId: raw.catalogProductId ?? null,
+        location: raw.location ?? 'store',
       }
+      const location = input.location ?? 'store'
       const opId = crypto.randomUUID()
       const online = await this.flushBeforeOnline()
 
@@ -480,9 +566,14 @@ class InventoryStore {
         // Ya existe localmente: lo tratamos como escaneo "sumar" de la cantidad inicial.
         if (input.initialQuantity === 0) {
           const p = this.state.products[input.barcode]
-          return { type: 'ok', product: p, quantityAfter: p.quantity, pending: false, existed: true, imageSkipped }
+          return { type: 'ok', product: p, quantityAfter: qtyAt(p, location), pending: false, existed: true, imageSkipped }
         }
-        const out = this.scanOffline(input.barcode, 'add', input.initialQuantity, opId)
+        const out = this.scanOffline(input.barcode, 'add', input.initialQuantity, opId, {
+          location,
+          supplierId: null,
+          unitCost: input.cost,
+          sessionId: null,
+        })
         if (out.type !== 'ok') return { type: 'error', message: 'No se pudo registrar' }
         return { type: 'ok', product: out.product, quantityAfter: out.quantityAfter, pending: true, existed: true, imageSkipped }
       }
@@ -494,7 +585,8 @@ class InventoryStore {
         category: input.category,
         supplier: input.supplier,
         price: input.price,
-        quantity: input.initialQuantity,
+        quantity: location === 'store' ? input.initialQuantity : 0,
+        warehouse_quantity: location === 'warehouse' ? input.initialQuantity : 0,
         image_url: null,
         is_internal_code: !input.barcode,
         pending: true,
@@ -512,6 +604,7 @@ class InventoryStore {
         amount: input.initialQuantity,
         delta: input.initialQuantity,
         quantityAfter: input.initialQuantity,
+        location,
         movementId: null,
         pending: true,
         undone: false,
@@ -522,6 +615,7 @@ class InventoryStore {
 
   /** Llama a create_product; si el código ya existía, suma la cantidad inicial. */
   private async callCreate(input: CreateInput, imagePath: string | null, opId: string) {
+    const location = input.location ?? 'store'
     const { data, error } = await supabase.rpc('create_product', {
       p_barcode: input.barcode,
       p_name: input.name,
@@ -534,6 +628,7 @@ class InventoryStore {
       p_client_op_id: opId,
       p_description: input.description ?? null,
       p_catalog_product_id: input.catalogProductId ?? null,
+      p_location: location,
     })
     if (error) {
       if (!isNetworkError(error) && !isAuthError(error)) throw new PermanentError(error.message)
@@ -553,6 +648,8 @@ class InventoryStore {
           p_quantity: input.initialQuantity,
           p_client_op_id: opId,
           p_note: 'Alta repetida: el código ya existía, se sumó la cantidad inicial',
+          p_location: location,
+          p_unit_cost: input.cost,
         })
         if (scan.error) {
           if (!isNetworkError(scan.error) && !isAuthError(scan.error)) throw new PermanentError(scan.error.message)
@@ -565,14 +662,14 @@ class InventoryStore {
         movementId = sr.movement_id
       }
       this.putServerProduct(product, opId, input.barcode ?? undefined)
-      this.upsertRecentAfterSync(opId, product, delta, movementId, 'scan', input.initialQuantity)
-      return { type: 'ok' as const, product, quantityAfter: product.quantity, existed: true }
+      this.upsertRecentAfterSync(opId, product, delta, movementId, 'scan', input.initialQuantity, location)
+      return { type: 'ok' as const, product, quantityAfter: qtyAt(product, location), existed: true }
     }
 
     const product = toCached(res.product)
     const pendingKey = input.barcode ?? this.findPendingBarcode(opId)
     this.putServerProduct(product, opId, pendingKey ?? undefined)
-    this.upsertRecentAfterSync(opId, product, res.delta, res.movement_id, 'create', input.initialQuantity)
+    this.upsertRecentAfterSync(opId, product, res.delta, res.movement_id, 'create', input.initialQuantity, location)
     return { type: 'ok' as const, product, quantityAfter: res.quantity_after, existed: false }
   }
 
@@ -587,13 +684,14 @@ class InventoryStore {
     movementId: string | null,
     kind: 'scan' | 'create',
     amount: number,
+    location: StockLocation,
   ) {
     if (this.state.recent.some((r) => r.key === opId)) {
       this.patchRecent(opId, {
         barcode: product.barcode,
         name: product.name,
         imagePath: product.image_url,
-        quantityAfter: product.quantity,
+        quantityAfter: qtyAt(product, location),
         delta,
         movementId,
         pending: false,
@@ -612,7 +710,8 @@ class InventoryStore {
       mode: kind === 'scan' ? 'add' : null,
       amount,
       delta,
-      quantityAfter: product.quantity,
+      quantityAfter: qtyAt(product, location),
+      location,
       movementId,
       pending: false,
       undone: movementId === null,
@@ -621,51 +720,41 @@ class InventoryStore {
 
   // ---------- venta (mostrador) ----------
   /**
-   * Cobra un ticket. En línea, pay_ticket valida stock y registra todo en una
-   * transacción. Sin red, la venta se encola (con el id del ticket, así un
-   * reintento no la duplica) y el stock local se descuenta de inmediato.
+   * Cobra un ticket con pay_ticket: valida el stock de la tienda y registra
+   * todo en una transacción. Solo con conexión (los tickets se pueden abrir y
+   * armar sin internet, pero no cobrar). Si la red se cae a medio cobro, se
+   * puede volver a presionar Pagar: el id del ticket evita cobrar dos veces.
    */
   paySale(sale: SaleInput): Promise<SaleOutcome> {
     return this.run(async () => {
       if (sale.items.length === 0) return { type: 'error', message: 'El ticket no tiene productos' }
       const total = sale.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0)
 
-      // Revisión local de stock (la definitiva la hace el servidor en línea).
+      // Revisión local de stock de la tienda (la definitiva la hace el servidor).
       for (const item of sale.items) {
         const p = this.state.products[item.barcode]
         if (!p) return { type: 'error', message: `El producto ${item.name} ya no está en el inventario` }
         if (item.quantity > p.quantity) {
-          return { type: 'error', message: `Stock insuficiente: ${item.name} (pide ${item.quantity}, hay ${p.quantity})` }
+          return { type: 'error', message: `Stock insuficiente: ${item.name} (pide ${item.quantity}, hay ${p.quantity} en tienda${warehouseHint(p)})` }
         }
       }
 
-      const usesCredit = sale.payments?.some((p) => p.method === 'credit') ?? sale.paymentMethod === 'credit'
-      const online = await this.flushBeforeOnline()
-      if (usesCredit && !online) {
-        return { type: 'error', message: 'Pagar con créditos necesita conexión (para revisar el saldo del cliente).' }
+      if (!(await this.flushBeforeOnline())) {
+        return { type: 'error', message: 'Sin conexión no se puede cobrar. El ticket sigue abierto: cóbralo cuando vuelva el internet.' }
       }
-
-      if (online) {
-        try {
-          const res = await this.callPayTicket(sale, false)
-          return { type: 'ok', pending: false, total, ticketName: res.ticket.name }
-        } catch (e) {
-          if (e instanceof PermanentError || (!isNetworkError(e) && !isAuthError(e))) {
-            return { type: 'error', message: errorMessage(e) }
-          }
-          if (isNetworkError(e)) this.markOffline()
-          // Se encola con el mismo id de ticket: si sí llegó al servidor, no se duplica.
+      try {
+        const res = await this.callPayTicket(sale, false)
+        return { type: 'ok', pending: false, total, ticketName: res.ticket.name }
+      } catch (e) {
+        if (e instanceof PermanentError || (!isNetworkError(e) && !isAuthError(e))) {
+          return { type: 'error', message: errorMessage(e) }
+        }
+        if (isNetworkError(e)) this.markOffline()
+        return {
+          type: 'error',
+          message: 'Se perdió la conexión al cobrar. Cuando vuelva el internet presiona Pagar otra vez (no se cobra doble).',
         }
       }
-
-      this.enqueue({ kind: 'sale', opId: sale.ticketId, createdAt: new Date().toISOString(), sale })
-      const products = { ...this.state.products }
-      for (const item of sale.items) {
-        const p = products[item.barcode]
-        if (p) products[item.barcode] = { ...p, quantity: p.quantity - item.quantity }
-      }
-      this.set({ products })
-      return { type: 'ok', pending: true, total, ticketName: null }
     })
   }
 
@@ -702,14 +791,15 @@ class InventoryStore {
         if (!queued) return { type: 'error', message: 'No se encontró la operación pendiente' }
         this.set({ queue: this.state.queue.filter((q) => q.opId !== entry.key) })
         const cached = this.state.products[entry.barcode]
+        const location = entry.location ?? 'store'
         let quantityAfter = 0
         if (queued.kind === 'create' && cached?.pending) {
           const products = { ...this.state.products }
           delete products[entry.barcode]
           this.set({ products })
         } else if (cached) {
-          quantityAfter = cached.quantity - entry.delta
-          this.putProduct({ ...cached, quantity: quantityAfter })
+          quantityAfter = qtyAt(cached, location) - entry.delta
+          this.putProduct(withQtyAt(cached, location, quantityAfter))
         }
         this.patchRecent(entry.key, { undone: true })
         return { type: 'ok', entry, quantityAfter, pending: false }
@@ -731,7 +821,7 @@ class InventoryStore {
           this.putProduct(product)
           this.patchRecent(entry.key, { undone: true })
           this.markOnline()
-          return { type: 'ok', entry, quantityAfter: product.quantity, pending: false }
+          return { type: 'ok', entry, quantityAfter: qtyAt(product, entry.location ?? 'store'), pending: false }
         } catch (e) {
           if (!isNetworkError(e) && !isAuthError(e)) return { type: 'error', message: errorMessage(e) }
           if (isNetworkError(e)) this.markOffline()
@@ -741,8 +831,9 @@ class InventoryStore {
       // 3) Sin conexión: encolar el "deshacer".
       this.enqueue({ kind: 'undo', opId, createdAt: new Date().toISOString(), movementId: entry.movementId, barcode: entry.barcode })
       const cached = this.state.products[entry.barcode]
-      const quantityAfter = (cached?.quantity ?? 0) - entry.delta
-      if (cached) this.putProduct({ ...cached, quantity: quantityAfter })
+      const location = entry.location ?? 'store'
+      const quantityAfter = (cached ? qtyAt(cached, location) : 0) - entry.delta
+      if (cached) this.putProduct(withQtyAt(cached, location, quantityAfter))
       this.patchRecent(entry.key, { undone: true })
       return { type: 'ok', entry, quantityAfter, pending: true }
     })
@@ -817,6 +908,7 @@ class InventoryStore {
         p_quantity: item.quantity,
         p_client_op_id: item.opId,
         p_note: 'Sincronizado desde la cola sin conexión',
+        ...scanParams(item.ctx ?? DEFAULT_CONTEXT),
       })
       if (error) {
         if (!isNetworkError(error) && !isAuthError(error)) throw new PermanentError(error.message)
@@ -835,7 +927,7 @@ class InventoryStore {
       return
     }
     if (item.kind === 'sale') {
-      // El dinero ya se cobró: el servidor la registra aunque el stock no alcance (y lo anota).
+      // Solo ventas que quedaron en la cola antes de que el cobro pidiera conexión.
       await this.callPayTicket(item.sale, true)
       return
     }

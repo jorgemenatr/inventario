@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ProductFormModal } from '../components/ProductFormModal'
 import { Icon } from '../components/Icon'
+import { LocationSelect } from '../components/LocationSelect'
+import { LotPicker } from '../components/LotPicker'
 import { ProductImage } from '../components/ProductImage'
+import { SupplierSelect } from '../components/SupplierSelect'
 import { useKeepFocus } from '../components/useKeepFocus'
 import { isInternalCode, normalizeBarcode } from '../lib/barcode'
 import { exportCsv, exportXlsx, buildInventoryRows } from '../lib/export'
-import { formatInt, parseCount } from '../lib/format'
+import { formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
 import { createBurstDetector } from '../lib/scannerBurst'
 import { sounds } from '../lib/sounds'
-import type { ScanMode } from '../lib/types'
-import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { LOCATION_LABELS, type LotPick, type ScanMode, type StockLocation } from '../lib/types'
+import { inventoryStore, qtyAt, type CachedProduct, type ScanContext } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
 type Feedback =
@@ -49,6 +52,14 @@ export function ScanPage() {
   const [qtyText, setQtyText] = useState(() => loadPref('hachiko.qty', '1'))
   const [feedback, setFeedback] = useState<Feedback>({ kind: 'idle' })
   const [modal, setModal] = useState<{ barcode: string | null; defaultQuantity: number } | null>(null)
+  // Sesión de conteo: ubicación, proveedor y costo de lo que se escanea. Siempre
+  // empieza en Tienda; Bodega es para casos especiales. Cambiar cualquiera de
+  // los tres abre una sesión nueva (lotes nuevos).
+  const [location, setLocation] = useState<StockLocation>('store')
+  const [supplierId, setSupplierId] = useState<string | null>(null)
+  const [costText, setCostText] = useState('')
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
+  const [lotChoice, setLotChoice] = useState<{ product: CachedProduct; remove: number; quantity: number } | null>(null)
   const [exporting, setExporting] = useState(false)
   const scanRef = useRef<HTMLInputElement>(null)
   const qtyRef = useRef<HTMLInputElement>(null)
@@ -56,7 +67,17 @@ export function ScanPage() {
   const qtyIdle = useRef<number | undefined>(undefined)
   const qtyDetector = useRef(createBurstDetector())
 
-  useKeepFocus(scanRef, modal === null)
+  useKeepFocus(scanRef, modal === null && lotChoice === null)
+
+  const unitCost = parseMoney(costText)
+  const costValid = !Number.isNaN(unitCost)
+  const ctx: ScanContext = { location, supplierId, unitCost: costValid ? unitCost : null, sessionId }
+
+  function newSession(patch: () => void) {
+    patch()
+    setSessionId(crypto.randomUUID())
+    focusScan()
+  }
 
   const focusScan = useCallback(() => setTimeout(() => scanRef.current?.focus(), 0), [])
 
@@ -70,9 +91,9 @@ export function ScanPage() {
   const totals = useMemo(() => {
     let pieces = 0
     const list = Object.values(products)
-    for (const p of list) pieces += p.quantity
+    for (const p of list) pieces += qtyAt(p, location)
     return { products: list.length, pieces }
-  }, [products])
+  }, [products, location])
 
   function setMode(m: ScanMode) {
     setModeState(m)
@@ -89,9 +110,14 @@ export function ScanPage() {
     }, 4000)
   }
 
-  async function processScan(raw: string, qtyStr = qtyText) {
+  async function processScan(raw: string, qtyStr = qtyText, lots?: LotPick[]) {
     const barcode = normalizeBarcode(raw)
     if (!barcode) return
+    if (!costValid) {
+      sounds.error()
+      setFeedback({ kind: 'error', title: 'Costo inválido', detail: 'Corrige el costo de la sesión (o déjalo vacío para usar el último de cada producto).' })
+      return
+    }
     const quantity = parseCount(qtyStr, mode === 'add' ? 1 : 0)
     if (Number.isNaN(quantity)) {
       sounds.error()
@@ -102,7 +128,13 @@ export function ScanPage() {
       })
       return
     }
-    const out = await inventoryStore.scan(barcode, mode, quantity)
+    const out = await inventoryStore.scan(barcode, mode, quantity, ctx, lots)
+    if (out.type === 'choose_lot') {
+      sounds.pending()
+      setFeedback({ kind: 'idle' })
+      setLotChoice({ product: out.product, remove: out.remove, quantity })
+      return
+    }
     if (out.type === 'error') {
       sounds.error()
       setFeedback({ kind: 'error', title: 'No se pudo registrar el escaneo', detail: out.message })
@@ -116,9 +148,10 @@ export function ScanPage() {
     }
     if (out.pending) sounds.pending()
     else sounds.success()
+    const where = location === 'warehouse' ? ' en bodega' : ''
     setFeedback({
       kind: out.pending ? 'pending' : 'success',
-      title: out.pending ? 'Guardado sin conexión (pendiente)' : out.mode === 'add' ? 'Sumado' : 'Total fijado',
+      title: out.pending ? `Guardado sin conexión (pendiente)${where}` : `${out.mode === 'add' ? 'Sumado' : 'Total fijado'}${where}`,
       product: out.product,
       quantityAfter: out.quantityAfter,
       detail: out.mode === 'add' ? `+${formatInt(out.delta)}` : `Fijado en ${formatInt(out.quantityAfter)} (${out.delta >= 0 ? '+' : ''}${formatInt(out.delta)})`,
@@ -234,6 +267,52 @@ export function ScanPage() {
 
       <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_360px]">
         <section className="flex min-w-0 flex-col gap-4">
+          {/* Sesión de conteo: a dónde entra lo escaneado y con qué proveedor y costo */}
+          <div
+            data-keep-focus
+            className={`card flex flex-wrap items-end gap-4 p-4 ${location === 'warehouse' ? 'border-2 border-warning-solid' : ''}`}
+          >
+            <div>
+              <span className="field-label">Contando en</span>
+              <LocationSelect value={location} onChange={(l) => newSession(() => setLocation(l))} label="Contando en" />
+            </div>
+            <div className="min-w-56 flex-1">
+              <label className="field-label" htmlFor="scan-supplier">Proveedor</label>
+              <SupplierSelect
+                id="scan-supplier"
+                value={supplierId}
+                onChange={(id) => newSession(() => setSupplierId(id))}
+                noneLabel="El último de cada producto"
+                disabled={!online}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="scan-cost">Costo unitario ($)</label>
+              <input
+                id="scan-cost"
+                value={costText}
+                onChange={(e) => setCostText(e.target.value)}
+                onBlur={() => costValid && setSessionId(crypto.randomUUID())}
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="El último"
+                aria-invalid={!costValid}
+                className={`field h-10 w-32 tabular-nums ${costValid ? '' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
+              />
+            </div>
+            <p className="basis-full text-caption text-ink-muted">
+              {location === 'warehouse' ? (
+                <span className="font-medium text-warning-fg">
+                  Estás contando la BODEGA: lo que escanees no se podrá vender hasta hacer un movimiento a tienda.{' '}
+                </span>
+              ) : null}
+              Lo que se sume entra como un lote{' '}
+              {supplierId ? 'de ese proveedor' : 'con el último proveedor de cada producto'} y{' '}
+              {unitCost != null && costValid ? `a ${formatMoney(unitCost)} c/u` : 'con su último costo'}.
+              {mode === 'set' && ' Si "fijar total" baja la cantidad, te pediremos de qué lote salen las piezas.'}
+            </p>
+          </div>
+
           {/* Escaneo */}
           <form onSubmit={(e) => e.preventDefault()} className="card p-5">
             <label htmlFor="scan" className="mb-2 flex items-center gap-2 text-heading">
@@ -366,7 +445,7 @@ export function ScanPage() {
               <p className="mt-1 text-kpi tabular-nums">{formatInt(totals.products)}</p>
             </div>
             <div className="card p-5">
-              <p className="text-label text-ink-muted">Piezas totales</p>
+              <p className="text-label text-ink-muted">Piezas en {LOCATION_LABELS[location].toLowerCase()}</p>
               <p className="mt-1 text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
             </div>
           </div>
@@ -395,7 +474,9 @@ export function ScanPage() {
                       {r.kind === 'create' ? 'Alta ' : r.mode === 'set' ? '= ' : '+'}
                       {r.kind === 'create' || r.mode === 'add' ? formatInt(r.amount) : formatInt(r.quantityAfter)}
                     </p>
-                    <p className="text-caption text-ink-muted tabular-nums">total {formatInt(r.quantityAfter)}</p>
+                    <p className="text-caption text-ink-muted tabular-nums">
+                      {r.location === 'warehouse' ? 'bodega' : 'total'} {formatInt(r.quantityAfter)}
+                    </p>
                     {isInternalCode(r.barcode) && !r.undone && (
                       <button type="button" onClick={() => openLabel(r.barcode)} className="btn btn-ghost btn-sm mt-1 -mr-2">
                         <Icon name="printer" />
@@ -410,10 +491,32 @@ export function ScanPage() {
         </aside>
       </div>
 
+      {lotChoice && (
+        <LotPicker
+          productId={lotChoice.product.id}
+          productName={lotChoice.product.name}
+          location={location}
+          remove={lotChoice.remove}
+          purpose="Fijar total"
+          onCancel={() => {
+            setLotChoice(null)
+            setFeedback({ kind: 'error', title: 'Escaneo cancelado', detail: 'No se cambió la cantidad.' })
+            focusScan()
+          }}
+          onConfirm={(picks) => {
+            const { product, quantity } = lotChoice
+            setLotChoice(null)
+            focusScan()
+            void processScan(product.barcode, String(quantity), picks)
+          }}
+        />
+      )}
+
       {modal && (
         <ProductFormModal
           barcode={modal.barcode}
           defaultQuantity={modal.defaultQuantity}
+          defaultLocation={location}
           onCancel={() => {
             setModal(null)
             focusScan()

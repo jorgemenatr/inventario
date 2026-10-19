@@ -167,12 +167,13 @@ class PosStore {
       return {
         ok: false,
         message:
-          product.quantity <= 0
-            ? `${product.name} no tiene stock.`
-            : `No hay más stock de ${product.name}: hay ${product.quantity}` +
+          (product.quantity <= 0
+            ? `${product.name} no tiene stock en tienda.`
+            : `No hay más stock de ${product.name}: hay ${product.quantity} en tienda` +
               (elsewhere > 0 ? `, ${elsewhere} apartado(s) en otros tickets abiertos` : '') +
               (current > 0 ? ` y ${current} ya en este ticket` : '') +
-              '.',
+              '.') +
+          ((product.warehouse_quantity ?? 0) > 0 ? ` Hay ${product.warehouse_quantity} en bodega: pide un movimiento.` : ''),
       }
     }
     this.updateTicket(ticketId, (t) => {

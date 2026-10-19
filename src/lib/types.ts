@@ -2,9 +2,24 @@ export type UserRole = 'admin' | 'mostrador'
 
 export const ROLE_LABELS: Record<UserRole, string> = { admin: 'Administrador', mostrador: 'Mostrador' }
 
-export type MovementType = 'initial_count' | 'scan_add' | 'set_total' | 'adjustment' | 'sale' | 'barcode_unlink'
+export type MovementType =
+  | 'initial_count'
+  | 'scan_add'
+  | 'set_total'
+  | 'adjustment'
+  | 'sale'
+  | 'barcode_unlink'
+  | 'purchase'
+  | 'transfer'
 
 export type ScanMode = 'add' | 'set'
+
+/** Tienda (donde se vende) y Bodega. */
+export type StockLocation = 'store' | 'warehouse'
+
+export const LOCATIONS: StockLocation[] = ['store', 'warehouse']
+
+export const LOCATION_LABELS: Record<StockLocation, string> = { store: 'Tienda', warehouse: 'Bodega' }
 
 export interface Profile {
   id: string
@@ -20,9 +35,15 @@ export interface Product {
   name: string
   category: string | null
   supplier: string | null
+  /** Último proveedor (el texto `supplier` es su nombre). */
+  supplier_id: string | null
+  /** Último costo de compra (precarga la siguiente entrada). */
   cost: number | null
   price: number
+  /** Piezas en tienda (se calcula sola desde los lotes). */
   quantity: number
+  /** Piezas en bodega (se calcula sola desde los lotes). */
+  warehouse_quantity: number
   /** Ruta dentro del bucket privado `product-images`. */
   image_url: string | null
   is_internal_code: boolean
@@ -58,6 +79,7 @@ export interface MovementResult {
   status: 'ok' | 'duplicate' | 'already_undone'
   movement_id: string
   movement_type: MovementType
+  location: StockLocation
   delta: number
   quantity_after: number
   product: Product
@@ -88,6 +110,12 @@ export interface MovementHistoryRow {
   cancelled_at?: string | null
   cancel_note?: string | null
   cancelled_by_name?: string | null
+  location?: StockLocation
+  purchase_id?: string | null
+  transfer_id?: string | null
+  ticket_id?: string | null
+  /** Lotes que tocó el movimiento ("3, 7"); solo los ve un admin. */
+  lot_numbers?: string | null
 }
 
 export const MOVEMENT_LABELS: Record<MovementType, string> = {
@@ -97,6 +125,112 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   adjustment: 'Ajuste',
   sale: 'Venta',
   barcode_unlink: 'Desvinculado',
+  purchase: 'Compra',
+  transfer: 'Movimiento de bodega',
+}
+
+export interface Supplier {
+  id: string
+  name: string
+  contact: string | null
+  note: string | null
+}
+
+export type LotOrigin = 'initial' | 'purchase' | 'scan' | 'product_create' | 'adjustment'
+
+export const LOT_ORIGIN_LABELS: Record<LotOrigin, string> = {
+  initial: 'Inventario inicial',
+  purchase: 'Compra',
+  scan: 'Escaneo',
+  product_create: 'Alta de producto',
+  adjustment: 'Ajuste',
+}
+
+/** Fila de la vista product_lots: piezas de un lote en una ubicación (solo admin). */
+export interface ProductLot {
+  lot_id: string
+  number: number
+  product_id: string
+  location: StockLocation
+  quantity: number
+  received_quantity: number
+  unit_cost: number
+  supplier_id: string | null
+  supplier_name: string | null
+  origin: LotOrigin
+  entry_location: StockLocation
+  received_at: string
+  purchase_id: string | null
+  purchase_folio: string | null
+}
+
+/** De qué lote salen piezas al bajar existencias. */
+export interface LotPick {
+  lot_id: string
+  quantity: number
+}
+
+/** Fila de la vista purchase_history. */
+export interface PurchaseRow {
+  id: string
+  created_at: string
+  supplier_id: string
+  supplier_name: string
+  location: StockLocation
+  folio: string | null
+  note: string | null
+  total: number
+  status: 'active' | 'cancelled'
+  cancel_reason: string | null
+  cancelled_at: string | null
+  cancelled_by_name: string | null
+  created_by: string | null
+  created_by_name: string | null
+  item_count: number
+  piece_count: number
+  /** Ninguna pieza se ha vendido, movido ni ajustado: se puede corregir o cancelar. */
+  is_intact: boolean
+}
+
+/** Fila de la vista purchase_item_details. */
+export interface PurchaseItemRow {
+  id: string
+  purchase_id: string
+  position: number
+  product_id: string
+  barcode: string
+  product_name: string
+  quantity: number
+  unit_cost: number
+  line_total: number
+  lot_number: number | null
+}
+
+/** Fila de la vista transfer_history. */
+export interface TransferRow {
+  id: string
+  created_at: string
+  from_location: StockLocation
+  to_location: StockLocation
+  note: string | null
+  created_by: string | null
+  created_by_name: string | null
+  item_count: number
+  piece_count: number
+}
+
+/** Fila de la vista transfer_item_lots. */
+export interface TransferLotRow {
+  transfer_id: string
+  product_id: string
+  barcode: string
+  product_name: string
+  lot_id: string
+  lot_number: number
+  quantity: number
+  unit_cost: number
+  supplier_name: string | null
+  received_at: string
 }
 
 export interface Customer {

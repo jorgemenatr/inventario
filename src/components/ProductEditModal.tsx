@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { compressImage } from '../lib/images'
-import { formatInt, parseCount, parseMoney } from '../lib/format'
+import { formatDateTime, formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
+import { getProductLots } from '../lib/lots'
 import { adjustStock, getCatalogName, getProduct, unlinkProduct, updateProduct } from '../lib/products'
 import { isNetworkError } from '../lib/supabase'
-import type { Product } from '../lib/types'
+import { LOCATION_LABELS, LOCATIONS, LOT_ORIGIN_LABELS, type LotPick, type Product, type ProductLot, type StockLocation } from '../lib/types'
 import { CategorySelect } from './CategorySelect'
 import { Icon } from './Icon'
+import { LocationSelect } from './LocationSelect'
+import { LotPicker } from './LotPicker'
 import { ProductImage } from './ProductImage'
+import { SupplierSelect } from './SupplierSelect'
 import { WebcamCapture } from './WebcamCapture'
 
 interface Props {
@@ -134,8 +138,9 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
             <h2 id="pe-title" className="text-title">Editar producto</h2>
             {product && (
               <p className="mt-1 text-ink-muted">
-                Código: <span className="font-mono text-ink">{product.barcode}</span> · Stock:{' '}
-                <span className="text-ink tabular-nums">{formatInt(product.quantity)}</span>
+                Código: <span className="font-mono text-ink">{product.barcode}</span> · Tienda:{' '}
+                <span className="text-ink tabular-nums">{formatInt(product.quantity)}</span> · Bodega:{' '}
+                <span className="text-ink tabular-nums">{formatInt(product.warehouse_quantity)}</span>
               </p>
             )}
           </div>
@@ -226,24 +231,14 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                   {done}
                 </p>
               )}
-              <CorrectionSection
-                title="Existencias"
-                summary={
-                  <>
-                    Stock actual: <span className="font-medium text-ink tabular-nums">{formatInt(product.quantity)}</span>
-                  </>
+              <StockSection
+                product={product}
+                onAdjusted={(p, location) =>
+                  applied(
+                    p,
+                    `Existencias de ${LOCATION_LABELS[location].toLowerCase()} ajustadas a ${formatInt(location === 'store' ? p.quantity : p.warehouse_quantity)}. Quedó en el historial.`,
+                  )
                 }
-                action="Ajustar existencias"
-                valueLabel="Cantidad correcta"
-                placeholder="Ej. 3"
-                reasonPlaceholder="Ej. Se escaneó de más / merma / producto dañado"
-                confirm="Aplicar ajuste"
-                run={async (value, reason) => {
-                  const qty = parseCount(value)
-                  if (Number.isNaN(qty)) throw new Error('La cantidad debe ser un número entero (0 o más).')
-                  const p = await adjustStock(product.id, qty, reason)
-                  applied(p, `Existencias ajustadas a ${formatInt(p.quantity)}. Quedó en el historial.`)
-                }}
               />
               <CorrectionSection
                 title="Código de barras y catálogo"
@@ -432,6 +427,234 @@ function CorrectionSection({
             </button>
           </div>
         </div>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Existencias por ubicación: lotes activos (proveedor, costo, cantidad) y el
+ * ajuste de una ubicación (merma / entrada manual) con su motivo. Al bajar,
+ * se elige de qué lote salen las piezas.
+ */
+function StockSection({ product, onAdjusted }: { product: Product; onAdjusted: (p: Product, location: StockLocation) => void }) {
+  const [lots, setLots] = useState<ProductLot[] | null>(null)
+  const [lotsError, setLotsError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const [location, setLocation] = useState<StockLocation>('store')
+  const [value, setValue] = useState('')
+  const [reason, setReason] = useState('')
+  const [supplierId, setSupplierId] = useState<string | null>(product.supplier_id)
+  const [costText, setCostText] = useState(product.cost == null ? '' : String(product.cost))
+  const [picking, setPicking] = useState<{ remove: number; qty: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = useCallback(() => {
+    getProductLots(product.id)
+      .then(setLots)
+      .catch((e) => setLotsError(isNetworkError(e) ? 'Sin conexión: no se pudieron cargar los lotes.' : (e as Error).message))
+  }, [product.id])
+
+  useEffect(reload, [reload, product.quantity, product.warehouse_quantity])
+
+  const current = location === 'store' ? product.quantity : product.warehouse_quantity
+  const qty = value.trim() ? parseCount(value) : NaN
+  const goesUp = !Number.isNaN(qty) && qty > current
+
+  async function run(picks: LotPick[] | null) {
+    setBusy(true)
+    setError(null)
+    try {
+      const cost = parseMoney(costText)
+      const p = await adjustStock(product.id, qty, reason, {
+        location,
+        lots: picks,
+        supplierId: goesUp ? supplierId : null,
+        unitCost: goesUp && cost !== null && !Number.isNaN(cost) ? cost : null,
+      })
+      setOpen(false)
+      setValue('')
+      setReason('')
+      onAdjusted(p, location)
+    } catch (e) {
+      setError(isNetworkError(e) ? 'Sin conexión: intenta cuando vuelva el internet.' : (e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function apply() {
+    if (busy) return
+    setError(null)
+    if (Number.isNaN(qty)) return setError('La cantidad correcta debe ser un número entero (0 o más).')
+    if (qty === current) return setError(`La cantidad en ${LOCATION_LABELS[location].toLowerCase()} ya es ${formatInt(qty)}.`)
+    if (!reason.trim()) return setError('El motivo es obligatorio.')
+    if (goesUp && Number.isNaN(parseMoney(costText))) return setError('El costo debe ser un número válido.')
+    if (goesUp) return void run(null)
+    // Baja: con un solo lote ahí no hay que elegir.
+    const here = (lots ?? []).filter((l) => l.location === location)
+    if (here.length === 1) return void run([{ lot_id: here[0].lot_id, quantity: current - qty }])
+    setPicking({ remove: current - qty, qty })
+  }
+
+  return (
+    <section className="rounded-md border border-line p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="mr-auto min-w-0">
+          <p className="text-label">Existencias y lotes</p>
+          <p className="text-ink-muted">
+            Tienda <span className="font-medium text-ink tabular-nums">{formatInt(product.quantity)}</span> · Bodega{' '}
+            <span className="font-medium text-ink tabular-nums">{formatInt(product.warehouse_quantity)}</span> · Total{' '}
+            <span className="font-medium text-ink tabular-nums">{formatInt(product.quantity + product.warehouse_quantity)}</span>
+          </p>
+        </div>
+        {!open && (
+          <button type="button" onClick={() => setOpen(true)} className="btn btn-secondary btn-sm">
+            Ajustar existencias
+          </button>
+        )}
+      </div>
+
+      {lotsError && <p className="mt-2 text-caption text-danger-fg">{lotsError}</p>}
+      {lots && lots.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {LOCATIONS.map((loc) => {
+            const here = lots.filter((l) => l.location === loc)
+            if (!here.length) return null
+            return (
+              <div key={loc}>
+                <p className="mb-1 text-caption font-medium text-ink-muted">{LOCATION_LABELS[loc]}</p>
+                <ul className="divide-y divide-line rounded-md border border-line">
+                  {here.map((l) => (
+                    <li key={`${l.lot_id}-${loc}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
+                      <span className="font-medium">Lote {l.number}</span>
+                      <span className="text-ink-muted">{l.supplier_name ?? 'Sin proveedor'}</span>
+                      <span className="tabular-nums">{formatMoney(l.unit_cost)} c/u</span>
+                      <span className="text-caption text-ink-subtle">
+                        {LOT_ORIGIN_LABELS[l.origin]}
+                        {l.purchase_folio ? ` ${l.purchase_folio}` : ''} · {formatDateTime(l.received_at)}
+                      </span>
+                      <span className="ml-auto text-heading tabular-nums">{formatInt(l.quantity)} pzas</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {lots && lots.length === 0 && <p className="mt-2 text-caption text-ink-subtle">Sin piezas en ningún lote.</p>}
+
+      {open && (
+        // No es un <form> (ya estamos dentro de uno): Enter aplica el ajuste.
+        <div
+          className="mt-4 space-y-3 border-t border-line pt-4"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              apply()
+            }
+          }}
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <span className="field-label">Ubicación</span>
+              <LocationSelect value={location} onChange={setLocation} />
+            </div>
+            <p className="pb-2 text-ink-muted">
+              Hay <span className="font-medium text-ink tabular-nums">{formatInt(current)}</span>
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+            <div>
+              <label className="field-label" htmlFor="ss-value">Cantidad correcta *</label>
+              <input
+                id="ss-value"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                inputMode="numeric"
+                placeholder="Ej. 3"
+                autoFocus
+                autoComplete="off"
+                className="field h-10 tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="ss-reason">Motivo *</label>
+              <input
+                id="ss-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Ej. Merma / producto dañado / se encontraron piezas"
+                autoComplete="off"
+                className="field h-10"
+              />
+            </div>
+          </div>
+          {goesUp && (
+            <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
+              <div>
+                <label className="field-label" htmlFor="ss-supplier">Proveedor del lote nuevo</label>
+                <SupplierSelect id="ss-supplier" value={supplierId} onChange={(id) => setSupplierId(id)} noneLabel="Sin proveedor" />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="ss-cost">Costo unitario ($)</label>
+                <input
+                  id="ss-cost"
+                  value={costText}
+                  onChange={(e) => setCostText(e.target.value)}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0"
+                  className="field h-10 tabular-nums"
+                />
+              </div>
+            </div>
+          )}
+          {!Number.isNaN(qty) && qty < current && (
+            <p className="text-caption text-ink-muted">
+              Salen {formatInt(current - qty)} pzas
+              {(lots ?? []).filter((l) => l.location === location).length > 1 ? ': te pediremos de qué lote.' : '.'}
+            </p>
+          )}
+          {error && (
+            <p className="notice bg-danger-bg text-danger-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setError(null)
+              }}
+              className="btn btn-ghost btn-sm"
+            >
+              Cancelar
+            </button>
+            <button type="button" onClick={apply} disabled={busy} className="btn btn-primary btn-sm">
+              {busy ? 'Aplicando…' : 'Aplicar ajuste'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {picking && (
+        <LotPicker
+          productId={product.id}
+          productName={product.name}
+          location={location}
+          remove={picking.remove}
+          purpose={reason.trim() || 'Ajuste'}
+          onCancel={() => setPicking(null)}
+          onConfirm={(picks) => {
+            setPicking(null)
+            void run(picks)
+          }}
+        />
       )}
     </section>
   )
