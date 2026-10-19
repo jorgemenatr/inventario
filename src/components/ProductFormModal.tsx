@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { internalCodeLabel } from '../lib/barcode'
 import { catalogThumb, fetchCatalogImage, searchCatalog } from '../lib/catalog'
-import { categoryFromGame } from '../lib/categories'
+import { categoryForCatalog } from '../lib/categories'
 import { compressImage } from '../lib/images'
 import { formatDateTime, parseCount, parseMoney } from '../lib/format'
 import { findUnlink } from '../lib/products'
@@ -133,7 +133,7 @@ export function ProductFormModal({ barcode, defaultQuantity, defaultLocation = '
     setFields((f) => ({
       ...f,
       name: item.name,
-      category: f.category || categoryFromGame(item.game),
+      category: f.category || categoryForCatalog(item.source),
       description: item.description ?? '',
     }))
     // La foto del catálogo reemplaza a otra del catálogo, nunca a una propia.

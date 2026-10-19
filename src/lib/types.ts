@@ -59,6 +59,8 @@ export interface Product {
 export interface CatalogItem {
   id: number
   game: string
+  /** Fuente del catálogo (ver catalogSources.json); null en bases sin categorías configurables. */
+  source?: string | null
   set_name: string | null
   set_code: string | null
   name: string

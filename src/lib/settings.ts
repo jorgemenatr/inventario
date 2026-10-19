@@ -76,11 +76,18 @@ export async function refreshSettings() {
   listeners.forEach((l) => l())
 }
 
+/** El admin cambia el nombre del negocio (el prefijo no se cambia desde la app). */
+export async function updateBusinessName(name: string) {
+  const { error } = await supabase.from('app_settings').update({ business_name: name.trim() }).eq('id', true)
+  if (error) throw new Error(error.code === '42501' ? 'Solo un administrador puede cambiar el nombre.' : error.message)
+  await refreshSettings()
+}
+
 /** "Inventario Dragón Rojo" → "inventario-dragon-rojo" (para nombres de archivo). */
 export function fileSlug(text: string) {
   return text
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')

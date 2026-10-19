@@ -1,0 +1,483 @@
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Icon } from '../components/Icon'
+import { getCatalogStatus, type CatalogStatus } from '../lib/catalog'
+import {
+  CATALOG_SOURCES,
+  SEP,
+  catalogSourceLabel,
+  createCategory,
+  deleteCategory,
+  moveCategory,
+  updateCategory,
+  useCategories,
+  type CategoryNode,
+} from '../lib/categories'
+import { formatDateTime, formatInt } from '../lib/format'
+import { updateBusinessName, useSettings } from '../lib/settings'
+import { isNetworkError } from '../lib/supabase'
+import { inventoryStore } from '../store/inventoryStore'
+import { useInventory } from '../store/useInventory'
+
+const errorText = (e: unknown) =>
+  isNetworkError(e) ? 'Sin conexión: intenta cuando vuelva el internet.' : (e as Error).message
+
+type Editing = { category: CategoryNode | null; parentId: string | null }
+
+/** Configuración del negocio (solo administradores): nombre, categorías y catálogo TCG. */
+export function ConfigPage() {
+  const { tree } = useCategories()
+  const { products } = useInventory()
+  const [editing, setEditing] = useState<Editing | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
+
+  // Productos por valor de categoría (para avisar antes de borrar).
+  const counts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of Object.values(products)) if (p.category) m.set(p.category, (m.get(p.category) ?? 0) + 1)
+    return m
+  }, [products])
+
+  async function act(fn: () => Promise<void>, ok: string) {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    setSaved(null)
+    try {
+      await fn()
+      setSaved(ok)
+    } catch (e) {
+      setError(errorText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function onDelete(c: CategoryNode) {
+    const n = counts.get(c.value) ?? 0
+    if (n > 0) {
+      setSaved(null)
+      setError(`"${c.value}" tiene ${formatInt(n)} producto(s). Cámbialos de categoría antes de borrarla.`)
+      return
+    }
+    if (!window.confirm(`¿Borrar la categoría "${c.value}"?`)) return
+    void act(() => deleteCategory(c.id), `Se borró "${c.value}".`)
+  }
+
+  const linked = new Set(tree.flatMap((c) => [c, ...c.children]).flatMap((c) => c.catalog_sources))
+
+  return (
+    <div className="flex flex-col gap-4 p-4 md:p-6">
+      <h1 className="text-title">Configuración</h1>
+
+      <BusinessCard />
+
+      {saved && (
+        <p className="notice bg-success-bg text-success-fg" role="status">
+          <Icon name="check" className="mt-0.5" />
+          {saved}
+        </p>
+      )}
+      {error && (
+        <p className="notice bg-danger-bg text-danger-fg">
+          <Icon name="alert" className="mt-0.5" />
+          {error}
+        </p>
+      )}
+
+      <section className="card flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="mr-auto">
+            <h2 className="text-heading">Categorías</h2>
+            <p className="text-caption text-ink-muted">
+              Las que aparecen al dar de alta un producto y en los filtros del inventario. Cada una puede tener
+              subcategorías (p. ej. TCG → Pokémon, Magic).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditing({ category: null, parentId: null })}
+            className="btn btn-primary"
+            disabled={busy}
+          >
+            <Icon name="plus" />
+            Nueva categoría
+          </button>
+        </div>
+
+        {!tree.length && (
+          <p className="py-6 text-center text-ink-subtle">Todavía no hay categorías. Agrega la primera.</p>
+        )}
+
+        <ul className="flex flex-col divide-y divide-line">
+          {tree.map((c, i) => (
+            <li key={c.id} className="py-2">
+              <CategoryRow
+                category={c}
+                count={counts.get(c.value) ?? 0}
+                first={i === 0}
+                last={i === tree.length - 1}
+                busy={busy}
+                onMove={(dir) => void act(() => moveCategory(c.id, dir), 'Se cambió el orden.')}
+                onEdit={() => setEditing({ category: c, parentId: null })}
+                onDelete={() => onDelete(c)}
+                onAddChild={() => setEditing({ category: null, parentId: c.id })}
+              />
+              {c.children.length > 0 && (
+                <ul className="mt-1 ml-6 flex flex-col border-l-2 border-line pl-3">
+                  {c.children.map((s, j) => (
+                    <li key={s.id} className="py-1">
+                      <CategoryRow
+                        category={s}
+                        count={counts.get(s.value) ?? 0}
+                        first={j === 0}
+                        last={j === c.children.length - 1}
+                        busy={busy}
+                        onMove={(dir) => void act(() => moveCategory(s.id, dir), 'Se cambió el orden.')}
+                        onEdit={() => setEditing({ category: s, parentId: c.id })}
+                        onDelete={() => onDelete(s)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <CatalogCard linked={[...linked]} />
+
+      {editing && (
+        <CategoryModal
+          editing={editing}
+          onCancel={() => setEditing(null)}
+          onSaved={(msg) => {
+            setEditing(null)
+            setError(null)
+            setSaved(msg)
+            // Al renombrar, los productos cambian de categoría en la base.
+            void inventoryStore.refreshProducts()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function BusinessCard() {
+  const settings = useSettings()
+  const [name, setName] = useState(settings.businessName)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => setName(settings.businessName), [settings.businessName])
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (saving || !name.trim()) return
+    setSaving(true)
+    setMsg(null)
+    try {
+      await updateBusinessName(name)
+      setMsg({ ok: true, text: 'Se guardó el nombre.' })
+    } catch (err) {
+      setMsg({ ok: false, text: errorText(err) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="card flex flex-col gap-3 p-4">
+      <h2 className="text-heading">Negocio</h2>
+      <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
+        <div className="w-full max-w-sm">
+          <label className="field-label" htmlFor="cfg-name">Nombre</label>
+          <input id="cfg-name" className="field h-10" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+        </div>
+        <button
+          type="submit"
+          className="btn btn-secondary"
+          disabled={saving || !name.trim() || name.trim() === settings.businessName}
+        >
+          <Icon name="check" />
+          {saving ? 'Guardando…' : 'Guardar'}
+        </button>
+      </form>
+      <p className="text-caption text-ink-muted">
+        Códigos internos: <span className="font-mono text-ink">{settings.codePrefix}-000001</span>. El prefijo se fija al
+        dar de alta el negocio y ya no cambia (va impreso en las etiquetas).
+      </p>
+      {msg && (
+        <p className={`notice ${msg.ok ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg'}`} role="status">
+          <Icon name={msg.ok ? 'check' : 'alert'} className="mt-0.5" />
+          {msg.text}
+        </p>
+      )}
+    </section>
+  )
+}
+
+function CategoryRow({
+  category,
+  count,
+  first,
+  last,
+  busy,
+  onMove,
+  onEdit,
+  onDelete,
+  onAddChild,
+}: {
+  category: CategoryNode
+  count: number
+  first: boolean
+  last: boolean
+  busy: boolean
+  onMove: (dir: -1 | 1) => void
+  onEdit: () => void
+  onDelete: () => void
+  /** Solo en categorías principales. */
+  onAddChild?: () => void
+}) {
+  const iconBtn =
+    'grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink disabled:cursor-default disabled:opacity-40'
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="mr-auto min-w-0">
+        <p className={category.parent_id ? '' : 'text-label'}>
+          {category.name}
+          {count > 0 && <span className="ml-2 text-caption text-ink-subtle">{formatInt(count)} productos</span>}
+        </p>
+        {category.catalog_sources.length > 0 && (
+          <p className="text-caption text-ink-muted">
+            Catálogo: {category.catalog_sources.map(catalogSourceLabel).join(', ')}
+          </p>
+        )}
+      </div>
+      <button type="button" className={iconBtn} disabled={busy || first} onClick={() => onMove(-1)} title="Subir" aria-label={`Subir ${category.name}`}>
+        <Icon name="arrow-up" />
+      </button>
+      <button type="button" className={iconBtn} disabled={busy || last} onClick={() => onMove(1)} title="Bajar" aria-label={`Bajar ${category.name}`}>
+        <Icon name="arrow-down" />
+      </button>
+      {onAddChild && (
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onAddChild}>
+          <Icon name="plus" />
+          Subcategoría
+        </button>
+      )}
+      <button type="button" className={iconBtn} disabled={busy} onClick={onEdit} title="Editar" aria-label={`Editar ${category.name}`}>
+        <Icon name="pencil" />
+      </button>
+      <button type="button" className={iconBtn} disabled={busy} onClick={onDelete} title="Borrar" aria-label={`Borrar ${category.name}`}>
+        <Icon name="trash" />
+      </button>
+    </div>
+  )
+}
+
+function CategoryModal({
+  editing,
+  onCancel,
+  onSaved,
+}: {
+  editing: Editing
+  onCancel: () => void
+  onSaved: (message: string) => void
+}) {
+  const { tree } = useCategories()
+  const current = editing.category
+  const [name, setName] = useState(current?.name ?? '')
+  const [parentId, setParentId] = useState<string | null>(editing.parentId)
+  const [sources, setSources] = useState<string[]>(current?.catalog_sources ?? [])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fuentes ya ligadas a otra categoría (cada una sugiere una sola).
+  const takenBy = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of tree.flatMap((t) => [t, ...t.children])) {
+      if (c.id === current?.id) continue
+      for (const s of c.catalog_sources) m.set(s, c.value)
+    }
+    return m
+  }, [tree, current?.id])
+
+  // Una principal con subcategorías no puede volverse subcategoría.
+  const canMove = !current || !tree.find((t) => t.id === current.id)?.children.length
+  const parents = tree.filter((t) => t.id !== current?.id)
+
+  const toggle = (key: string) => setSources((s) => (s.includes(key) ? s.filter((k) => k !== key) : [...s, key]))
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (saving) return
+    const clean = name.trim()
+    if (!clean) return setError('El nombre es obligatorio.')
+    if (clean.includes(SEP.trim())) return setError(`El nombre no puede llevar "${SEP.trim()}".`)
+    setSaving(true)
+    setError(null)
+    try {
+      if (current) {
+        await updateCategory(current.id, { name: clean, parent_id: parentId, catalog_sources: sources })
+        onSaved(`Se guardó "${clean}".`)
+      } else {
+        await createCategory({ name: clean, parent_id: parentId, catalog_sources: sources })
+        onSaved(`Se agregó "${clean}".`)
+      }
+    } catch (err) {
+      setError(errorText(err))
+      setSaving(false)
+    }
+  }
+
+  const renamed = current && current.name !== name.trim()
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
+      <form
+        noValidate
+        onSubmit={onSubmit}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            onCancel()
+          }
+        }}
+        className="max-h-full w-full max-w-xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
+          <h2 id="cf-title" className="text-title">
+            {current ? 'Editar categoría' : parentId ? 'Subcategoría nueva' : 'Categoría nueva'}
+          </h2>
+          <button type="button" onClick={onCancel} className="btn btn-ghost">
+            <Icon name="x" />
+            Cancelar (Esc)
+          </button>
+        </div>
+
+        <div className="space-y-4 px-6 py-5">
+          <div>
+            <label className="field-label" htmlFor="cf-name">Nombre *</label>
+            <input
+              id="cf-name"
+              className="field h-10"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={60}
+              autoFocus
+              autoComplete="off"
+            />
+            {renamed && (
+              <p className="mt-1 text-caption text-ink-subtle">Los productos de esta categoría se cambian al nombre nuevo.</p>
+            )}
+          </div>
+
+          {canMove && (
+            <div>
+              <label className="field-label" htmlFor="cf-parent">Dentro de</label>
+              <select
+                id="cf-parent"
+                className="field h-10 cursor-pointer"
+                value={parentId ?? ''}
+                onChange={(e) => setParentId(e.target.value || null)}
+              >
+                <option value="">Ninguna (categoría principal)</option>
+                {parents.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <fieldset>
+            <legend className="field-label">Productos del catálogo TCGplayer</legend>
+            <p className="mb-2 text-caption text-ink-muted">
+              Marca los juegos o marcas que vendes en esta categoría: solo esos se cargan en el catálogo y, al vincular uno,
+              el producto queda en esta categoría.
+            </p>
+            {(['juego', 'accesorio'] as const).map((kind) => (
+              <div key={kind} className="mb-3">
+                <p className="mb-1 text-caption font-medium text-ink-muted">{kind === 'juego' ? 'Juegos' : 'Accesorios'}</p>
+                <div className="grid gap-1 sm:grid-cols-2">
+                  {CATALOG_SOURCES.filter((s) => s.kind === kind).map((s) => {
+                    const other = takenBy.get(s.key)
+                    return (
+                      <label
+                        key={s.key}
+                        className={`flex items-start gap-2 rounded-md px-2 py-1 ${other ? 'text-ink-subtle' : 'cursor-pointer hover:bg-subtle'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={sources.includes(s.key)}
+                          disabled={!!other}
+                          onChange={() => toggle(s.key)}
+                        />
+                        <span>
+                          {s.label}
+                          {other && <span className="block text-caption">En {other}</span>}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </fieldset>
+
+          {error && (
+            <p className="notice bg-danger-bg text-danger-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-line bg-subtle px-6 py-4">
+          <button type="submit" disabled={saving} className="btn btn-primary btn-lg w-full sm:w-auto">
+            <Icon name="check" size={20} />
+            {saving ? 'Guardando…' : current ? 'Guardar cambios' : 'Agregar'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function CatalogCard({ linked }: { linked: string[] }) {
+  const [status, setStatus] = useState<CatalogStatus | null>(null)
+  useEffect(() => {
+    void getCatalogStatus().then(setStatus)
+  }, [])
+
+  return (
+    <section className="card flex flex-col gap-2 p-4">
+      <h2 className="text-heading">Catálogo TCGplayer</h2>
+      {linked.length ? (
+        <p>
+          Se cargan: <span className="text-ink">{linked.map(catalogSourceLabel).join(', ')}</span>.
+        </p>
+      ) : (
+        <p className="text-ink-muted">
+          Ninguna categoría tiene juegos del catálogo: el catálogo no se carga y las altas se capturan a mano.
+        </p>
+      )}
+      {status && (
+        <p className="text-caption text-ink-muted">
+          {formatInt(status.products)} productos en el catálogo
+          {status.imported_at && ` · actualizado ${formatDateTime(status.imported_at)}`}.
+        </p>
+      )}
+      <p className="text-caption text-ink-muted">
+        El catálogo se actualiza solo cada lunes. Si acabas de agregar un juego, sus productos aparecen después de la
+        siguiente actualización (o pide que se corra a mano).
+      </p>
+    </section>
+  )
+}

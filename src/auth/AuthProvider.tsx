@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { refreshCategories } from '../lib/categories'
 import { refreshSettings } from '../lib/settings'
 import { isNetworkError, supabase } from '../lib/supabase'
 import type { Profile } from '../lib/types'
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Copia local: sin internet se conserva el rol de la última vez.
     setProfile(loadCachedProfile(userId))
     void refreshSettings()
+    void refreshCategories()
     let active = true
     // Se hace fuera de onAuthStateChange (supabase-js recomienda no llamar a la
     // API dentro del callback).

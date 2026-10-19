@@ -5,7 +5,7 @@
  * la tabla `catalog_products` de Supabase.
  *
  * Uso:
- *   npm run catalogo                          # juegos por defecto, todo el historial
+ *   npm run catalogo                          # los juegos que vende el negocio, todo el historial
  *   npm run catalogo -- --juegos pokemon,magic
  *   npm run catalogo -- --juegos dragon-shield,ultra-pro-pokemon
  *   npm run catalogo -- --desde 2025-01-01    # solo sets publicados desde esa fecha
@@ -15,46 +15,46 @@
  *   SUPABASE_URL               https://xxxx.supabase.co
  *   SUPABASE_SERVICE_ROLE_KEY  service_role / secret key (NUNCA en el frontend)
  *
+ * Sin --juegos se importan las fuentes ligadas a las categorías del negocio
+ * (Configuración → Categorías en la app; product_categories.catalog_sources).
+ *
  * Es seguro correrlo las veces que quieras: actualiza lo que ya existe (upsert
  * por productId) y nunca borra filas, así que los vínculos con el inventario
  * no se pierden.
  */
 
-import { appendFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 
 const TCGCSV = 'https://tcgcsv.com/tcgplayer'
 const USER_AGENT = 'inventario-hachiko/1.0 (importador de catalogo)'
 const CONCURRENCY = 4
 const BATCH = 500
 
-// Categorías de accesorios en TCGplayer: micas, deck boxes, latas, contadores,
-// playmats, páginas, carpetas, almacenamiento y bundles. Ahí cada "set" es una
-// marca + tipo (p. ej. "Dragon Shield Card Sleeves").
-const ACCESORIOS = [31, 32, 33, 34, 35, 49, 50, 51, 52]
-// Accesorios de Pokémon: los que no dicen "Pokemon" sí nombran al personaje
-// ("Elite Pikachu PRO-Binder", "Elite Series: Charizard …").
-const POKEMON = /pok[eé]mon|pikachu|charizard|eevee|blastoise|venusaur|gengar|pok[eé] ?ball/i
-
-// Fuentes que se pueden importar. Lista de categorías de TCGplayer:
-// https://tcgcsv.com/tcgplayer/categories. Para agregar otra, súmala aquí.
-//   categorias: categoryIds de TCGplayer
-//   nombre:     lo que se guarda como "juego" (y queda como categoría en el alta)
+// Fuentes que se pueden importar: src/lib/catalogSources.json (la misma lista
+// que muestra la app en Configuración). Para agregar otra, súmala ahí.
+//   categorias: categoryIds de TCGplayer (https://tcgcsv.com/tcgplayer/categories)
+//   nombre:     lo que se guarda como "juego"
 //   grupo:      solo los sets/grupos cuyo nombre coincide
 //   producto:   solo los productos cuyo nombre coincide
-const JUEGOS = {
-  pokemon: { categorias: [3] },
-  magic: { categorias: [1] },
-  yugioh: { categorias: [2] },
-  lorcana: { categorias: [71] },
-  'flesh-and-blood': { categorias: [62] },
-  'dragon-shield': { categorias: ACCESORIOS, nombre: 'Dragon Shield', grupo: /dragon shield/i },
-  'ultra-pro-pokemon': { categorias: ACCESORIOS, nombre: 'Ultra Pro', grupo: /ultra ?pro/i, producto: POKEMON },
-}
-const POR_DEFECTO = Object.keys(JUEGOS)
+const FUENTES = JSON.parse(readFileSync(new URL('../src/lib/catalogSources.json', import.meta.url), 'utf8'))
+const JUEGOS = Object.fromEntries(
+  Object.entries({ ...FUENTES.juegos, ...FUENTES.accesorios }).map(([key, f]) => [
+    key,
+    {
+      categorias: f.categorias,
+      nombre: f.nombre,
+      grupo: f.grupo ? new RegExp(f.grupo, 'i') : undefined,
+      producto: f.producto ? new RegExp(f.producto, 'i') : undefined,
+    },
+  ]),
+)
+// Bases sin categorías configurables (antes de 20261020000200): lo de siempre.
+const ANTERIORES = ['pokemon', 'magic', 'yugioh', 'lorcana', 'flesh-and-blood', 'dragon-shield', 'ultra-pro-pokemon']
 
 // ---------- argumentos ----------
 function parseArgs(argv) {
-  const args = { juegos: POR_DEFECTO, desde: null, prueba: false }
+  // null = los que vende el negocio (se leen de la base).
+  const args = { juegos: null, desde: null, prueba: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     const value = () => {
@@ -67,11 +67,11 @@ function parseArgs(argv) {
     else if (a === '--prueba') args.prueba = true
     else if (a === '--ayuda' || a === '--help') {
       console.log(`Juegos disponibles: ${Object.keys(JUEGOS).join(', ')}`)
-      console.log(`Por defecto: ${POR_DEFECTO.join(', ')}`)
+      console.log('Por defecto: los ligados a las categorías del negocio')
       process.exit(0)
     } else throw new Error(`Argumento desconocido: ${a} (usa --ayuda)`)
   }
-  for (const j of args.juegos) {
+  for (const j of args.juegos ?? []) {
     if (!(j in JUEGOS)) {
       throw new Error(`Juego desconocido: "${j}". Disponibles: ${Object.keys(JUEGOS).join(', ')}`)
     }
@@ -157,7 +157,7 @@ const bigImage = (url) => (url ? url.replace(/_200w\.jpg$/, '_in_1000x1000.jpg')
 let categoriesCache = null
 
 /** Importa una categoría de TCGplayer, opcionalmente filtrando grupos y productos. */
-async function importCategory(categoryId, { desde, nombre, grupo, producto } = {}) {
+async function importCategory(categoryId, { desde, nombre, grupo, producto, source } = {}) {
   categoriesCache ??= await getJson(`${TCGCSV}/categories`)
   const category = categoriesCache.find((c) => c.categoryId === categoryId)
   if (!category) throw new Error(`No existe la categoría ${categoryId} en TCGplayer`)
@@ -188,6 +188,8 @@ async function importCategory(categoryId, { desde, nombre, grupo, producto } = {
         id: p.productId,
         category_id: categoryId,
         game,
+        // Solo en bases con categorías configurables (columna source).
+        ...(source ? { source } : {}),
         group_id: g.groupId,
         set_name: g.name ?? null,
         set_code: g.abbreviation || null,
@@ -254,6 +256,19 @@ function writeStepSummary(resumen, total, prueba) {
   appendFileSync(file, lines.join('\n'))
 }
 
+/**
+ * Fuentes que vende el negocio (ligadas a sus categorías). null = la base aún
+ * no tiene categorías configurables (antes de 20261020000200).
+ */
+async function enabledSources(url, key) {
+  const headers = { apikey: key, 'Content-Type': 'application/json' }
+  if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`
+  const res = await fetch(`${url}/rest/v1/rpc/enabled_catalog_sources`, { method: 'POST', headers, body: '{}' })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Supabase respondió ${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
 // ---------- main ----------
 async function main() {
   const args = parseArgs(process.argv.slice(2))
@@ -266,6 +281,23 @@ async function main() {
     )
   }
 
+  // ¿La base guarda la fuente? (también decide qué importar si no hay --juegos)
+  const configured = url && key ? await enabledSources(url, key) : null
+  const withSource = configured !== null || (args.prueba && !url)
+  if (!args.juegos) {
+    if (configured === null) {
+      args.juegos = ANTERIORES
+    } else {
+      const unknown = configured.filter((j) => !(j in JUEGOS))
+      if (unknown.length) console.warn(`Fuentes desconocidas en la base (se ignoran): ${unknown.join(', ')}`)
+      args.juegos = configured.filter((j) => j in JUEGOS)
+      if (!args.juegos.length) {
+        console.log('El negocio no tiene juegos del catálogo ligados a sus categorías: no hay nada que importar.')
+        return
+      }
+    }
+  }
+
   console.log(`Juegos: ${args.juegos.join(', ')}${args.desde ? ` · sets desde ${args.desde}` : ''}`)
   const all = []
   const resumen = []
@@ -274,7 +306,7 @@ async function main() {
     let grupos = 0
     const rows = []
     for (const id of fuente.categorias) {
-      const r = await importCategory(id, { ...fuente, desde: args.desde })
+      const r = await importCategory(id, { ...fuente, desde: args.desde, source: withSource ? j : undefined })
       grupos += r.groups
       rows.push(...r.rows)
     }

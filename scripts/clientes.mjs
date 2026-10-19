@@ -11,10 +11,14 @@
  *   funciones                    Despliega las Edge Functions (crear-usuario).
  *   alta --ref <id> --negocio "Nombre" --prefijo ABC
  *        --admin-correo a@b.mx --admin-nombre "Nombre"
+ *        [--juegos pokemon,magic,dragon-shield] [--categorias "Cafetería,Juegos de mesa"]
  *                                Prepara un proyecto NUEVO: cierra el registro público,
  *                                corre las migraciones, guarda el nombre y el prefijo,
- *                                despliega la función, crea el primer admin e imprime
- *                                las variables para Netlify.
+ *                                crea las categorías, despliega la función, crea el primer
+ *                                admin, carga el catálogo de sus juegos e imprime las
+ *                                variables para Netlify. --juegos: claves de
+ *                                src/lib/catalogSources.json (los juegos van como
+ *                                subcategorías de "TCG"; los accesorios, en "Accesorios").
  *   catalogo [-- --juegos …]     Importa el catálogo TCG en cada cliente
  *                                (pasa los argumentos a importar-catalogo.mjs).
  *
@@ -35,6 +39,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MIGRATIONS_DIR = join(ROOT, 'supabase', 'migrations')
 const FUNCTIONS = ['crear-usuario']
+const FUENTES = JSON.parse(readFileSync(join(ROOT, 'src', 'lib', 'catalogSources.json'), 'utf8'))
 const API = 'https://api.supabase.com/v1'
 
 // ---------- argumentos ----------
@@ -199,6 +204,49 @@ async function migrate(ref, { dryRun = false } = {}) {
   return pending.length
 }
 
+// ---------- categorías iniciales ----------
+/**
+ * SQL que crea las categorías de un negocio nuevo. Se puede correr otra vez:
+ * no repite nombres ni juegos que ya estén ligados a alguna categoría.
+ */
+export function seedCategoriesQuery({ juegos = [], categorias = [] }) {
+  const games = juegos.filter((j) => j in FUENTES.juegos)
+  const accessories = juegos.filter((j) => j in FUENTES.accesorios)
+  const unknown = juegos.filter((j) => !games.includes(j) && !accessories.includes(j))
+  if (unknown.length) {
+    const all = [...Object.keys(FUENTES.juegos), ...Object.keys(FUENTES.accesorios)]
+    throw new Error(`Juegos desconocidos: ${unknown.join(', ')}. Disponibles: ${all.join(', ')}`)
+  }
+  const top = (name, sources, n) =>
+    `insert into public.product_categories (name, catalog_sources, sort_order)
+     select ${lit(name)}, array[${sources.map(lit).join(', ')}]::text[], ${n}
+     where not exists (select 1 from public.product_categories where parent_id is null and lower(name) = lower(${lit(name)}));`
+  const parts = []
+  let n = 1
+  if (games.length) {
+    parts.push(top('TCG', [], n++))
+    games.forEach((key, i) => {
+      parts.push(`insert into public.product_categories (parent_id, name, catalog_sources, sort_order)
+     select p.id, ${lit(FUENTES.juegos[key].label)}, array[${lit(key)}], ${i + 1}
+     from public.product_categories p
+     where p.parent_id is null and lower(p.name) = 'tcg'
+       and not exists (select 1 from public.product_categories c where ${lit(key)} = any (c.catalog_sources))
+       and not exists (select 1 from public.product_categories c
+                       where c.parent_id = p.id and lower(c.name) = lower(${lit(FUENTES.juegos[key].label)}));`)
+    })
+  }
+  if (accessories.length) {
+    parts.push(top('Accesorios', [], n++))
+    parts.push(`update public.product_categories
+     set catalog_sources = catalog_sources || array(
+       select s from unnest(array[${accessories.map(lit).join(', ')}]::text[]) s
+       where not exists (select 1 from public.product_categories c where s = any (c.catalog_sources)))
+     where parent_id is null and lower(name) = 'accesorios';`)
+  }
+  for (const c of categorias) parts.push(top(c, [], n++))
+  return parts.length ? `begin;\n${parts.join('\n')}\ncommit;` : null
+}
+
 // ---------- Edge Functions ----------
 function deployFunctions(ref) {
   for (const fn of FUNCTIONS) {
@@ -274,11 +322,16 @@ async function cmdAlta(opts) {
   if (typeof ref !== 'string' || !negocio || !prefijo || !correo || !nombre) {
     throw new Error(
       'Uso: npm run clientes -- alta --ref <id> --negocio "Nombre" --prefijo ABC ' +
-        '--admin-correo a@b.mx --admin-nombre "Nombre"',
+        '--admin-correo a@b.mx --admin-nombre "Nombre" [--juegos pokemon,magic] [--categorias "Cafetería,Comida"]',
     )
   }
   if (!/^[A-Z]{2,5}$/.test(prefijo)) throw new Error('El prefijo debe ser de 2 a 5 letras (A-Z), p. ej. DRG.')
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) throw new Error('El correo del admin no parece válido.')
+  const list = (v) => (typeof v === 'string' ? v.split(',').map((x) => x.trim()).filter(Boolean) : [])
+  const juegos = list(opts.juegos).map((j) => j.toLowerCase())
+  const categorias = list(opts.categorias)
+  // Valida antes de tocar el proyecto.
+  const seed = seedCategoriesQuery({ juegos, categorias })
 
   const info = await projectInfo(ref)
   console.log(`Proyecto ${ref} · ${info.name} · ${info.region} · ${info.status}`)
@@ -297,10 +350,23 @@ async function cmdAlta(opts) {
   )
   console.log(`  ${negocio} · códigos internos ${prefijo}-000001`)
 
-  console.log('\n4. Edge Functions')
+  console.log('\n4. Categorías')
+  if (seed) {
+    await sql(ref, seed)
+    const rows = await sql(
+      ref,
+      `select public.category_value(c) as value from public.product_categories c order by 1`,
+      true,
+    )
+    console.log(`  ${rows.map((r) => r.value).join(', ')}`)
+  } else {
+    console.log('  Ninguna (el admin las crea en Configuración)')
+  }
+
+  console.log('\n5. Edge Functions')
   deployFunctions(ref)
 
-  console.log('\n5. Primer administrador')
+  console.log('\n6. Primer administrador')
   const { anon, service } = await apiKeys(ref)
   const url = `https://${ref}.supabase.co`
   const password = randomBytes(9).toString('base64url')
@@ -323,6 +389,16 @@ async function cmdAlta(opts) {
     ref,
     `update public.profiles set role = 'admin', full_name = ${lit(nombre)} where lower(email) = ${lit(correo)}`,
   )
+
+  if (juegos.length) {
+    console.log('\n7. Catálogo TCG (solo sus juegos; puede tardar unos minutos)')
+    const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'importar-catalogo.mjs')], {
+      cwd: ROOT,
+      stdio: 'inherit',
+      env: { ...process.env, SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: service },
+    })
+    if (r.status !== 0) console.log(`  ⚠️ No se pudo cargar el catálogo. Reintenta con: npm run clientes -- catalogo --ref ${ref}`)
+  }
 
   console.log(`
 Listo. Falta publicar la app para este cliente:

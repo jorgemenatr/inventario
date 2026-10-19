@@ -36,6 +36,7 @@ const NAV: NavItem[] = [
     ],
   },
   { to: '/usuarios', label: 'Usuarios', icon: 'shield', admin: true },
+  { to: '/configuracion', label: 'Configuración', icon: 'settings', admin: true },
 ]
 
 /** ¿La ruta actual es la sección o alguna de sus subsecciones? */

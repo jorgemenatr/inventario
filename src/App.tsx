@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { Layout } from './components/Layout'
+import { ConfigPage } from './pages/ConfigPage'
 import { CustomerDetailPage } from './pages/CustomerDetailPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { HistoryPage } from './pages/HistoryPage'
@@ -68,6 +69,14 @@ export function App() {
             <Route path="clientes" element={<CustomersPage />} />
             <Route path="clientes/:id" element={<CustomerDetailPage />} />
             <Route path="historial" element={<HistoryPage />} />
+            <Route
+              path="configuracion"
+              element={
+                <ProtectedRoute roles={['admin']}>
+                  <ConfigPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="usuarios"
               element={

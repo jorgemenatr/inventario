@@ -53,6 +53,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261019000200_vista_costos.sql` | Vista `product_costs` (el admin lee de ahí el costo) y las funciones ya no devuelven el costo a quien no es admin |
 | `20261019000300_costo_solo_admin.sql` | El rol de la app ya no puede leer `products.cost` (aplicar cuando la app publicada ya use `product_costs`) |
 | `20261020000100_configuracion_negocio.sql` | Tabla `app_settings`: nombre del negocio y prefijo de los códigos internos (`HCH-`), para tener [varios clientes](#varios-clientes-saas). Las bases que ya existían quedan como Hachiko / `HCH` |
+| `20261020000200_categorias_configurables.sql` | Categorías por negocio (`product_categories`) ligadas a juegos del catálogo; `catalog_products.source`; la búsqueda del catálogo solo muestra lo que se vende. Aplicar **antes** de publicar la app nueva |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -173,12 +174,16 @@ Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
 
    ```bash
    npm run clientes -- alta --ref <ID> --negocio "Dragón Rojo" --prefijo DRG \
-     --admin-correo duena@dragonrojo.mx --admin-nombre "Ana López"
+     --admin-correo duena@dragonrojo.mx --admin-nombre "Ana López" \
+     --juegos pokemon,one-piece,dragon-shield --categorias "Cafetería,Juegos de mesa"
    ```
 
    Esto cierra el registro público, corre todas las migraciones, guarda el nombre y el
-   prefijo, despliega la función `crear-usuario`, crea al primer admin (imprime su
-   contraseña temporal) e imprime las variables para Netlify. Se puede volver a correr si
+   prefijo, crea las categorías (los juegos como subcategorías de **TCG**, las marcas de
+   accesorios en **Accesorios** y las de `--categorias` como principales), despliega la
+   función `crear-usuario`, crea al primer admin (imprime su contraseña temporal), carga el
+   catálogo **solo de sus juegos** e imprime las variables para Netlify. Las categorías se
+   pueden cambiar después en **Configuración**. Se puede volver a correr si
    algo falla a medias.
 3. En Netlify: **Add new site → Import an existing project → este repositorio**, rama
    `main`, con las variables que imprimió el paso anterior (`VITE_SUPABASE_URL`,
@@ -186,8 +191,8 @@ Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
    (`dragonrojo.tuapp.com`).
 4. Agrega el ID a `CLIENTES` (en `.env.clientes` y en GitHub → **Settings → Secrets and
    variables → Actions → Variables**).
-5. Catálogo TCG: `npm run clientes -- catalogo --ref <ID>` (después lo mantiene el workflow
-   semanal en todos los clientes).
+5. El catálogo lo mantiene el workflow semanal en todos los clientes (cada uno con sus
+   juegos). A mano: `npm run clientes -- catalogo --ref <ID>`.
 
 ### Publicar una versión nueva
 
@@ -226,11 +231,22 @@ debe quedar al menos un administrador.
 
 ## Categorías de producto
 
-Las categorías son fijas (`src/lib/categories.ts`): **TCG** (Pokémon, Yu-Gi-Oh!, Lorcana,
-Magic, Flesh and Blood y "otros juegos TCG"), **Accesorios**, **Cafetería**, **Comida**,
-**Juegos de Mesa** y **Torneos**. Al vincular un producto con el catálogo, la categoría se
-sugiere sola según el juego. En Inventario se filtra con los botones de categoría (y, en
-TCG, por juego). Para editar un producto (nombre, precio, costo, categoría, proveedor,
+Cada negocio define sus categorías en **Configuración** (solo admin): categorías
+principales y, si hace falta, un nivel de subcategorías (p. ej. **TCG** → Pokémon, Magic…).
+Se pueden agregar, renombrar (sus productos se cambian solos), reordenar y borrar (solo si
+no tienen productos ni subcategorías). Viven en la tabla `product_categories`; en
+`products.category` se guarda el texto (`TCG · Pokémon`).
+
+A cada categoría se le pueden ligar **juegos o marcas del catálogo TCGplayer** (lista en
+`src/lib/catalogSources.json`). Eso decide dos cosas:
+
+- **Qué se precarga del catálogo:** solo los juegos ligados (si una tienda no vende
+  Yu-Gi-Oh!, su catálogo no lo trae ni lo muestra el buscador).
+- **La categoría sugerida** al vincular un producto del catálogo.
+
+En Hachiko, la migración dejó las de siempre (TCG con sus 5 juegos, Accesorios con Dragon
+Shield y Ultra Pro, Cafetería, Comida, Juegos de Mesa, Torneos). En Inventario se filtra con
+los botones de categoría (y por subcategoría). Para editar un producto (nombre, precio, costo, categoría, proveedor,
 descripción y foto), un admin usa el lápiz en la tarjeta o el renglón. La cantidad no se
 edita ahí: cambia con escaneos y ventas para que quede en el historial.
 
@@ -265,6 +281,11 @@ copia del catálogo de **TCGplayer** (vía [tcgcsv.com](https://tcgcsv.com), un 
 público y gratuito que se actualiza a diario). Incluye **producto sellado** (cajas,
 sobres, ETB, blisters, mazos, latas…, sin cartas sueltas) y **accesorios**:
 
+Cada negocio solo carga los juegos que liga a sus categorías (ver
+[Categorías de producto](#categorías-de-producto)). Además de estos hay One Piece, Digimon,
+Dragon Ball, Star Wars: Unlimited, Gundam, Riftbound, Union Arena, Weiss Schwarz, Vanguard
+y otros (`src/lib/catalogSources.json`).
+
 | Fuente (`--juegos`) | Qué trae | Productos aprox. | Con código de barras |
 | --- | --- | --- | --- |
 | `pokemon` | Pokémon (inglés), sellado | 2,900 | ~950 |
@@ -289,7 +310,7 @@ sobres, ETB, blisters, mazos, latas…, sin cartas sueltas) y **accesorios**:
    `micas`, `carpeta`, `tapete`, `portafolio`, `bolsillos`, `mate` y los colores
    (`micas negras mate dragon`, `tapete pikachu`, `carpeta charizard 9 bolsillos`).
    Flechas para moverte y Enter para elegir.
-4. Se llenan **nombre, categoría (el juego), descripción y foto**. Tú solo pones precio,
+4. Se llenan **nombre, categoría (la que tiene ese juego ligado), descripción y foto**. Tú solo pones precio,
    costo y cantidad, y guardas. El nombre y la descripción se pueden editar (p. ej. agregar
    "(español)").
 5. A partir de ahí ese código de barras queda ligado al producto. **El vínculo se hace una
@@ -297,7 +318,6 @@ sobres, ETB, blisters, mazos, latas…, sin cartas sueltas) y **accesorios**:
 
 Detalles:
 
-- En accesorios, la categoría queda como la marca (`Dragon Shield` o `Ultra Pro`).
 - La foto se **descarga y se guarda en el bucket propio** (`product-images`), igual que una
   foto tomada con la cámara. No depende de TCGplayer después del alta. Si subes o tomas una
   foto propia, tiene prioridad sobre la del catálogo.
@@ -340,7 +360,7 @@ variables `VITE_` ni en el código de la app.
 
 ```bash
 cp .env.catalogo.example .env.catalogo   # y llénalo (está en .gitignore)
-npm run catalogo                          # todos los juegos
+npm run catalogo                          # los juegos ligados a las categorías del negocio
 npm run catalogo -- --juegos pokemon      # solo un juego
 npm run catalogo -- --desde 2026-01-01    # solo sets publicados desde esa fecha (no aplica a accesorios)
 npm run catalogo -- --juegos dragon-shield,ultra-pro-pokemon   # solo accesorios

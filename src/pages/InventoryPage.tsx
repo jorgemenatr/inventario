@@ -5,7 +5,7 @@ import { Icon } from '../components/Icon'
 import { ProductEditModal } from '../components/ProductEditModal'
 import { ProductImage } from '../components/ProductImage'
 import { Segmented } from '../components/Segmented'
-import { CATEGORY_VALUES, MAIN_CATEGORIES, TCG, TCG_GAMES, mainCategory, matchesCategory, tcgCategory } from '../lib/categories'
+import { mainCategory, matchesCategory, useCategories } from '../lib/categories'
 import { buildInventoryRows, exportCsv, exportXlsx, type StockScope } from '../lib/export'
 import { formatInt, formatMoney } from '../lib/format'
 import { exportName } from '../lib/settings'
@@ -82,15 +82,17 @@ export function InventoryPage() {
   }
 
   const all = useMemo(() => Object.values(products), [products])
+  const { tree, values: categoryValues } = useCategories()
 
-  // Categorías fuera de la lista fija (productos viejos): se pueden filtrar igual.
+  // Categorías que ya no existen (productos viejos): se pueden filtrar igual.
   const legacyCategories = useMemo(
     () =>
-      [...new Set(all.map((p) => p.category).filter((c): c is string => !!c && !CATEGORY_VALUES.includes(c)))].sort(
+      [...new Set(all.map((p) => p.category).filter((c): c is string => !!c && !categoryValues.has(c)))].sort(
         collator.compare,
       ),
-    [all],
+    [all, categoryValues],
   )
+  const selectedMain = tree.find((c) => c.value === mainCategory(category))
 
   const suppliers = useMemo(
     () => [...new Set(all.map((p) => p.supplier).filter((s): s is string => !!s))].sort(collator.compare),
@@ -102,7 +104,7 @@ export function InventoryPage() {
     for (const p of all) {
       const c = mainCategory(p.category)
       if (c) m.set(c, (m.get(c) ?? 0) + 1)
-      if (p.category && c === TCG) m.set(p.category, (m.get(p.category) ?? 0) + 1)
+      if (p.category && p.category !== c) m.set(p.category, (m.get(p.category) ?? 0) + 1)
     }
     return m
   }, [all])
@@ -267,9 +269,14 @@ export function InventoryPage() {
           <Chip active={category === ''} onClick={() => setCategory('')}>
             Todas
           </Chip>
-          {MAIN_CATEGORIES.map((c) => (
-            <Chip key={c} active={mainCategory(category) === c} count={countByMain.get(c)} onClick={() => setCategory(c)}>
-              {c}
+          {tree.map((c) => (
+            <Chip
+              key={c.id}
+              active={mainCategory(category) === c.value}
+              count={countByMain.get(c.value)}
+              onClick={() => setCategory(c.value)}
+            >
+              {c.name}
             </Chip>
           ))}
           {legacyCategories.map((c) => (
@@ -278,20 +285,20 @@ export function InventoryPage() {
             </Chip>
           ))}
         </div>
-        {mainCategory(category) === TCG && (
-          <div className="flex flex-wrap gap-2 border-l-2 border-line pl-3" role="group" aria-label="Juego">
-            <Chip active={category === TCG} onClick={() => setCategory(TCG)} small>
-              Todos los TCG
+        {!!selectedMain?.children.length && (
+          <div className="flex flex-wrap gap-2 border-l-2 border-line pl-3" role="group" aria-label="Subcategoría">
+            <Chip active={category === selectedMain.value} onClick={() => setCategory(selectedMain.value)} small>
+              Todo {selectedMain.name}
             </Chip>
-            {TCG_GAMES.map((g) => (
+            {selectedMain.children.map((s) => (
               <Chip
-                key={g}
-                active={category === tcgCategory(g)}
-                count={countByMain.get(tcgCategory(g))}
-                onClick={() => setCategory(tcgCategory(g))}
+                key={s.id}
+                active={category === s.value}
+                count={countByMain.get(s.value)}
+                onClick={() => setCategory(s.value)}
                 small
               >
-                {g}
+                {s.name}
               </Chip>
             ))}
           </div>

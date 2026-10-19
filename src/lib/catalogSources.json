@@ -1,0 +1,42 @@
+{
+  "_comentario": "Fuentes del catálogo de TCGplayer (vía tcgcsv.com). La clave se guarda en catalog_products.source y en product_categories.catalog_sources. categorias = categoryIds de TCGplayer (https://tcgcsv.com/tcgplayer/categories). grupo / producto = expresiones regulares (sin distinguir mayúsculas) para filtrar marcas o productos. nombre = lo que se guarda como juego.",
+  "juegos": {
+    "pokemon": { "label": "Pokémon", "categorias": [3] },
+    "pokemon-japan": { "label": "Pokémon (Japón)", "categorias": [85] },
+    "magic": { "label": "Magic: The Gathering", "categorias": [1] },
+    "yugioh": { "label": "Yu-Gi-Oh!", "categorias": [2] },
+    "lorcana": { "label": "Disney Lorcana", "categorias": [71] },
+    "one-piece": { "label": "One Piece", "categorias": [68] },
+    "flesh-and-blood": { "label": "Flesh and Blood", "categorias": [62] },
+    "digimon": { "label": "Digimon", "categorias": [63] },
+    "dragon-ball-fusion-world": { "label": "Dragon Ball Super: Fusion World", "categorias": [80] },
+    "dragon-ball-masters": { "label": "Dragon Ball Super: Masters", "categorias": [27] },
+    "star-wars-unlimited": { "label": "Star Wars: Unlimited", "categorias": [79] },
+    "gundam": { "label": "Gundam", "categorias": [86] },
+    "riftbound": { "label": "Riftbound (League of Legends)", "categorias": [89] },
+    "union-arena": { "label": "Union Arena", "categorias": [81] },
+    "weiss-schwarz": { "label": "Weiss Schwarz", "categorias": [20] },
+    "vanguard": { "label": "Cardfight!! Vanguard", "categorias": [16] },
+    "grand-archive": { "label": "Grand Archive", "categorias": [74] },
+    "sorcery": { "label": "Sorcery: Contested Realm", "categorias": [77] },
+    "final-fantasy": { "label": "Final Fantasy TCG", "categorias": [24] },
+    "shadowverse": { "label": "Shadowverse: Evolve", "categorias": [73] },
+    "battle-spirits": { "label": "Battle Spirits Saga", "categorias": [72] },
+    "metazoo": { "label": "MetaZoo", "categorias": [66] }
+  },
+  "accesorios": {
+    "dragon-shield": {
+      "label": "Dragon Shield (micas, deck boxes, carpetas…)",
+      "categorias": [31, 32, 33, 34, 35, 49, 50, 51, 52],
+      "nombre": "Dragon Shield",
+      "grupo": "dragon shield"
+    },
+    "ultra-pro-pokemon": {
+      "label": "Ultra Pro de Pokémon",
+      "categorias": [31, 32, 33, 34, 35, 49, 50, 51, 52],
+      "nombre": "Ultra Pro",
+      "grupo": "ultra ?pro",
+      "producto": "pok[eé]mon|pikachu|charizard|eevee|blastoise|venusaur|gengar|pok[eé] ?ball"
+    }
+  }
+}

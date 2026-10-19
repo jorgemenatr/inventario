@@ -21,6 +21,16 @@ $P -d ${DB}_config -f supabase/tests/00_supabase_stub.sql
 for f in supabase/migrations/*.sql; do $P -d ${DB}_config -f "$f"; done
 $P -d ${DB}_config -f supabase/tests/configuracion_negocio_test.sql
 
+# Categorías configurables: una base que ya estaba en uso (productos y
+# catálogo cargados) recibe la migración de categorías.
+CAT=20261020000200
+$P -d postgres -c "drop database if exists ${DB}_cat" -c "create database ${DB}_cat"
+$P -d ${DB}_cat -f supabase/tests/00_supabase_stub.sql
+for f in supabase/migrations/*.sql; do [[ "$(basename "$f")" < "$CAT" ]] && $P -d ${DB}_cat -f "$f"; done
+$P -d ${DB}_cat -f supabase/tests/categorias_antes.sql
+for f in supabase/migrations/*.sql; do [[ "$(basename "$f")" < "$CAT" ]] || $P -d ${DB}_cat -f "$f"; done
+$P -d ${DB}_cat -f supabase/tests/categorias_test.sql
+
 # ---------- 10. Concurrencia ----------
 # Dos ventas al mismo tiempo de un producto con 5 en tienda (3 + 3 piezas):
 # solo una puede pasar. Y un traspaso tienda → bodega al mismo tiempo que una
