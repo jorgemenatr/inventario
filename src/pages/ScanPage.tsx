@@ -10,6 +10,7 @@ import { isInternalCode, normalizeBarcode } from '../lib/barcode'
 import { exportCsv, exportXlsx, buildInventoryRows } from '../lib/export'
 import { formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
 import { createBurstDetector } from '../lib/scannerBurst'
+import { exportName } from '../lib/settings'
 import { sounds } from '../lib/sounds'
 import { LOCATION_LABELS, type LotPick, type ScanMode, type StockLocation } from '../lib/types'
 import { inventoryStore, qtyAt, type CachedProduct, type ScanContext } from '../store/inventoryStore'
@@ -215,8 +216,8 @@ export function ScanPage() {
     setExporting(true)
     try {
       const rows = await buildInventoryRows()
-      if (kind === 'csv') exportCsv(rows, 'inventario-hachiko')
-      else await exportXlsx(rows, 'inventario-hachiko', 'Inventario')
+      if (kind === 'csv') exportCsv(rows, exportName('inventario'))
+      else await exportXlsx(rows, exportName('inventario'), 'Inventario')
     } catch (e) {
       sounds.error()
       setFeedback({

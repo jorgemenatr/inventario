@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { internalCodeLabel } from '../lib/barcode'
 import { catalogThumb, fetchCatalogImage, searchCatalog } from '../lib/catalog'
-import { categoryFromGame } from '../lib/categories'
+import { categoryForCatalog } from '../lib/categories'
 import { compressImage } from '../lib/images'
 import { formatDateTime, parseCount, parseMoney } from '../lib/format'
 import { findUnlink } from '../lib/products'
@@ -15,7 +16,7 @@ import { LocationSelect } from './LocationSelect'
 import { WebcamCapture } from './WebcamCapture'
 
 interface Props {
-  /** null = producto sin código (se genera HCH- al guardar). */
+  /** null = producto sin código (se genera un código interno al guardar). */
   barcode: string | null
   defaultQuantity: number
   /** Dónde está la cantidad inicial (por defecto Tienda). */
@@ -132,7 +133,7 @@ export function ProductFormModal({ barcode, defaultQuantity, defaultLocation = '
     setFields((f) => ({
       ...f,
       name: item.name,
-      category: f.category || categoryFromGame(item.game),
+      category: f.category || categoryForCatalog(item.source),
       description: item.description ?? '',
     }))
     // La foto del catálogo reemplaza a otra del catálogo, nunca a una propia.
@@ -249,7 +250,7 @@ export function ProductFormModal({ barcode, defaultQuantity, defaultLocation = '
             <p className="mt-1 text-ink-muted">
               Código:{' '}
               <span className="font-mono text-ink">
-                {barcode ?? 'se generará un código interno HCH- al guardar'}
+                {barcode ?? `se generará un código interno ${internalCodeLabel()} al guardar`}
               </span>
             </p>
           </div>

@@ -8,4 +8,5 @@ dist
 supabase/.temp
 supabase/.branches
 .env.catalogo
+.env.clientes
 catalogo-prueba.json

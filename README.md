@@ -52,6 +52,8 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261019000100_lotes_ubicaciones.sql` | **Lotes y dos ubicaciones** (tienda y bodega): `suppliers`, `lots`, `lot_stock`, `movement_lots`, compras (`register/update/cancel_purchase`), movimiento de bodega (`create_transfer`), escaneo/alta/ajuste por ubicación y lote, `pay_ticket` por FIFO y solo con stock en tienda. Migra el stock existente a un lote inicial en tienda por producto |
 | `20261019000200_vista_costos.sql` | Vista `product_costs` (el admin lee de ahí el costo) y las funciones ya no devuelven el costo a quien no es admin |
 | `20261019000300_costo_solo_admin.sql` | El rol de la app ya no puede leer `products.cost` (aplicar cuando la app publicada ya use `product_costs`) |
+| `20261020000100_configuracion_negocio.sql` | Tabla `app_settings`: nombre del negocio y prefijo de los códigos internos (`HCH-`), para tener [varios clientes](#varios-clientes-saas). Las bases que ya existían quedan como Hachiko / `HCH` |
+| `20261020000200_categorias_configurables.sql` | Categorías por negocio (`product_categories`) ligadas a juegos del catálogo; `catalog_products.source`; la búsqueda del catálogo solo muestra lo que se vende. Aplicar **antes** de publicar la app nueva |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -143,6 +145,75 @@ a mano con cada expansión).
 
 ---
 
+## Varios clientes (SaaS)
+
+Cada cliente tiene **su propio proyecto de Supabase** (su base de datos, usuarios e
+imágenes) y **su propio sitio de Netlify**. Todos usan el mismo código: cada sitio de
+Netlify se publica desde la rama `main`, así que todos tienen la misma versión.
+
+Lo que cambia entre clientes vive en su base, en la tabla `app_settings`:
+
+| Campo | Para qué |
+| --- | --- |
+| `business_name` | Nombre que muestra la app ("Inventario *Nombre*"), el título de la pestaña y los archivos exportados |
+| `internal_code_prefix` | Prefijo de los códigos internos (`DRG-000001`). 2 a 5 letras. Ya no se puede cambiar en cuanto existe un producto con código interno (las etiquetas impresas lo llevan) |
+
+Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
+[Management API de Supabase](https://supabase.com/docs/reference/api/introduction):
+
+1. Crea un token personal en <https://supabase.com/dashboard/account/tokens>.
+2. Copia `.env.clientes.example` a `.env.clientes` y pon el token y los IDs de proyecto de
+   tus clientes en `CLIENTES` (separados por coma). ⚠️ El token da acceso a todos tus
+   proyectos: nunca en Netlify ni en variables `VITE_`.
+
+### Dar de alta un cliente
+
+1. En Supabase: **New project** (nombre del cliente, contraseña y región). Espera a que
+   esté listo. El ID del proyecto es el de la URL del dashboard.
+2. Corre:
+
+   ```bash
+   npm run clientes -- alta --ref <ID> --negocio "Dragón Rojo" --prefijo DRG \
+     --admin-correo duena@dragonrojo.mx --admin-nombre "Ana López" \
+     --juegos pokemon,one-piece,dragon-shield --categorias "Cafetería,Juegos de mesa"
+   ```
+
+   Esto cierra el registro público, corre todas las migraciones, guarda el nombre y el
+   prefijo, crea las categorías (los juegos como subcategorías de **TCG**, las marcas de
+   accesorios en **Accesorios** y las de `--categorias` como principales), despliega la
+   función `crear-usuario`, crea al primer admin (imprime su contraseña temporal), carga el
+   catálogo **solo de sus juegos** e imprime las variables para Netlify. Las categorías se
+   pueden cambiar después en **Configuración**. Se puede volver a correr si
+   algo falla a medias.
+3. En Netlify: **Add new site → Import an existing project → este repositorio**, rama
+   `main`, con las variables que imprimió el paso anterior (`VITE_SUPABASE_URL`,
+   `VITE_SUPABASE_ANON_KEY`, `VITE_BUSINESS_NAME`). Opcional: un dominio propio
+   (`dragonrojo.tuapp.com`).
+4. Agrega el ID a `CLIENTES` (en `.env.clientes` y en GitHub → **Settings → Secrets and
+   variables → Actions → Variables**).
+5. El catálogo lo mantiene el workflow semanal en todos los clientes (cada uno con sus
+   juegos). A mano: `npm run clientes -- catalogo --ref <ID>`.
+
+### Publicar una versión nueva
+
+- **Frontend:** al hacer merge a `main`, Netlify publica todos los sitios.
+- **Base de datos:** `npm run clientes -- estado` muestra qué migraciones le faltan a cada
+  cliente y `npm run clientes -- migrar` las aplica (cada una en su transacción; si una
+  falla en un cliente, ese cliente queda en la anterior y los demás siguen). También desde
+  GitHub: **Actions → Actualizar clientes → Run workflow** (por defecto solo lista lo
+  pendiente). Lee el encabezado de cada migración nueva: algunas deben esperar a que
+  Netlify publique la app.
+- **Edge Functions:** `npm run clientes -- funciones`.
+
+El registro de migraciones es el mismo que usa `supabase db push`
+(`supabase_migrations.schema_migrations`), así que ambas formas son compatibles.
+`--ref <ID>` limita cualquier comando a un solo cliente.
+
+Secrets en GitHub para los workflows: `SUPABASE_ACCESS_TOKEN` (secret) y `CLIENTES`
+(variable). Con ellos, el workflow del catálogo importa en todos los clientes.
+
+---
+
 ## Usuarios y roles
 
 | Rol | Puede |
@@ -160,11 +231,22 @@ debe quedar al menos un administrador.
 
 ## Categorías de producto
 
-Las categorías son fijas (`src/lib/categories.ts`): **TCG** (Pokémon, Yu-Gi-Oh!, Lorcana,
-Magic, Flesh and Blood y "otros juegos TCG"), **Accesorios**, **Cafetería**, **Comida**,
-**Juegos de Mesa** y **Torneos**. Al vincular un producto con el catálogo, la categoría se
-sugiere sola según el juego. En Inventario se filtra con los botones de categoría (y, en
-TCG, por juego). Para editar un producto (nombre, precio, costo, categoría, proveedor,
+Cada negocio define sus categorías en **Configuración** (solo admin): categorías
+principales y, si hace falta, un nivel de subcategorías (p. ej. **TCG** → Pokémon, Magic…).
+Se pueden agregar, renombrar (sus productos se cambian solos), reordenar y borrar (solo si
+no tienen productos ni subcategorías). Viven en la tabla `product_categories`; en
+`products.category` se guarda el texto (`TCG · Pokémon`).
+
+A cada categoría se le pueden ligar **juegos o marcas del catálogo TCGplayer** (lista en
+`src/lib/catalogSources.json`). Eso decide dos cosas:
+
+- **Qué se precarga del catálogo:** solo los juegos ligados (si una tienda no vende
+  Yu-Gi-Oh!, su catálogo no lo trae ni lo muestra el buscador).
+- **La categoría sugerida** al vincular un producto del catálogo.
+
+En Hachiko, la migración dejó las de siempre (TCG con sus 5 juegos, Accesorios con Dragon
+Shield y Ultra Pro, Cafetería, Comida, Juegos de Mesa, Torneos). En Inventario se filtra con
+los botones de categoría (y por subcategoría). Para editar un producto (nombre, precio, costo, categoría, proveedor,
 descripción y foto), un admin usa el lápiz en la tarjeta o el renglón. La cantidad no se
 edita ahí: cambia con escaneos y ventas para que quede en el historial.
 
@@ -199,6 +281,11 @@ copia del catálogo de **TCGplayer** (vía [tcgcsv.com](https://tcgcsv.com), un 
 público y gratuito que se actualiza a diario). Incluye **producto sellado** (cajas,
 sobres, ETB, blisters, mazos, latas…, sin cartas sueltas) y **accesorios**:
 
+Cada negocio solo carga los juegos que liga a sus categorías (ver
+[Categorías de producto](#categorías-de-producto)). Además de estos hay One Piece, Digimon,
+Dragon Ball, Star Wars: Unlimited, Gundam, Riftbound, Union Arena, Weiss Schwarz, Vanguard
+y otros (`src/lib/catalogSources.json`).
+
 | Fuente (`--juegos`) | Qué trae | Productos aprox. | Con código de barras |
 | --- | --- | --- | --- |
 | `pokemon` | Pokémon (inglés), sellado | 2,900 | ~950 |
@@ -223,7 +310,7 @@ sobres, ETB, blisters, mazos, latas…, sin cartas sueltas) y **accesorios**:
    `micas`, `carpeta`, `tapete`, `portafolio`, `bolsillos`, `mate` y los colores
    (`micas negras mate dragon`, `tapete pikachu`, `carpeta charizard 9 bolsillos`).
    Flechas para moverte y Enter para elegir.
-4. Se llenan **nombre, categoría (el juego), descripción y foto**. Tú solo pones precio,
+4. Se llenan **nombre, categoría (la que tiene ese juego ligado), descripción y foto**. Tú solo pones precio,
    costo y cantidad, y guardas. El nombre y la descripción se pueden editar (p. ej. agregar
    "(español)").
 5. A partir de ahí ese código de barras queda ligado al producto. **El vínculo se hace una
@@ -231,7 +318,6 @@ sobres, ETB, blisters, mazos, latas…, sin cartas sueltas) y **accesorios**:
 
 Detalles:
 
-- En accesorios, la categoría queda como la marca (`Dragon Shield` o `Ultra Pro`).
 - La foto se **descarga y se guarda en el bucket propio** (`product-images`), igual que una
   foto tomada con la cámara. No depende de TCGplayer después del alta. Si subes o tomas una
   foto propia, tiene prioridad sobre la del catálogo.
@@ -274,7 +360,7 @@ variables `VITE_` ni en el código de la app.
 
 ```bash
 cp .env.catalogo.example .env.catalogo   # y llénalo (está en .gitignore)
-npm run catalogo                          # todos los juegos
+npm run catalogo                          # los juegos ligados a las categorías del negocio
 npm run catalogo -- --juegos pokemon      # solo un juego
 npm run catalogo -- --desde 2026-01-01    # solo sets publicados desde esa fecha (no aplica a accesorios)
 npm run catalogo -- --juegos dragon-shield,ultra-pro-pokemon   # solo accesorios
@@ -554,8 +640,9 @@ Cada cliente puede tener créditos (1 crédito = $1) para pagar productos en la 
 
 ```
 supabase/migrations/     Migraciones SQL (esquema, RLS, RPC, storage, catálogo TCG)
-scripts/                 Importador del catálogo TCG (npm run catalogo)
-.github/workflows/       Importación semanal del catálogo (GitHub Actions)
+scripts/                 Importador del catálogo TCG (npm run catalogo) y administración
+                         de clientes (npm run clientes)
+.github/workflows/       Importación semanal del catálogo y actualización de clientes
 src/
   lib/supabase.ts        Cliente único de Supabase + detección de errores de red/sesión
   auth/                  AuthProvider, useAuth, ProtectedRoute (listo para roles)
