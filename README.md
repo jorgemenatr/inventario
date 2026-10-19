@@ -52,6 +52,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261019000100_lotes_ubicaciones.sql` | **Lotes y dos ubicaciones** (tienda y bodega): `suppliers`, `lots`, `lot_stock`, `movement_lots`, compras (`register/update/cancel_purchase`), movimiento de bodega (`create_transfer`), escaneo/alta/ajuste por ubicación y lote, `pay_ticket` por FIFO y solo con stock en tienda. Migra el stock existente a un lote inicial en tienda por producto |
 | `20261019000200_vista_costos.sql` | Vista `product_costs` (el admin lee de ahí el costo) y las funciones ya no devuelven el costo a quien no es admin |
 | `20261019000300_costo_solo_admin.sql` | El rol de la app ya no puede leer `products.cost` (aplicar cuando la app publicada ya use `product_costs`) |
+| `20261020000100_configuracion_negocio.sql` | Tabla `app_settings`: nombre del negocio y prefijo de los códigos internos (`HCH-`), para tener [varios clientes](#varios-clientes-saas). Las bases que ya existían quedan como Hachiko / `HCH` |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -140,6 +141,71 @@ npm run build        # verifica tipos y genera dist/
 
 Ver [Catálogo TCG](#catálogo-tcg). Se hace una vez al inicio y luego se mantiene solo (o
 a mano con cada expansión).
+
+---
+
+## Varios clientes (SaaS)
+
+Cada cliente tiene **su propio proyecto de Supabase** (su base de datos, usuarios e
+imágenes) y **su propio sitio de Netlify**. Todos usan el mismo código: cada sitio de
+Netlify se publica desde la rama `main`, así que todos tienen la misma versión.
+
+Lo que cambia entre clientes vive en su base, en la tabla `app_settings`:
+
+| Campo | Para qué |
+| --- | --- |
+| `business_name` | Nombre que muestra la app ("Inventario *Nombre*"), el título de la pestaña y los archivos exportados |
+| `internal_code_prefix` | Prefijo de los códigos internos (`DRG-000001`). 2 a 5 letras. Ya no se puede cambiar en cuanto existe un producto con código interno (las etiquetas impresas lo llevan) |
+
+Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
+[Management API de Supabase](https://supabase.com/docs/reference/api/introduction):
+
+1. Crea un token personal en <https://supabase.com/dashboard/account/tokens>.
+2. Copia `.env.clientes.example` a `.env.clientes` y pon el token y los IDs de proyecto de
+   tus clientes en `CLIENTES` (separados por coma). ⚠️ El token da acceso a todos tus
+   proyectos: nunca en Netlify ni en variables `VITE_`.
+
+### Dar de alta un cliente
+
+1. En Supabase: **New project** (nombre del cliente, contraseña y región). Espera a que
+   esté listo. El ID del proyecto es el de la URL del dashboard.
+2. Corre:
+
+   ```bash
+   npm run clientes -- alta --ref <ID> --negocio "Dragón Rojo" --prefijo DRG \
+     --admin-correo duena@dragonrojo.mx --admin-nombre "Ana López"
+   ```
+
+   Esto cierra el registro público, corre todas las migraciones, guarda el nombre y el
+   prefijo, despliega la función `crear-usuario`, crea al primer admin (imprime su
+   contraseña temporal) e imprime las variables para Netlify. Se puede volver a correr si
+   algo falla a medias.
+3. En Netlify: **Add new site → Import an existing project → este repositorio**, rama
+   `main`, con las variables que imprimió el paso anterior (`VITE_SUPABASE_URL`,
+   `VITE_SUPABASE_ANON_KEY`, `VITE_BUSINESS_NAME`). Opcional: un dominio propio
+   (`dragonrojo.tuapp.com`).
+4. Agrega el ID a `CLIENTES` (en `.env.clientes` y en GitHub → **Settings → Secrets and
+   variables → Actions → Variables**).
+5. Catálogo TCG: `npm run clientes -- catalogo --ref <ID>` (después lo mantiene el workflow
+   semanal en todos los clientes).
+
+### Publicar una versión nueva
+
+- **Frontend:** al hacer merge a `main`, Netlify publica todos los sitios.
+- **Base de datos:** `npm run clientes -- estado` muestra qué migraciones le faltan a cada
+  cliente y `npm run clientes -- migrar` las aplica (cada una en su transacción; si una
+  falla en un cliente, ese cliente queda en la anterior y los demás siguen). También desde
+  GitHub: **Actions → Actualizar clientes → Run workflow** (por defecto solo lista lo
+  pendiente). Lee el encabezado de cada migración nueva: algunas deben esperar a que
+  Netlify publique la app.
+- **Edge Functions:** `npm run clientes -- funciones`.
+
+El registro de migraciones es el mismo que usa `supabase db push`
+(`supabase_migrations.schema_migrations`), así que ambas formas son compatibles.
+`--ref <ID>` limita cualquier comando a un solo cliente.
+
+Secrets en GitHub para los workflows: `SUPABASE_ACCESS_TOKEN` (secret) y `CLIENTES`
+(variable). Con ellos, el workflow del catálogo importa en todos los clientes.
 
 ---
 
@@ -554,8 +620,9 @@ Cada cliente puede tener créditos (1 crédito = $1) para pagar productos en la 
 
 ```
 supabase/migrations/     Migraciones SQL (esquema, RLS, RPC, storage, catálogo TCG)
-scripts/                 Importador del catálogo TCG (npm run catalogo)
-.github/workflows/       Importación semanal del catálogo (GitHub Actions)
+scripts/                 Importador del catálogo TCG (npm run catalogo) y administración
+                         de clientes (npm run clientes)
+.github/workflows/       Importación semanal del catálogo y actualización de clientes
 src/
   lib/supabase.ts        Cliente único de Supabase + detección de errores de red/sesión
   auth/                  AuthProvider, useAuth, ProtectedRoute (listo para roles)
