@@ -49,6 +49,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261015000200_categorias.sql` | Acomoda las categorías existentes a la lista fija (TCG con sus juegos, Accesorios, Cafetería, …) |
 | `20261015000300_puntos_liga.sql` | Puntos de liga (`customer_league_points`, `grant_league_points`, vistas de total e historial) |
 | `20261015000400_correcciones_inventario.sql` | Correcciones con motivo: `unlink_product` (desvincular código/catálogo), `cancel_movement`, `adjust_stock`; el historial muestra lo cancelado |
+| `20261019000100_lotes_ubicaciones.sql` | **Lotes y dos ubicaciones** (tienda y bodega): `suppliers`, `lots`, `lot_stock`, `movement_lots`, compras (`register/update/cancel_purchase`), movimiento de bodega (`create_transfer`), escaneo/alta/ajuste por ubicación y lote, `pay_ticket` por FIFO y solo con stock en tienda. Migra el stock existente a un lote inicial en tienda por producto |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -329,7 +330,41 @@ velocidad de lector en el campo con foco y manda Enter. Se apaga con `?simulador
 
 El menú lateral queda: **Mostrador · Ventas · Clientes · Inventario**. Al entrar a Inventario
 aparecen sus subsecciones: **Agregar** (la pantalla de escaneo para dar de alta y contar
-productos, en `/agregar`) e **Historial**. Al iniciar sesión la app abre en el **Mostrador**.
+productos, en `/agregar`), **Compras**, **Movimiento de bodega** (las tres solo para
+administradores) e **Historial**. Al iniciar sesión la app abre en el **Mostrador**.
+
+## Tienda, bodega y lotes
+
+Cada producto tiene piezas en **Tienda** (donde se vende) y en **Bodega**. Las piezas
+vienen en **lotes**: cada lote es una entrada de mercancía con su **proveedor**, su
+**costo unitario** y su fecha, así que el mismo producto puede tener piezas de distintos
+proveedores y a distintos costos, en cualquiera de las dos ubicaciones.
+
+- **Cuándo se crea un lote:** cada renglón de una **compra**; cada **sesión de escaneo**
+  (los escaneos de una misma sesión suman al mismo lote por producto); el **alta** de un
+  producto con cantidad inicial; un **ajuste hacia arriba**. El stock que había antes de
+  los lotes quedó como un lote "Inventario inicial" en tienda con el costo del producto
+  ($0 si no tenía).
+- **Ventas:** salen solo de la tienda, del lote más viejo (FIFO). El cajero no elige nada.
+  Si la tienda no alcanza, la venta se rechaza aunque haya en bodega (el aviso dice cuánto
+  hay en bodega para pedir un movimiento). **Solo se cobra con conexión.**
+- **Movimiento de bodega** (`/movimiento-bodega`, solo admin): Bodega → Tienda por defecto
+  (botón para invertir), uno o varios productos, todo o nada. Bodega → tienda mueve primero
+  lo más viejo; tienda → bodega, lo más nuevo. Un error se corrige con otro movimiento en
+  sentido contrario.
+- **Compras** (`/compras`, solo admin): proveedor, folio, "Llega a" (Tienda por defecto) y
+  renglones con cantidad y costo. Proveedor y costos se corrigen, o la compra se cancela,
+  solo mientras ninguna pieza se haya vendido, movido o ajustado; folio y notas siempre.
+- **Bajar existencias a mano** (ajuste, merma, "fijar total" hacia abajo): se elige de qué
+  lote salen las piezas (si hay uno solo, se toma ese). Necesita conexión.
+- **Quién ve qué:** lotes, costos, proveedores, compras y traspasos solo los lee un admin
+  (RLS). El mostrador ve las cantidades por ubicación.
+- `products.quantity` (tienda) y `products.warehouse_quantity` (bodega) se calculan solas
+  desde los lotes; nadie las escribe directo. La vista `stock_mismatches` debe estar
+  siempre vacía (control de integridad), y `sale_item_profit` da la utilidad real por
+  renglón de venta.
+- Pruebas SQL locales (Postgres 16, nunca contra Supabase): `PGHOST=/tmp PGPORT=54329
+  supabase/tests/run.sh`.
 
 ## Inventario
 
@@ -339,7 +374,11 @@ En **Inventario** (`/inventario`) se consultan los productos dados de alta:
   proveedor, stock y precio, ordenable con clic en el encabezado). La app recuerda la
   última vista elegida.
 - Buscador (nombre, código, categoría o proveedor), filtro por categoría y por existencias.
-- Arriba, el total de productos, piezas y valor a precio de venta de lo que está filtrado.
+- **Tienda | Bodega | Total** (por defecto Total) escoge qué existencias se muestran,
+  suman, ordenan y exportan. "Sin stock" y "stock bajo" (2 piezas o menos) se calculan
+  **siempre con la tienda**; si hay piezas en bodega aparece "Hay N en bodega".
+- Arriba, el total de productos, piezas y valor a precio de venta de lo que está filtrado,
+  y las alertas de tienda (clic para filtrarlas).
 - Usa la misma copia local que Escaneo, así que también funciona sin conexión. Las fotos sí
   necesitan internet.
 
@@ -389,12 +428,11 @@ Reglas:
 
 ### Sin conexión
 
-El mostrador funciona sin internet: se pueden abrir tickets, agregar productos (con el stock
-de la copia local), asignar clientes ya descargados y cobrar. La venta se guarda en la cola
-("Sin conexión: N pendientes") y se registra sola al volver la red, con el mismo id de
-ticket, así que un reintento nunca la cobra dos veces. Como ya se cobró, el servidor la
-acepta aunque el stock no alcance y lo anota en la venta. Dar de alta clientes sí necesita
-conexión.
+Sin internet se pueden abrir tickets, agregar productos (con el stock de tienda de la copia
+local) y asignar clientes ya descargados, pero **no se puede cobrar**: el botón Pagar se
+desactiva hasta que vuelva la red. Si la red se cae a medio cobro, se puede volver a
+presionar Pagar: el id del ticket evita cobrar dos veces. Dar de alta clientes también
+necesita conexión.
 
 ### Ventas (`/ventas`)
 
@@ -429,8 +467,10 @@ Cada cliente puede tener créditos (1 crédito = $1) para pagar productos en la 
 
 ### Modelo de datos
 
-- `products.quantity` es el stock actual. **Todo** cambio pasa por una RPC que actualiza la
-  cantidad e inserta el movimiento en la misma transacción.
+- `products.quantity` es el stock de **tienda** y `warehouse_quantity` el de **bodega**; las
+  dos se calculan desde `lot_stock` (piezas de cada lote en cada ubicación). **Todo** cambio
+  pasa por una RPC que mueve piezas de lotes, las anota en `movement_lots` e inserta el
+  movimiento en la misma transacción (ver "Tienda, bodega y lotes").
 - `inventory_movements` es *append-only* (sin UPDATE ni DELETE desde el cliente). Cada
   movimiento guarda `delta`, `quantity_after` y quién lo hizo (`created_by = auth.uid()`).
   El tipo `sale` ya existe en el enum para el POS.
@@ -440,8 +480,8 @@ Cada cliente puede tener créditos (1 crédito = $1) para pagar productos en la 
   movimiento no se puede deshacer dos veces.
 - El prefijo `HCH-` está reservado: solo lo genera la secuencia. No se puede dar de alta
   a mano un código que empiece así.
-- Precio y costo son `numeric(12,2)`. No hay `CHECK quantity >= 0`, para no estorbar al POS;
-  la captura sí valida que no se metan cantidades negativas.
+- Precio y costo son `numeric(12,2)`. Las piezas de un lote nunca bajan de 0, así que el
+  stock tampoco.
 
 ### Seguridad (RLS)
 
