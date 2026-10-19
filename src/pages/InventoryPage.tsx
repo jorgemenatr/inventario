@@ -8,6 +8,7 @@ import { Segmented } from '../components/Segmented'
 import { CATEGORY_VALUES, MAIN_CATEGORIES, TCG, TCG_GAMES, mainCategory, matchesCategory, tcgCategory } from '../lib/categories'
 import { buildInventoryRows, exportCsv, exportXlsx, type StockScope } from '../lib/export'
 import { formatInt, formatMoney } from '../lib/format'
+import { exportName } from '../lib/settings'
 import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
@@ -156,7 +157,7 @@ export function InventoryPage() {
     setExportError(null)
     try {
       const rows = await buildInventoryRows(scope)
-      const name = `inventario-hachiko-${scope === 'store' ? 'tienda' : scope === 'warehouse' ? 'bodega' : 'total'}`
+      const name = `${exportName('inventario')}-${scope === 'store' ? 'tienda' : scope === 'warehouse' ? 'bodega' : 'total'}`
       if (kind === 'csv') exportCsv(rows, name)
       else await exportXlsx(rows, name, 'Inventario')
     } catch (e) {

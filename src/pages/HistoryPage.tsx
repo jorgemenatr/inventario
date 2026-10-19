@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/useAuth'
+import { internalCodeLabel } from '../lib/barcode'
 import { buildMovementRows, exportCsv, exportXlsx } from '../lib/export'
 import { formatDateTime, formatInt } from '../lib/format'
 import { cancelMovement } from '../lib/products'
+import { exportName } from '../lib/settings'
 import { isNetworkError, supabase } from '../lib/supabase'
 import { Icon } from '../components/Icon'
 import { LotPicker } from '../components/LotPicker'
@@ -20,7 +22,7 @@ const cancellable = (m: MovementHistoryRow) =>
 function describeQueueItem(item: QueueItem) {
   switch (item.kind) {
     case 'create':
-      return `Alta: ${item.input.name} (${item.input.barcode ?? 'HCH-'})`
+      return `Alta: ${item.input.name} (${item.input.barcode ?? internalCodeLabel()})`
     case 'scan':
       return `Escaneo ${item.barcode} (${item.mode === 'add' ? '+' : '='}${item.quantity})${item.ctx?.location === 'warehouse' ? ' en bodega' : ''}`
     case 'sale':
@@ -73,8 +75,8 @@ export function HistoryPage() {
     setExporting(true)
     try {
       const data = await buildMovementRows()
-      if (kind === 'csv') exportCsv(data, 'movimientos-hachiko')
-      else await exportXlsx(data, 'movimientos-hachiko', 'Movimientos')
+      if (kind === 'csv') exportCsv(data, exportName('movimientos'))
+      else await exportXlsx(data, exportName('movimientos'), 'Movimientos')
     } catch (e) {
       setError(`No se pudo exportar: ${(e as Error).message}`)
     } finally {

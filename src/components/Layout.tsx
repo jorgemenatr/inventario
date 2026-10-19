@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { appTitle, useSettings } from '../lib/settings'
 import { ROLE_LABELS } from '../lib/types'
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
@@ -46,6 +47,7 @@ function inSection(item: NavItem, pathname: string) {
 export function Layout() {
   const { pathname } = useLocation()
   const { user, profile, signOut } = useAuth()
+  const settings = useSettings()
   const { queue } = useInventory()
   const navigate = useNavigate()
   const simulator = useSimulatorEnabled()
@@ -82,7 +84,7 @@ export function Layout() {
           <span className="grid size-7 place-items-center rounded-md bg-nav-avatar-bg text-nav-active-ink">
             <Icon name="box" />
           </span>
-          <span className="text-heading">Inventario Hachiko</span>
+          <span className="text-heading">{appTitle(settings)}</span>
         </div>
 
         <div className="flex flex-wrap gap-0.5 md:flex-col md:flex-nowrap">

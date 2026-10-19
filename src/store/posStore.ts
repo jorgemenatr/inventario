@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { internalCodeLabel } from '../lib/barcode'
 import { listCustomers } from '../lib/customers'
 import type { Customer } from '../lib/types'
 import type { CachedProduct } from './inventoryStore'
@@ -158,7 +159,7 @@ class PosStore {
     const ticket = this.state.tickets.find((t) => t.id === ticketId)
     if (!ticket) return { ok: false, message: 'No hay un ticket abierto' }
     if (product.pending && product.is_internal_code) {
-      return { ok: false, message: 'Este producto aún no se sincroniza (le falta su código HCH-). Espera a tener conexión.' }
+      return { ok: false, message: `Este producto aún no se sincroniza (le falta su código ${internalCodeLabel()}). Espera a tener conexión.` }
     }
     const current = ticket.lines.find((l) => l.barcode === product.barcode)?.quantity ?? 0
     const max = this.maxFor(ticketId, product)

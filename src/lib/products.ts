@@ -58,7 +58,7 @@ const rpcProduct = (data: unknown) => num((data as MovementResult).product)
 
 /**
  * Desvincula el producto de su código de barras y del catálogo: se queda con
- * un código interno HCH- y el código real queda libre.
+ * un código interno (HCH-) y el código real queda libre.
  */
 export async function unlinkProduct(id: string, reason: string): Promise<Product> {
   const { data, error } = await supabase.rpc('unlink_product', {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { internalCodeLabel } from '../lib/barcode'
 import { compressImage } from '../lib/images'
 import { formatDateTime, formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
 import { getProductLots } from '../lib/lots'
@@ -257,7 +258,7 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                 help={
                   product.is_internal_code
                     ? 'Quita el vínculo con el catálogo TCGplayer. Los datos del producto no cambian.'
-                    : 'El producto se queda con un código interno HCH- y pierde el vínculo con el catálogo. Si después escaneas este código, se tomará como nuevo y podrás asignarlo al producto correcto del catálogo.'
+                    : `El producto se queda con un código interno ${internalCodeLabel()} y pierde el vínculo con el catálogo. Si después escaneas este código, se tomará como nuevo y podrás asignarlo al producto correcto del catálogo.`
                 }
                 action={product.is_internal_code ? 'Desvincular del catálogo' : 'Desvincular código'}
                 disabled={product.is_internal_code && product.catalog_product_id == null}

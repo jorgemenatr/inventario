@@ -1,5 +1,5 @@
 import { isAuthError, isNetworkError, probeConnection, supabase } from '../lib/supabase'
-import { normalizeBarcode } from '../lib/barcode'
+import { internalCodeLabel, normalizeBarcode } from '../lib/barcode'
 import { uploadProductImage } from '../lib/images'
 import { needsLotChoice } from '../lib/lots'
 import type {
@@ -49,7 +49,7 @@ export interface CachedProduct {
 }
 
 export interface CreateInput {
-  barcode: string | null // null = generar código interno HCH-
+  barcode: string | null // null = generar código interno (HCH-)
   name: string
   price: number
   cost: number | null
@@ -529,7 +529,7 @@ class InventoryStore {
       if (!input.barcode && !online) {
         return {
           type: 'error',
-          message: 'Para generar un código interno (HCH-) se necesita conexión. Intenta cuando vuelva el internet.',
+          message: `Para generar un código interno (${internalCodeLabel()}) se necesita conexión. Intenta cuando vuelva el internet.`,
         }
       }
 
@@ -577,7 +577,7 @@ class InventoryStore {
         if (out.type !== 'ok') return { type: 'error', message: 'No se pudo registrar' }
         return { type: 'ok', product: out.product, quantityAfter: out.quantityAfter, pending: true, existed: true, imageSkipped }
       }
-      const tempBarcode = input.barcode ?? `HCH-pendiente-${opId.slice(0, 8)}`
+      const tempBarcode = input.barcode ?? `${internalCodeLabel()}pendiente-${opId.slice(0, 8)}`
       const product: CachedProduct = {
         id: `pending:${opId}`,
         barcode: tempBarcode,

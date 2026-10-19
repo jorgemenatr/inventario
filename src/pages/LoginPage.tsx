@@ -2,12 +2,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate, type Location } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { Icon } from '../components/Icon'
+import { appTitle, useSettings } from '../lib/settings'
 import { supabaseConfigured } from '../lib/supabase'
 
 const LAST_EMAIL_KEY = 'hachiko.lastEmail'
 
 export function LoginPage() {
   const { session, loading, signIn } = useAuth()
+  const settings = useSettings()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: Location } | null)?.from
@@ -66,7 +68,7 @@ export function LoginPage() {
         <span className="mb-5 grid size-10 place-items-center rounded-md bg-brand text-on-brand">
           <Icon name="box" size={20} />
         </span>
-        <h1 className="text-title-lg">Inventario Hachiko</h1>
+        <h1 className="text-title-lg">{appTitle(settings)}</h1>
         <p className="mt-1 mb-6 text-ink-muted">Inicia sesión para continuar.</p>
 
         {!supabaseConfigured && (
