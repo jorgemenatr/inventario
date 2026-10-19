@@ -162,11 +162,9 @@ productos de prueba con poco stock (p. ej. 3 piezas).
 - [ ] Paga: aparece "Venta registrada · Ticket N" con el cambio. En Supabase hay un ticket
       nuevo con su folio, el stock bajó y en Historial hay movimientos "Venta: Ticket N".
       El siguiente cobro recibe el folio siguiente (N + 1).
-- [ ] Apaga el Wi-Fi, cobra el otro ticket con Tarjeta: "Venta guardada sin conexión (el
-      folio se asigna al sincronizar)". En Ventas aparece en "Ventas por sincronizar" como
-      "Folio pendiente".
-- [ ] Prende el Wi-Fi: en unos segundos la venta aparece en la tabla con su folio y la marca
-      "Sin conexión", y solo una vez.
+- [ ] Apaga el Wi-Fi: se puede abrir un ticket y agregar productos, pero Pagar está
+      desactivado ("Sin conexión: cobra cuando vuelva el internet").
+- [ ] Prende el Wi-Fi y cobra ese ticket: se registra con su folio, una sola vez.
 - [ ] En Ventas, filtra por forma de pago y por fechas; haz clic en una venta para ver sus
       productos.
 - [ ] En Clientes, abre el cliente del ticket cobrado: aparece en "Compras previas".
@@ -190,3 +188,26 @@ Antes: aplica la migración `…000400_creditos.sql`.
       de arriba suman cada método por separado y el filtro "Mixto" la encuentra.
 - [ ] Paga otro ticket con tres métodos (p. ej. tarjeta + transferencia + efectivo).
 - [ ] Sin internet, "Créditos" avisa que necesita conexión; efectivo y tarjeta sí se cobran.
+
+## 13. Tienda, bodega y lotes
+Antes: aplica la migración `…20261019000100_lotes_ubicaciones.sql`.
+- [ ] En Inventario, Total / Tienda / Bodega: al principio Bodega está en 0 en todo y Tienda
+      igual que antes. En "Editar producto" cada producto con piezas tiene un lote
+      "Inventario inicial" en tienda con su costo.
+- [ ] Compras: proveedor nuevo ("+ Proveedor nuevo…"), "Llega a: Bodega", un producto con
+      50 piezas a $55. En Inventario → Bodega aparecen las 50; Tienda no cambia.
+- [ ] Movimiento de bodega: Bodega → Tienda, agrega ese producto con 60: avisa "Solo hay 50
+      en bodega" y no deja revisar. Cambia a 5, Revisar, Confirmar: Tienda +5, Bodega −5, y
+      el historial del movimiento muestra de qué lote salieron.
+- [ ] Invertir (Tienda → Bodega) y mueve 2: salen del lote más nuevo de la tienda.
+- [ ] Con un producto con 0 en tienda y piezas en bodega: en Inventario (en cualquier filtro)
+      aparece como sin stock en tienda con "Hay N en bodega". En el Mostrador no deja
+      agregarlo y el aviso dice cuántas hay en bodega.
+- [ ] Agregar: la sesión empieza en Tienda. Cambia a Bodega (el recuadro se pone amarillo),
+      escanea 3 veces un código: Bodega +3 en un solo lote. Deshacer quita la última.
+- [ ] "Fijar total" a menos piezas en un producto con varios lotes: pide elegir el lote.
+- [ ] Editar producto → Ajustar existencias → Bodega, cantidad menor: si hay varios lotes
+      pide elegir; el lote elegido baja y la tienda no cambia.
+- [ ] Con el usuario de mostrador no aparecen Compras ni Movimiento de bodega.
+- [ ] Compras: abre la compra y "Corregir" el costo mientras está intacta; después de moverla
+      solo deja cambiar folio y notas, y "Cancelar compra" ya no aparece.

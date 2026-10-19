@@ -1,6 +1,6 @@
 import { uploadProductImage } from './images'
 import { supabase } from './supabase'
-import type { MovementHistoryRow, MovementResult, Product } from './types'
+import type { LotPick, MovementHistoryRow, MovementResult, Product, StockLocation } from './types'
 
 export interface ProductPatch {
   name: string
@@ -11,15 +11,27 @@ export interface ProductPatch {
   description: string | null
 }
 
+// Sin cost: esa columna solo la lee un admin, con la vista product_costs.
 const COLUMNS =
-  'id, barcode, name, category, supplier, cost, price, quantity, image_url, is_internal_code, description, catalog_product_id, created_by, created_at, updated_at'
+  'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, description, catalog_product_id, created_by, created_at, updated_at'
 
 const num = (p: Product): Product => ({ ...p, price: Number(p.price), cost: p.cost == null ? null : Number(p.cost) })
 
-export async function getProduct(id: string): Promise<Product | null> {
-  const { data, error } = await supabase.from('products').select(COLUMNS).eq('id', id).maybeSingle()
+/** Último costo del producto (null si no tiene o si quien consulta no es admin). */
+async function getCost(id: string): Promise<number | null> {
+  const { data, error } = await supabase.from('product_costs').select('cost').eq('product_id', id).maybeSingle()
   if (error) throw error
-  return data ? num(data as Product) : null
+  const cost = (data as { cost: number | null } | null)?.cost
+  return cost == null ? null : Number(cost)
+}
+
+export async function getProduct(id: string): Promise<Product | null> {
+  const [{ data, error }, cost] = await Promise.all([
+    supabase.from('products').select(COLUMNS).eq('id', id).maybeSingle(),
+    getCost(id),
+  ])
+  if (error) throw error
+  return data ? num({ ...(data as Omit<Product, 'cost'>), cost }) : null
 }
 
 /**
@@ -39,7 +51,7 @@ export async function updateProduct(id: string, patch: ProductPatch, image?: Blo
   else if (image) row.image_url = await uploadProductImage(image)
   const { data, error } = await supabase.from('products').update(row).eq('id', id).select(COLUMNS).single()
   if (error) throw error
-  return num(data as Product)
+  return num({ ...(data as Omit<Product, 'cost'>), cost: await getCost(id) })
 }
 
 const rpcProduct = (data: unknown) => num((data as MovementResult).product)
@@ -58,24 +70,38 @@ export async function unlinkProduct(id: string, reason: string): Promise<Product
   return rpcProduct(data)
 }
 
-/** Fija la cantidad correcta con un ajuste y su motivo. */
-export async function adjustStock(id: string, quantity: number, reason: string): Promise<Product> {
+export interface AdjustInput {
+  location: StockLocation
+  /** Si baja: de qué lotes salen las piezas (null = el único lote que hay). */
+  lots?: LotPick[] | null
+  /** Si sube: proveedor y costo del lote nuevo (null = los últimos del producto). */
+  supplierId?: string | null
+  unitCost?: number | null
+}
+
+/** Fija la cantidad correcta de una ubicación con un ajuste y su motivo. */
+export async function adjustStock(id: string, quantity: number, reason: string, opts: AdjustInput): Promise<Product> {
   const { data, error } = await supabase.rpc('adjust_stock', {
     p_product_id: id,
     p_quantity: quantity,
     p_reason: reason.trim(),
     p_client_op_id: crypto.randomUUID(),
+    p_location: opts.location,
+    p_lots: opts.lots?.length ? opts.lots : null,
+    p_supplier_id: opts.supplierId ?? null,
+    p_unit_cost: opts.unitCost ?? null,
   })
   if (error) throw error
   return rpcProduct(data)
 }
 
 /** Cancela un movimiento (no se borra: queda marcado y se revierte la cantidad). */
-export async function cancelMovement(movementId: string, reason: string): Promise<Product> {
+export async function cancelMovement(movementId: string, reason: string, lots?: LotPick[] | null): Promise<Product> {
   const { data, error } = await supabase.rpc('cancel_movement', {
     p_movement_id: movementId,
     p_reason: reason.trim(),
     p_client_op_id: crypto.randomUUID(),
+    p_lots: lots?.length ? lots : null,
   })
   if (error) throw error
   const res = data as MovementResult

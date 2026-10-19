@@ -29,6 +29,8 @@ const NAV: NavItem[] = [
     children: [
       // Escaneo: alta y conteo de productos con el lector.
       { to: '/agregar', label: 'Agregar', icon: 'barcode', admin: true },
+      { to: '/compras', label: 'Compras', icon: 'truck', admin: true },
+      { to: '/movimiento-bodega', label: 'Movimiento de bodega', icon: 'swap', admin: true },
       { to: '/historial', label: 'Historial', icon: 'history' },
     ],
   },

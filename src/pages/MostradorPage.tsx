@@ -106,8 +106,7 @@ export function MostradorPage() {
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">
           <Icon name="wifi-off" className="mt-0.5" />
-          Sin conexión: puedes seguir vendiendo. Las ventas se guardan en esta computadora y se registran solas al volver
-          el internet.
+          Sin conexión: puedes abrir tickets y agregar productos, pero para cobrar se necesita internet.
         </p>
       )}
 

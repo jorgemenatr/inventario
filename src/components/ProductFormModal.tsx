@@ -5,18 +5,21 @@ import { compressImage } from '../lib/images'
 import { formatDateTime, parseCount, parseMoney } from '../lib/format'
 import { findUnlink } from '../lib/products'
 import { createBurstDetector } from '../lib/scannerBurst'
-import type { CatalogItem } from '../lib/types'
+import type { CatalogItem, StockLocation } from '../lib/types'
 import { inventoryStore, type CreateOutcome } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { CatalogSearch } from './CatalogSearch'
 import { CategorySelect } from './CategorySelect'
 import { Icon } from './Icon'
+import { LocationSelect } from './LocationSelect'
 import { WebcamCapture } from './WebcamCapture'
 
 interface Props {
   /** null = producto sin código (se genera HCH- al guardar). */
   barcode: string | null
   defaultQuantity: number
+  /** Dónde está la cantidad inicial (por defecto Tienda). */
+  defaultLocation?: StockLocation
   onCancel: () => void
   onSaved: (outcome: Extract<CreateOutcome, { type: 'ok' }>) => void
 }
@@ -31,8 +34,9 @@ type Fields = {
   description: string
 }
 
-export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }: Props) {
+export function ProductFormModal({ barcode, defaultQuantity, defaultLocation = 'store', onCancel, onSaved }: Props) {
   const { products, online } = useInventory()
+  const [location, setLocation] = useState<StockLocation>(defaultLocation)
   const [fields, setFields] = useState<Fields>({
     name: '',
     price: '',
@@ -218,6 +222,7 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
         category: fields.category,
         supplier: fields.supplier,
         initialQuantity: quantity,
+        location,
         description: fields.description,
         catalogProductId: linked?.id ?? null,
       },
@@ -340,6 +345,17 @@ export function ProductFormModal({ barcode, defaultQuantity, onCancel, onSaved }
             <div>
               <label className={label} htmlFor="pf-qty">Cantidad inicial</label>
               <input id="pf-qty" name="quantity" className={`${input} tabular-nums`} value={fields.quantity} onChange={set('quantity')} inputMode="numeric" autoComplete="off" />
+            </div>
+            <div className="md:col-span-2">
+              <span className={label}>¿Dónde está?</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <LocationSelect value={location} onChange={setLocation} label="¿Dónde está la cantidad inicial?" />
+                <span className="text-caption text-ink-muted">
+                  {location === 'warehouse'
+                    ? 'En bodega no se puede vender hasta hacer un movimiento a tienda.'
+                    : 'La cantidad inicial entra como el primer lote, con este proveedor y costo.'}
+                </span>
+              </div>
             </div>
             <div className="md:col-span-2">
               <label className={label} htmlFor="pf-description">Descripción</label>

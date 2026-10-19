@@ -12,6 +12,15 @@ interface Props {
   available: (p: CachedProduct) => number
   onPick: (p: CachedProduct) => void
   disabled?: boolean
+  /** Para usarlo fuera del mostrador (compras, movimiento de bodega). */
+  id?: string
+  label?: string
+  /** Texto bajo el precio cuando no hay disponibles (por defecto: sin stock / apartado). */
+  unavailableText?: (p: CachedProduct) => string
+  /** Texto cuando sí hay (por defecto "Disponibles: N"). */
+  availableText?: (p: CachedProduct, available: number) => string
+  /** Mostrar el precio de venta (por defecto sí). */
+  showPrice?: boolean
 }
 
 const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -21,7 +30,18 @@ const MAX_RESULTS = 8
  * Agregar productos al ticket: con el lector (código + Enter) o escribiendo
  * parte del nombre y eligiendo de la lista (flechas + Enter, o clic).
  */
-export function ProductPicker({ inputRef, products, available, onPick, disabled }: Props) {
+export function ProductPicker({
+  inputRef,
+  products,
+  available,
+  onPick,
+  disabled,
+  id = 'pos-product',
+  label = 'Agregar producto: escanea el código o busca por nombre',
+  unavailableText,
+  availableText,
+  showPrice = true,
+}: Props) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
 
@@ -66,13 +86,13 @@ export function ProductPicker({ inputRef, products, available, onPick, disabled 
 
   return (
     <div className="relative">
-      <label htmlFor="pos-product" className="field-label">
-        Agregar producto: escanea el código o busca por nombre
+      <label htmlFor={id} className="field-label">
+        {label}
       </label>
       <div className="relative">
         <Icon name="barcode" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-subtle" />
         <input
-          id="pos-product"
+          id={id}
           ref={inputRef}
           value={query}
           disabled={disabled}
@@ -109,11 +129,17 @@ export function ProductPicker({ inputRef, products, available, onPick, disabled 
                     <p className="truncate font-mono text-caption text-ink-subtle">{p.barcode}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-label tabular-nums">{formatMoney(p.price)}</p>
+                    {showPrice && <p className="text-label tabular-nums">{formatMoney(p.price)}</p>}
                     {avail > 0 ? (
-                      <p className="text-caption text-ink-muted">Disponibles: {formatInt(avail)}</p>
+                      <p className="text-caption text-ink-muted">
+                        {availableText ? availableText(p, avail) : `Disponibles: ${formatInt(avail)}`}
+                      </p>
                     ) : (
-                      <p className="text-caption text-danger-fg">{p.quantity > 0 ? 'Apartado en tickets' : 'Sin stock'}</p>
+                      <p className="text-caption text-danger-fg">
+                        {unavailableText
+                          ? unavailableText(p)
+                          : `${p.quantity > 0 ? 'Apartado en tickets' : 'Sin stock'}${p.warehouse_quantity > 0 ? ` · ${formatInt(p.warehouse_quantity)} en bodega` : ''}`}
+                      </p>
                     )}
                   </div>
                 </button>

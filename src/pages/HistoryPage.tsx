@@ -5,7 +5,9 @@ import { formatDateTime, formatInt } from '../lib/format'
 import { cancelMovement } from '../lib/products'
 import { isNetworkError, supabase } from '../lib/supabase'
 import { Icon } from '../components/Icon'
-import { MOVEMENT_LABELS, type MovementHistoryRow, type Product } from '../lib/types'
+import { LotPicker } from '../components/LotPicker'
+import { needsLotChoice } from '../lib/lots'
+import { LOCATION_LABELS, MOVEMENT_LABELS, type LotPick, type MovementHistoryRow, type Product } from '../lib/types'
 import { inventoryStore, type QueueItem } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
@@ -20,7 +22,7 @@ function describeQueueItem(item: QueueItem) {
     case 'create':
       return `Alta: ${item.input.name} (${item.input.barcode ?? 'HCH-'})`
     case 'scan':
-      return `Escaneo ${item.barcode} (${item.mode === 'add' ? '+' : '='}${item.quantity})`
+      return `Escaneo ${item.barcode} (${item.mode === 'add' ? '+' : '='}${item.quantity})${item.ctx?.location === 'warehouse' ? ' en bodega' : ''}`
     case 'sale':
       return `Venta sin folio aún (${item.sale.customerName ?? 'sin cliente'}, ${item.sale.items.reduce((n, i) => n + i.quantity, 0)} pzas)`
     default:
@@ -168,8 +170,9 @@ export function HistoryPage() {
               <th className="h-control-md px-4 font-medium">Código</th>
               <th className="h-control-md px-4 font-medium">Producto</th>
               <th className="h-control-md px-4 font-medium">Tipo</th>
+              <th className="h-control-md px-4 font-medium">Ubicación</th>
               <th className="h-control-md px-4 text-right font-medium">Cambio</th>
-              <th className="h-control-md px-4 text-right font-medium">Cantidad</th>
+              <th className="h-control-md px-4 text-right font-medium">Queda ahí</th>
               <th className="h-control-md px-4 font-medium">Usuario</th>
               <th className="h-control-md px-4 font-medium">Nota</th>
               {isAdmin && (
@@ -188,6 +191,7 @@ export function HistoryPage() {
                 <td className="h-row px-4 whitespace-nowrap">
                   <span className="flex flex-col items-start gap-1 py-1">
                     {MOVEMENT_LABELS[m.type] ?? m.type}
+                    {m.lot_numbers && <span className="text-caption text-ink-subtle">Lote {m.lot_numbers}</span>}
                     {m.reverts_movement_id && <span className="badge badge-info">Cancelación</span>}
                     {m.cancelled_by_movement_id && (
                       <span
@@ -198,6 +202,9 @@ export function HistoryPage() {
                       </span>
                     )}
                   </span>
+                </td>
+                <td className="h-row px-4 whitespace-nowrap">
+                  {m.location === 'warehouse' ? <span className="badge badge-warning">Bodega</span> : <span className="text-ink-muted">{LOCATION_LABELS.store}</span>}
                 </td>
                 <td
                   className={`h-row px-4 text-right font-medium tabular-nums ${m.cancelled_by_movement_id ? 'line-through' : m.delta > 0 ? 'text-success-fg' : m.delta < 0 ? 'text-danger-fg' : ''}`}
@@ -277,19 +284,29 @@ function CancelMovementModal({
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Movimientos anteriores a los lotes: si hay que quitar piezas y hay varios lotes, se elige de cuál.
+  const [picking, setPicking] = useState(false)
+
+  async function run(lots?: LotPick[]) {
+    setBusy(true)
+    setError(null)
+    try {
+      onDone(await cancelMovement(movement.id, reason, lots))
+    } catch (err) {
+      if (needsLotChoice(err)) {
+        setPicking(true)
+      } else {
+        setError(isNetworkError(err) ? 'Sin conexión: intenta cuando vuelva el internet.' : (err as Error).message)
+      }
+      setBusy(false)
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (busy) return
     if (!reason.trim()) return setError('El motivo es obligatorio.')
-    setBusy(true)
-    setError(null)
-    try {
-      onDone(await cancelMovement(movement.id, reason))
-    } catch (err) {
-      setError(isNetworkError(err) ? 'Sin conexión: intenta cuando vuelva el internet.' : (err as Error).message)
-      setBusy(false)
-    }
+    await run()
   }
 
   return (
@@ -308,7 +325,8 @@ function CancelMovementModal({
         <div className="border-b border-line px-6 py-5">
           <h2 id="cm-title" className="text-title">Cancelar movimiento</h2>
           <p className="mt-1 text-ink-muted">
-            {MOVEMENT_LABELS[movement.type]} de <span className="text-ink">{movement.product_name}</span> ·{' '}
+            {MOVEMENT_LABELS[movement.type]} en {LOCATION_LABELS[movement.location ?? 'store'].toLowerCase()} de{' '}
+            <span className="text-ink">{movement.product_name}</span> ·{' '}
             <span className="tabular-nums">
               {movement.delta > 0 ? '+' : ''}
               {formatInt(movement.delta)}
@@ -350,6 +368,20 @@ function CancelMovementModal({
           </button>
         </div>
       </form>
+      {picking && (
+        <LotPicker
+          productId={movement.product_id}
+          productName={movement.product_name}
+          location={movement.location ?? 'store'}
+          remove={movement.delta}
+          purpose="Cancelación"
+          onCancel={() => setPicking(false)}
+          onConfirm={(picks) => {
+            setPicking(false)
+            void run(picks)
+          }}
+        />
+      )}
     </div>
   )
 }

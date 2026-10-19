@@ -1,0 +1,513 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Icon } from '../components/Icon'
+import { LocationSelect } from '../components/LocationSelect'
+import { ProductImage } from '../components/ProductImage'
+import { SupplierSelect } from '../components/SupplierSelect'
+import { ProductPicker } from '../components/pos/ProductPicker'
+import { formatDateTime, formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
+import { getProduct } from '../lib/products'
+import { cancelPurchase, getPurchaseItems, listPurchases, registerPurchase, updatePurchase } from '../lib/purchases'
+import { sounds } from '../lib/sounds'
+import { isNetworkError } from '../lib/supabase'
+import { LOCATION_LABELS, type PurchaseItemRow, type PurchaseRow, type StockLocation } from '../lib/types'
+import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { useInventory } from '../store/useInventory'
+
+/*
+ * Compras (solo admin): registrar la mercancía que llega de un proveedor.
+ * Cada renglón crea un lote con su costo en la ubicación donde llega
+ * (Tienda por defecto). Una compra se corrige (proveedor, costos) o se
+ * cancela solo mientras ninguna de sus piezas se haya vendido, movido o
+ * ajustado; folio y notas se pueden cambiar siempre.
+ */
+
+interface Line {
+  key: string
+  productId: string
+  barcode: string
+  name: string
+  imagePath: string | null
+  qtyText: string
+  costText: string
+}
+
+const errText = (e: unknown) => (isNetworkError(e) ? 'Sin conexión: intenta cuando vuelva el internet.' : (e as Error).message)
+
+export function PurchasesPage() {
+  const { products, online } = useInventory()
+  const [supplierId, setSupplierId] = useState<string | null>(null)
+  const [location, setLocation] = useState<StockLocation>('store')
+  const [folio, setFolio] = useState('')
+  const [note, setNote] = useState('')
+  const [lines, setLines] = useState<Line[]>([])
+  // Un id por compra capturada: si se reintenta el registro, no se duplica.
+  const [purchaseId, setPurchaseId] = useState(() => crypto.randomUUID())
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+  const [history, setHistory] = useState<PurchaseRow[] | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const pickerRef = useRef<HTMLInputElement>(null)
+
+  const loadHistory = useCallback(() => {
+    listPurchases()
+      .then((h) => {
+        setHistory(h)
+        setHistoryError(null)
+      })
+      .catch((e) => setHistoryError(errText(e)))
+  }, [])
+
+  useEffect(() => {
+    if (online) void inventoryStore.refreshProducts()
+    loadHistory()
+    // Solo al entrar a la página.
+  }, [])
+
+  const rows = useMemo(
+    () =>
+      lines.map((l) => {
+        const qty = parseCount(l.qtyText, 1)
+        const cost = parseMoney(l.costText)
+        const costOk = cost !== null && !Number.isNaN(cost)
+        return { ...l, qty, cost: costOk ? cost : NaN, invalid: Number.isNaN(qty) || !costOk }
+      }),
+    [lines],
+  )
+  const total = rows.reduce((s, r) => s + (r.invalid ? 0 : r.qty * r.cost), 0)
+  const pieces = rows.reduce((s, r) => s + (Number.isNaN(r.qty) ? 0 : r.qty), 0)
+  const canSave = online && !busy && supplierId !== null && rows.length > 0 && rows.every((r) => !r.invalid)
+
+  function add(p: CachedProduct) {
+    setDone(null)
+    setError(null)
+    if (p.pending || p.id.startsWith('pending:')) {
+      sounds.error()
+      setError(`${p.name} aún no se sincroniza. Espera a tener conexión.`)
+      return
+    }
+    sounds.success()
+    const key = crypto.randomUUID()
+    setLines((ls) => [...ls, { key, productId: p.id, barcode: p.barcode, name: p.name, imagePath: p.image_url, qtyText: '1', costText: '' }])
+    // El costo se precarga con el último del producto.
+    getProduct(p.id)
+      .then((full) => {
+        if (full?.cost == null) return
+        setLines((ls) => ls.map((l) => (l.key === key && l.costText === '' ? { ...l, costText: String(full.cost) } : l)))
+      })
+      .catch(() => undefined)
+    setTimeout(() => pickerRef.current?.focus(), 0)
+  }
+
+  const patch = (key: string, p: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)))
+
+  async function save() {
+    if (!canSave || !supplierId) return
+    setBusy(true)
+    setError(null)
+    try {
+      await registerPurchase({
+        id: purchaseId,
+        supplierId,
+        location,
+        folio,
+        note,
+        items: rows.map((r) => ({ productId: r.productId, quantity: r.qty, unitCost: r.cost })),
+      })
+      sounds.success()
+      setDone(`Compra registrada: ${formatInt(pieces)} pzas por ${formatMoney(total)}, en ${LOCATION_LABELS[location].toLowerCase()}.`)
+      setLines([])
+      setFolio('')
+      setNote('')
+      setLocation('store')
+      setPurchaseId(crypto.randomUUID())
+      void inventoryStore.refreshProducts()
+      loadHistory()
+    } catch (e) {
+      sounds.error()
+      setError(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 p-4 md:p-6">
+      <h1 className="text-title">Compras</h1>
+
+      {!online && (
+        <p className="notice bg-warning-bg text-warning-fg">
+          <Icon name="wifi-off" className="mt-0.5" />
+          Sin conexión: registrar compras necesita internet.
+        </p>
+      )}
+      {done && (
+        <p className="notice bg-success-bg text-success-fg" role="status">
+          <Icon name="check" className="mt-0.5" />
+          {done}
+        </p>
+      )}
+
+      <section className="card flex flex-col gap-4 p-5">
+        <h2 className="text-heading">Nueva compra</h2>
+        <div className="grid gap-4 md:grid-cols-[1fr_12rem]">
+          <div>
+            <label className="field-label" htmlFor="pu-supplier">Proveedor *</label>
+            <SupplierSelect id="pu-supplier" value={supplierId} onChange={(id) => setSupplierId(id)} disabled={!online} />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="pu-folio">Folio / factura</label>
+            <input id="pu-folio" value={folio} onChange={(e) => setFolio(e.target.value)} autoComplete="off" className="field h-10" />
+          </div>
+          <div>
+            <span className="field-label">Llega a</span>
+            <LocationSelect value={location} onChange={setLocation} label="Llega a" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="field-label" htmlFor="pu-note">Notas</label>
+            <input id="pu-note" value={note} onChange={(e) => setNote(e.target.value)} autoComplete="off" className="field h-10" />
+          </div>
+        </div>
+
+        <ProductPicker
+          id="pu-product"
+          label="Agregar producto: escanea el código o busca por nombre"
+          inputRef={pickerRef}
+          products={products}
+          available={() => 1}
+          onPick={add}
+          disabled={!online}
+          showPrice={false}
+          availableText={(p) => `Tienda ${formatInt(p.quantity)} · Bodega ${formatInt(p.warehouse_quantity ?? 0)}`}
+        />
+        <p className="-mt-2 text-caption text-ink-subtle">
+          ¿El producto no existe todavía? Dalo de alta en{' '}
+          <Link to="/agregar" className="underline">
+            Agregar
+          </Link>{' '}
+          con cantidad inicial 0 y luego regístralo aquí.
+        </p>
+
+        {rows.length > 0 && (
+          <div className="overflow-x-auto rounded-md border border-line">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+                  <th className="h-control-md px-3 font-medium">Producto</th>
+                  <th className="h-control-md px-3 text-right font-medium">Cantidad</th>
+                  <th className="h-control-md px-3 text-right font-medium">Costo unitario</th>
+                  <th className="h-control-md px-3 text-right font-medium">Importe</th>
+                  <th className="h-control-md w-12 px-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.key} className="border-t border-line">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-3">
+                        <ProductImage path={r.imagePath} alt="" className="size-10 shrink-0 rounded-xs" />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{r.name}</p>
+                          <p className="truncate font-mono text-caption text-ink-subtle">{r.barcode}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        value={r.qtyText}
+                        onChange={(e) => patch(r.key, { qtyText: e.target.value })}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        aria-label={`Cantidad de ${r.name}`}
+                        aria-invalid={Number.isNaN(r.qty)}
+                        className={`field h-9 w-20 text-right tabular-nums ${Number.isNaN(r.qty) ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        value={r.costText}
+                        onChange={(e) => patch(r.key, { costText: e.target.value })}
+                        inputMode="decimal"
+                        autoComplete="off"
+                        placeholder="0.00"
+                        aria-label={`Costo unitario de ${r.name}`}
+                        aria-invalid={Number.isNaN(r.cost)}
+                        className={`field h-9 w-28 text-right tabular-nums ${Number.isNaN(r.cost) && r.costText.trim() !== '' ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.invalid ? '—' : formatMoney(r.qty * r.cost)}</td>
+                    <td className="px-2 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setLines((ls) => ls.filter((l) => l.key !== r.key))}
+                        aria-label={`Quitar ${r.name}`}
+                        className="grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink"
+                      >
+                        <Icon name="x" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-line bg-subtle">
+                  <td className="px-3 py-2 font-medium">Total</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatInt(pieces)} pzas</td>
+                  <td />
+                  <td className="px-3 py-2 text-right text-heading tabular-nums">{formatMoney(total)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {error && (
+          <p className="notice bg-danger-bg text-danger-fg">
+            <Icon name="alert" className="mt-0.5" />
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {supplierId === null && rows.length > 0 && <span className="text-caption text-ink-muted">Elige el proveedor.</span>}
+          <button type="button" onClick={() => void save()} disabled={!canSave} className="btn btn-primary btn-lg">
+            <Icon name="check" size={20} />
+            {busy ? 'Registrando…' : `Registrar compra${rows.length ? ` · ${formatMoney(total)}` : ''}`}
+          </button>
+        </div>
+      </section>
+
+      <section className="card overflow-hidden">
+        <h2 className="border-b border-line px-5 py-4 text-heading">Compras registradas</h2>
+        {historyError && <p className="px-5 py-4 text-danger-fg">{historyError}</p>}
+        {history && history.length === 0 && <p className="px-5 py-8 text-center text-ink-subtle">Aún no hay compras.</p>}
+        {history && history.length > 0 && (
+          <ul className="divide-y divide-line">
+            {history.map((p) => (
+              <PurchaseItem
+                key={p.id}
+                purchase={p}
+                onChanged={() => {
+                  loadHistory()
+                  void inventoryStore.refreshProducts()
+                }}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function PurchaseItem({ purchase: p, onChanged }: { purchase: PurchaseRow; onChanged: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<PurchaseItemRow[] | null>(null)
+  const [mode, setMode] = useState<'view' | 'edit' | 'cancel'>('view')
+  const [supplierId, setSupplierId] = useState<string | null>(p.supplier_id)
+  const [folio, setFolio] = useState(p.folio ?? '')
+  const [note, setNote] = useState(p.note ?? '')
+  const [costs, setCosts] = useState<Record<string, string>>({})
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const cancelled = p.status === 'cancelled'
+
+  function toggle() {
+    setOpen((o) => !o)
+    if (items) return
+    getPurchaseItems(p.id)
+      .then((list) => {
+        setItems(list)
+        setCosts(Object.fromEntries(list.map((i) => [i.id, String(i.unit_cost)])))
+      })
+      .catch((e) => setError(errText(e)))
+  }
+
+  async function saveEdit() {
+    if (!supplierId || !items) return
+    const changed: { itemId: string; unitCost: number }[] = []
+    for (const i of items) {
+      const c = parseMoney(costs[i.id] ?? '')
+      if (c === null || Number.isNaN(c)) return setError(`Costo inválido en ${i.product_name}.`)
+      if (c !== i.unit_cost) changed.push({ itemId: i.id, unitCost: c })
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await updatePurchase(p.id, { supplierId, folio, note, costs: changed })
+      setMode('view')
+      setItems(null)
+      setOpen(false)
+      onChanged()
+    } catch (e) {
+      setError(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function doCancel() {
+    if (!reason.trim()) return setError('El motivo es obligatorio.')
+    setBusy(true)
+    setError(null)
+    try {
+      await cancelPurchase(p.id, reason)
+      setMode('view')
+      onChanged()
+    } catch (e) {
+      setError(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <li className={cancelled ? 'opacity-70' : ''}>
+      <button type="button" onClick={toggle} aria-expanded={open} className="flex w-full cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-left hover:bg-subtle">
+        <span className="font-medium">{p.supplier_name}</span>
+        {p.folio && <span className="font-mono text-caption text-ink-muted">{p.folio}</span>}
+        <span className="text-ink-muted">→ {LOCATION_LABELS[p.location]}</span>
+        <span className="text-ink-muted tabular-nums">{formatInt(p.piece_count)} pzas</span>
+        <span className="text-heading tabular-nums">{formatMoney(p.total)}</span>
+        {cancelled && <span className="badge badge-danger">Cancelada</span>}
+        <span className="ml-auto text-caption text-ink-subtle">
+          {formatDateTime(p.created_at)} · {p.created_by_name ?? '—'}
+        </span>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} className="text-ink-subtle" />
+      </button>
+
+      {open && (
+        <div className="space-y-3 bg-subtle px-5 py-4">
+          {cancelled && (
+            <p className="text-caption text-danger-fg">
+              Cancelada el {p.cancelled_at ? formatDateTime(p.cancelled_at) : '—'} por {p.cancelled_by_name ?? '—'}. Motivo: {p.cancel_reason}
+            </p>
+          )}
+          {p.note && mode !== 'edit' && <p className="text-ink-muted">Notas: {p.note}</p>}
+
+          {mode === 'edit' && (
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <label className="field-label" htmlFor={`pe-sup-${p.id}`}>Proveedor</label>
+                <SupplierSelect id={`pe-sup-${p.id}`} value={supplierId} onChange={(id) => setSupplierId(id)} disabled={!p.is_intact} />
+              </div>
+              <div>
+                <label className="field-label" htmlFor={`pe-folio-${p.id}`}>Folio</label>
+                <input id={`pe-folio-${p.id}`} value={folio} onChange={(e) => setFolio(e.target.value)} className="field h-10" />
+              </div>
+              <div>
+                <label className="field-label" htmlFor={`pe-note-${p.id}`}>Notas</label>
+                <input id={`pe-note-${p.id}`} value={note} onChange={(e) => setNote(e.target.value)} className="field h-10" />
+              </div>
+            </div>
+          )}
+
+          {!items && !error && <p className="text-ink-subtle">Cargando…</p>}
+          {items && (
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="text-caption text-ink-muted">
+                  <th className="py-1 font-medium">Producto</th>
+                  <th className="py-1 text-right font-medium">Cantidad</th>
+                  <th className="py-1 text-right font-medium">Costo</th>
+                  <th className="py-1 text-right font-medium">Importe</th>
+                  <th className="py-1 text-right font-medium">Lote</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((i) => (
+                  <tr key={i.id} className="border-t border-line">
+                    <td className="py-1.5">
+                      {i.product_name} <span className="font-mono text-caption text-ink-subtle">{i.barcode}</span>
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">{formatInt(i.quantity)}</td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {mode === 'edit' && p.is_intact ? (
+                        <input
+                          value={costs[i.id] ?? ''}
+                          onChange={(e) => setCosts((c) => ({ ...c, [i.id]: e.target.value }))}
+                          inputMode="decimal"
+                          aria-label={`Costo de ${i.product_name}`}
+                          className="field h-8 w-24 text-right tabular-nums"
+                        />
+                      ) : (
+                        formatMoney(i.unit_cost)
+                      )}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">{formatMoney(i.line_total)}</td>
+                    <td className="py-1.5 text-right text-ink-muted tabular-nums">{i.lot_number ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {!cancelled && !p.is_intact && (
+            <p className="text-caption text-ink-muted">
+              Ya se vendieron, movieron o ajustaron piezas de esta compra: solo se pueden cambiar folio y notas. Para corregir
+              cantidades, haz un ajuste desde el producto.
+            </p>
+          )}
+
+          {mode === 'cancel' && (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-64 flex-1">
+                <label className="field-label" htmlFor={`pc-reason-${p.id}`}>Motivo de la cancelación *</label>
+                <input
+                  id={`pc-reason-${p.id}`}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Ej. Se capturó dos veces / el proveedor no la entregó"
+                  autoFocus
+                  className="field h-10"
+                />
+              </div>
+              <button type="button" onClick={() => setMode('view')} className="btn btn-ghost">
+                Volver
+              </button>
+              <button type="button" onClick={() => void doCancel()} disabled={busy} className="btn btn-danger">
+                {busy ? 'Cancelando…' : `Cancelar compra (regresa ${formatInt(p.piece_count)} pzas)`}
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <p className="notice bg-danger-bg text-danger-fg">
+              <Icon name="alert" className="mt-0.5" />
+              {error}
+            </p>
+          )}
+
+          {!cancelled && items && (
+            <div className="flex flex-wrap justify-end gap-2">
+              {mode === 'edit' ? (
+                <>
+                  <button type="button" onClick={() => setMode('view')} className="btn btn-ghost">
+                    Descartar
+                  </button>
+                  <button type="button" onClick={() => void saveEdit()} disabled={busy} className="btn btn-primary">
+                    {busy ? 'Guardando…' : 'Guardar corrección'}
+                  </button>
+                </>
+              ) : mode === 'view' ? (
+                <>
+                  <button type="button" onClick={() => setMode('edit')} className="btn btn-secondary">
+                    <Icon name="pencil" />
+                    Corregir
+                  </button>
+                  {p.is_intact && (
+                    <button type="button" onClick={() => setMode('cancel')} className="btn btn-danger">
+                      Cancelar compra
+                    </button>
+                  )}
+                </>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
