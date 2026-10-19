@@ -399,6 +399,32 @@ begin
 end $$;
 
 -- =====================================================================
+-- 13. El costo del producto solo lo lee un admin
+-- =====================================================================
+:mostrador
+do $$
+declare r jsonb;
+begin
+  perform tests.expect_error($q$select cost from public.products limit 1$q$, 'permission denied');
+  perform tests.expect_error($q$select * from public.products limit 1$q$, 'permission denied');
+  perform tests.assert_eq((select quantity from public.products where barcode = '750A'), 1, '13. mostrador lee existencias');
+  perform tests.assert_eq((select count(*)::int from public.product_costs), 0, '13. mostrador no ve product_costs');
+  r := public.pay_ticket(gen_random_uuid(), null, 'cash', '[{"barcode":"750A","quantity":1,"unit_price":120}]'::jsonb);
+  perform tests.assert_eq(r -> 'products' -> 0 ? 'cost', false, '13. la venta no devuelve el costo');
+  perform tests.assert_eq(r -> 'products' -> 0 ? 'price', true, '13. la venta sí devuelve el producto');
+end $$;
+:admin
+do $$
+declare r jsonb;
+begin
+  perform tests.assert_eq((select c.cost from public.product_costs c join public.products p on p.id = c.product_id where p.barcode = '750A'),
+    60.00::numeric, '13. admin lee el costo');
+  r := public.unlink_product((select id from public.products where barcode = '750B'), 'Prueba');
+  perform tests.assert_eq(r ->> 'status', 'ok', '13. unlink_product sigue funcionando');
+  perform tests.assert_eq(r -> 'product' ? 'cost', true, '13. al admin sí le llega el costo');
+end $$;
+
+-- =====================================================================
 -- 11. Al final todo cuadra
 -- =====================================================================
 :postgres

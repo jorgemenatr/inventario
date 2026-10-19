@@ -35,18 +35,23 @@ function stamp() {
 export type StockScope = StockLocation | 'total'
 
 export async function buildInventoryRows(scope: StockScope = 'total'): Promise<Row[]> {
-  const products = await fetchAll<Product>(
-    'products',
-    'barcode, name, category, supplier, cost, price, quantity, warehouse_quantity, image_url, description, catalog_product_id, created_at',
-    'created_at',
-  )
+  const [products, costs] = await Promise.all([
+    fetchAll<Product>(
+      'products',
+      'id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, description, catalog_product_id, created_at',
+      'created_at',
+    ),
+    // Solo un admin recibe costos (vista product_costs).
+    fetchAll<{ product_id: string; cost: number | null }>('product_costs', 'product_id, cost', 'product_id'),
+  ])
+  const costOf = new Map(costs.map((c) => [c.product_id, c.cost]))
   const urls = await getSignedUrlsForExport(products.map((p) => p.image_url ?? ''))
   return products.map((p) => ({
     'Código': p.barcode,
     'Nombre': p.name,
     'Categoría': p.category,
     'Proveedor': p.supplier,
-    'Costo': p.cost == null ? null : Number(p.cost),
+    'Costo': costOf.get(p.id) == null ? null : Number(costOf.get(p.id)),
     'Precio': Number(p.price),
     ...(scope === 'total'
       ? { 'Tienda': p.quantity, 'Bodega': p.warehouse_quantity, 'Total': p.quantity + p.warehouse_quantity }

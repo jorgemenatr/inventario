@@ -50,6 +50,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261015000300_puntos_liga.sql` | Puntos de liga (`customer_league_points`, `grant_league_points`, vistas de total e historial) |
 | `20261015000400_correcciones_inventario.sql` | Correcciones con motivo: `unlink_product` (desvincular código/catálogo), `cancel_movement`, `adjust_stock`; el historial muestra lo cancelado |
 | `20261019000100_lotes_ubicaciones.sql` | **Lotes y dos ubicaciones** (tienda y bodega): `suppliers`, `lots`, `lot_stock`, `movement_lots`, compras (`register/update/cancel_purchase`), movimiento de bodega (`create_transfer`), escaneo/alta/ajuste por ubicación y lote, `pay_ticket` por FIFO y solo con stock en tienda. Migra el stock existente a un lote inicial en tienda por producto |
+| `20261019000200_costo_solo_admin.sql` | El costo del producto (`products.cost`) solo lo lee un admin (vista `product_costs`); al mostrador no le llega ni en las respuestas de las funciones |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -357,8 +358,10 @@ proveedores y a distintos costos, en cualquiera de las dos ubicaciones.
   solo mientras ninguna pieza se haya vendido, movido o ajustado; folio y notas siempre.
 - **Bajar existencias a mano** (ajuste, merma, "fijar total" hacia abajo): se elige de qué
   lote salen las piezas (si hay uno solo, se toma ese). Necesita conexión.
-- **Quién ve qué:** lotes, costos, proveedores, compras y traspasos solo los lee un admin
-  (RLS). El mostrador ve las cantidades por ubicación.
+- **Quién ve qué:** lotes, costos (también el del producto), proveedores, compras y
+  traspasos solo los lee un admin. El mostrador ve las cantidades por ubicación. Si se
+  agrega una columna a `products`, hay que darle `SELECT` a `authenticated` (ver
+  `20261019000200_costo_solo_admin.sql`).
 - `products.quantity` (tienda) y `products.warehouse_quantity` (bodega) se calculan solas
   desde los lotes; nadie las escribe directo. La vista `stock_mismatches` debe estar
   siempre vacía (control de integridad), y `sale_item_profit` da la utilidad real por
