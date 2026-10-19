@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import { getSignedUrlsForExport } from './images'
-import { MOVEMENT_LABELS, type MovementHistoryRow, type Product } from './types'
+import { LOCATION_LABELS, MOVEMENT_LABELS, type MovementHistoryRow, type Product, type StockLocation } from './types'
 
 type Row = Record<string, string | number | null>
 
@@ -31,10 +31,13 @@ function stamp() {
   return localDateTime(new Date().toISOString()).replace(/[: ]/g, '-').slice(0, 16)
 }
 
-export async function buildInventoryRows(): Promise<Row[]> {
+/** Qué existencias se exportan: las de una ubicación o tienda + bodega + total. */
+export type StockScope = StockLocation | 'total'
+
+export async function buildInventoryRows(scope: StockScope = 'total'): Promise<Row[]> {
   const products = await fetchAll<Product>(
     'products',
-    'barcode, name, category, supplier, cost, price, quantity, image_url, description, catalog_product_id, created_at',
+    'barcode, name, category, supplier, cost, price, quantity, warehouse_quantity, image_url, description, catalog_product_id, created_at',
     'created_at',
   )
   const urls = await getSignedUrlsForExport(products.map((p) => p.image_url ?? ''))
@@ -45,7 +48,9 @@ export async function buildInventoryRows(): Promise<Row[]> {
     'Proveedor': p.supplier,
     'Costo': p.cost == null ? null : Number(p.cost),
     'Precio': Number(p.price),
-    'Cantidad': p.quantity,
+    ...(scope === 'total'
+      ? { 'Tienda': p.quantity, 'Bodega': p.warehouse_quantity, 'Total': p.quantity + p.warehouse_quantity }
+      : { [`Cantidad (${LOCATION_LABELS[scope].toLowerCase()})`]: scope === 'store' ? p.quantity : p.warehouse_quantity }),
     'URL de imagen': p.image_url ? (urls.get(p.image_url) ?? '') : '',
     'Descripción': p.description,
     'ID TCGplayer': p.catalog_product_id,
@@ -60,6 +65,7 @@ export async function buildMovementRows(): Promise<Row[]> {
     'Código': m.barcode,
     'Producto': m.product_name,
     'Tipo': MOVEMENT_LABELS[m.type] ?? m.type,
+    'Ubicación': LOCATION_LABELS[m.location ?? 'store'],
     'Cambio': m.delta,
     'Cantidad resultante': m.quantity_after,
     'Nota': m.note,

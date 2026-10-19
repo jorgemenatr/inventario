@@ -7,6 +7,8 @@ import { CustomersPage } from './pages/CustomersPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { InventoryPage } from './pages/InventoryPage'
 import { MostradorPage } from './pages/MostradorPage'
+import { PurchasesPage } from './pages/PurchasesPage'
+import { TransfersPage } from './pages/TransfersPage'
 import { VentasPage } from './pages/VentasPage'
 import { LabelPage } from './pages/LabelPage'
 import { LoginPage } from './pages/LoginPage'
@@ -45,6 +47,22 @@ export function App() {
               }
             />
             <Route path="inventario" element={<InventoryPage />} />
+            <Route
+              path="compras"
+              element={
+                <ProtectedRoute roles={['admin']}>
+                  <PurchasesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="movimiento-bodega"
+              element={
+                <ProtectedRoute roles={['admin']}>
+                  <TransfersPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="mostrador" element={<MostradorPage />} />
             <Route path="ventas" element={<VentasPage />} />
             <Route path="clientes" element={<CustomersPage />} />

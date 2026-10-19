@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { Icon } from '../components/Icon'
 import { ProductEditModal } from '../components/ProductEditModal'
 import { ProductImage } from '../components/ProductImage'
+import { Segmented } from '../components/Segmented'
 import { CATEGORY_VALUES, MAIN_CATEGORIES, TCG, TCG_GAMES, mainCategory, matchesCategory, tcgCategory } from '../lib/categories'
+import { buildInventoryRows, exportCsv, exportXlsx, type StockScope } from '../lib/export'
 import { formatInt, formatMoney } from '../lib/format'
 import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
@@ -12,11 +15,26 @@ import { useInventory } from '../store/useInventory'
  * Inventario: consulta de productos en cuadrícula (fotos) o lista (tabla).
  * Lee la copia local del catálogo de productos (la misma que usa Escaneo),
  * así que también funciona sin conexión.
+ *
+ * Tienda | Bodega | Total escoge qué existencias se muestran, suman y
+ * exportan. "Sin stock" y "stock bajo" se calculan SIEMPRE con la tienda
+ * (es lo que se puede vender), sin importar el filtro.
  */
 
 type View = 'grid' | 'list'
 type SortKey = 'name' | 'barcode' | 'category' | 'quantity' | 'price'
-type StockFilter = 'all' | 'in' | 'out'
+type StockFilter = 'all' | 'in' | 'out' | 'alert'
+
+/** Stock bajo en tienda: 2 piezas o menos. */
+const LOW_STOCK = 2
+
+type StoreStatus = 'out' | 'low' | 'ok'
+const storeStatus = (p: CachedProduct): StoreStatus => (p.quantity <= 0 ? 'out' : p.quantity <= LOW_STOCK ? 'low' : 'ok')
+
+const scopeQty = (p: CachedProduct, scope: StockScope) =>
+  scope === 'store' ? p.quantity : scope === 'warehouse' ? (p.warehouse_quantity ?? 0) : p.quantity + (p.warehouse_quantity ?? 0)
+
+const SCOPE_LABELS: Record<StockScope, string> = { store: 'en tienda', warehouse: 'en bodega', total: 'en total' }
 
 const VIEW_KEY = 'hachiko.inventario.vista'
 const PAGE = 60
@@ -41,6 +59,9 @@ export function InventoryPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [stock, setStock] = useState<StockFilter>('all')
+  const [scope, setScope] = useState<StockScope>('total')
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 })
   const [limit, setLimit] = useState(PAGE)
 
@@ -89,8 +110,9 @@ export function InventoryPage() {
     const words = normalize(search.trim()).split(/\s+/).filter(Boolean)
     const list = all.filter((p) => {
       if (!matchesCategory(p.category, category)) return false
-      if (stock === 'in' && p.quantity <= 0) return false
-      if (stock === 'out' && p.quantity > 0) return false
+      if (stock === 'in' && scopeQty(p, scope) <= 0) return false
+      if (stock === 'out' && scopeQty(p, scope) > 0) return false
+      if (stock === 'alert' && storeStatus(p) === 'ok') return false
       if (!words.length) return true
       const text = normalize(`${p.name} ${p.barcode} ${p.category ?? ''} ${p.supplier ?? ''}`)
       return words.every((w) => text.includes(w))
@@ -98,27 +120,51 @@ export function InventoryPage() {
     const { key, dir } = sort
     return list.sort((a, b) => {
       const r =
-        key === 'quantity' || key === 'price'
-          ? a[key] - b[key]
-          : collator.compare(a[key] ?? '', b[key] ?? '')
+        key === 'quantity'
+          ? scopeQty(a, scope) - scopeQty(b, scope)
+          : key === 'price'
+            ? a.price - b.price
+            : collator.compare(a[key] ?? '', b[key] ?? '')
       return r * dir || collator.compare(a.name, b.name)
     })
-  }, [all, search, category, stock, sort])
+  }, [all, search, category, stock, sort, scope])
 
   // Al cambiar los filtros se vuelve a la primera página.
-  useEffect(() => setLimit(PAGE), [search, category, stock, sort, view])
+  useEffect(() => setLimit(PAGE), [search, category, stock, sort, view, scope])
 
   const visible = useMemo(() => filtered.slice(0, limit), [filtered, limit])
 
   const totals = useMemo(() => {
     let pieces = 0
     let value = 0
+    let out = 0
+    let low = 0
     for (const p of filtered) {
-      pieces += Math.max(0, p.quantity)
-      value += Math.max(0, p.quantity) * p.price
+      const q = Math.max(0, scopeQty(p, scope))
+      pieces += q
+      value += q * p.price
+      const st = storeStatus(p)
+      if (st === 'out') out++
+      else if (st === 'low') low++
     }
-    return { products: filtered.length, pieces, value }
-  }, [filtered])
+    return { products: filtered.length, pieces, value, out, low }
+  }, [filtered, scope])
+
+  async function doExport(kind: 'csv' | 'xlsx') {
+    if (exporting) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const rows = await buildInventoryRows(scope)
+      const name = `inventario-hachiko-${scope === 'store' ? 'tienda' : scope === 'warehouse' ? 'bodega' : 'total'}`
+      if (kind === 'csv') exportCsv(rows, name)
+      else await exportXlsx(rows, name, 'Inventario')
+    } catch (e) {
+      setExportError(online ? (e as Error).message : 'Se necesita conexión para exportar.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === 'quantity' || key === 'price' ? -1 : 1 }))
@@ -130,6 +176,32 @@ export function InventoryPage() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-title">Inventario</h1>
+        <Segmented
+          value={scope}
+          onChange={setScope}
+          label="Existencias"
+          options={[
+            { value: 'store', label: 'Tienda', icon: 'store' },
+            { value: 'warehouse', label: 'Bodega', icon: 'box' },
+            { value: 'total', label: 'Total' },
+          ]}
+        />
+        {isAdmin && (
+          <>
+            <Link to="/movimiento-bodega" className="btn btn-secondary">
+              <Icon name="swap" />
+              Movimiento de bodega
+            </Link>
+            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
+              <Icon name="download" />
+              CSV
+            </button>
+            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary">
+              <Icon name="download" />
+              {exporting ? 'Exportando…' : 'Excel'}
+            </button>
+          </>
+        )}
         <div className="flex h-control-md gap-0.5 rounded-md border border-control bg-surface p-0.5" role="group" aria-label="Vista">
           {(
             [
@@ -151,20 +223,41 @@ export function InventoryPage() {
         </div>
       </div>
 
+      {exportError && (
+        <p className="notice bg-danger-bg text-danger-fg">
+          <Icon name="alert" className="mt-0.5" />
+          No se pudo exportar: {exportError}
+        </p>
+      )}
+
       {/* Resumen */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="card p-4">
           <p className="text-label text-ink-muted">Productos</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.products)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Piezas en stock</p>
+          <p className="text-label text-ink-muted">Piezas {SCOPE_LABELS[scope]}</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
         </div>
-        <div className="card col-span-2 p-4 sm:col-span-1">
-          <p className="text-label text-ink-muted">Valor a precio de venta</p>
+        <div className="card p-4">
+          <p className="text-label text-ink-muted">Valor a precio de venta ({SCOPE_LABELS[scope]})</p>
           <p className="text-kpi tabular-nums">{formatMoney(totals.value)}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setStock((s) => (s === 'alert' ? 'all' : 'alert'))}
+          aria-pressed={stock === 'alert'}
+          className={`card cursor-pointer p-4 text-left hover:bg-subtle ${stock === 'alert' ? 'outline-2 outline-brand' : ''}`}
+        >
+          <p className="text-label text-ink-muted">Alertas de tienda</p>
+          <p className="text-kpi tabular-nums">
+            <span className={totals.out ? 'text-danger-fg' : ''}>{formatInt(totals.out)}</span>
+            <span className="text-heading text-ink-muted"> sin stock · </span>
+            <span className={totals.low ? 'text-warning-fg' : ''}>{formatInt(totals.low)}</span>
+            <span className="text-heading text-ink-muted"> bajos</span>
+          </p>
+        </button>
       </div>
 
       {/* Categorías */}
@@ -224,8 +317,9 @@ export function InventoryPage() {
           className="field w-auto cursor-pointer"
         >
           <option value="all">Con y sin stock</option>
-          <option value="in">Con stock</option>
-          <option value="out">Sin stock</option>
+          <option value="in">Con stock ({SCOPE_LABELS[scope]})</option>
+          <option value="out">Sin stock ({SCOPE_LABELS[scope]})</option>
+          <option value="alert">Sin stock o bajo en tienda</option>
         </select>
         {view === 'grid' && (
           <select
@@ -267,9 +361,9 @@ export function InventoryPage() {
         </p>
       )}
 
-      {visible.length > 0 && view === 'grid' && <ProductGrid products={visible} onEdit={isAdmin ? setEditing : undefined} />}
+      {visible.length > 0 && view === 'grid' && <ProductGrid products={visible} scope={scope} onEdit={isAdmin ? setEditing : undefined} />}
       {visible.length > 0 && view === 'list' && (
-        <ProductTable products={visible} sort={sort} onSort={toggleSort} onEdit={isAdmin ? setEditing : undefined} />
+        <ProductTable products={visible} scope={scope} sort={sort} onSort={toggleSort} onEdit={isAdmin ? setEditing : undefined} />
       )}
 
       {filtered.length > visible.length && (
@@ -349,17 +443,34 @@ function EditButton({ product, onEdit }: { product: CachedProduct; onEdit?: (id:
   )
 }
 
-function StockBadge({ quantity }: { quantity: number }) {
-  if (quantity <= 0) return <span className="badge badge-danger">Sin stock</span>
-  if (quantity <= 2) return <span className="badge badge-warning">{formatInt(quantity)} pzas</span>
-  return <span className="badge badge-neutral">{formatInt(quantity)} pzas</span>
+/** Piezas del filtro elegido; el color sale SIEMPRE del stock de tienda. */
+function StockBadge({ product, scope }: { product: CachedProduct; scope: StockScope }) {
+  const st = storeStatus(product)
+  const q = scopeQty(product, scope)
+  const cls = st === 'out' ? 'badge-danger' : st === 'low' ? 'badge-warning' : 'badge-neutral'
+  if (scope === 'store' && st === 'out') return <span className="badge badge-danger">Sin stock</span>
+  return <span className={`badge ${cls}`}>{formatInt(q)} pzas</span>
+}
+
+/**
+ * Nota discreta cuando la tienda está sin stock o baja: si el filtro no es
+ * Tienda se aclara, y si hay piezas en bodega se avisa (para pedir un movimiento).
+ */
+function StoreNote({ product, scope }: { product: CachedProduct; scope: StockScope }) {
+  const st = storeStatus(product)
+  if (st === 'ok') return null
+  const parts: string[] = []
+  if (scope !== 'store') parts.push(st === 'out' ? 'Sin stock en tienda' : `Tienda: ${formatInt(product.quantity)}`)
+  if ((product.warehouse_quantity ?? 0) > 0) parts.push(`Hay ${formatInt(product.warehouse_quantity)} en bodega`)
+  if (!parts.length) return null
+  return <p className={`text-caption ${st === 'out' ? 'text-danger-fg' : 'text-warning-fg'}`}>{parts.join(' · ')}</p>
 }
 
 function PendingBadge({ product }: { product: CachedProduct }) {
   return product.pending ? <span className="badge badge-warning">Pendiente</span> : null
 }
 
-function ProductGrid({ products, onEdit }: { products: CachedProduct[]; onEdit?: (id: string) => void }) {
+function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; scope: StockScope; onEdit?: (id: string) => void }) {
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
       {products.map((p) => (
@@ -375,8 +486,9 @@ function ProductGrid({ products, onEdit }: { products: CachedProduct[]; onEdit?:
             {p.category && <p className="truncate text-caption text-ink-subtle">{p.category}</p>}
             <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
               <span className="text-heading tabular-nums">{formatMoney(p.price)}</span>
-              <StockBadge quantity={p.quantity} />
+              <StockBadge product={p} scope={scope} />
             </div>
+            <StoreNote product={p} scope={scope} />
             <PendingBadge product={p} />
           </div>
         </li>
@@ -387,11 +499,13 @@ function ProductGrid({ products, onEdit }: { products: CachedProduct[]; onEdit?:
 
 function ProductTable({
   products,
+  scope,
   sort,
   onSort,
   onEdit,
 }: {
   products: CachedProduct[]
+  scope: StockScope
   sort: { key: SortKey; dir: 1 | -1 }
   onSort: (key: SortKey) => void
   onEdit?: (id: string) => void
@@ -424,7 +538,7 @@ function ProductTable({
             {th('barcode', 'Código')}
             {th('category', 'Categoría')}
             <th className="h-control-md px-4 font-medium">Proveedor</th>
-            {th('quantity', 'Stock', true)}
+            {th('quantity', scope === 'store' ? 'Tienda' : scope === 'warehouse' ? 'Bodega' : 'Total', true)}
             {th('price', 'Precio', true)}
             {onEdit && (
               <th className="h-control-md w-12 px-2 font-medium">
@@ -448,8 +562,13 @@ function ProductTable({
               <td className="h-row px-4 font-mono text-[13px] whitespace-nowrap text-ink-muted">{p.barcode}</td>
               <td className="h-row px-4 whitespace-nowrap text-ink-muted">{p.category ?? '—'}</td>
               <td className="h-row px-4 whitespace-nowrap text-ink-muted">{p.supplier ?? '—'}</td>
-              <td className={`h-row px-4 text-right tabular-nums ${p.quantity <= 0 ? 'font-medium text-danger-fg' : ''}`}>
-                {formatInt(p.quantity)}
+              <td
+                className={`h-row px-4 text-right tabular-nums ${
+                  storeStatus(p) === 'out' ? 'font-medium text-danger-fg' : storeStatus(p) === 'low' ? 'font-medium text-warning-fg' : ''
+                }`}
+              >
+                {formatInt(scopeQty(p, scope))}
+                <StoreNote product={p} scope={scope} />
               </td>
               <td className="h-row px-4 text-right tabular-nums">{formatMoney(p.price)}</td>
               {onEdit && (
