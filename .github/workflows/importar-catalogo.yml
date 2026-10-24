@@ -2,8 +2,8 @@
 # - Corre solo cada lunes.
 # - También a mano: pestaña Actions → "Importar catálogo TCG" → Run workflow.
 # Un solo proyecto: secrets SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.
-# Varios clientes: secret SUPABASE_ACCESS_TOKEN y variable CLIENTES (importa en
-# todos). Settings → Secrets and variables → Actions. Sin ellos, no hace nada.
+# Varios clientes: secret SUPABASE_ACCESS_TOKEN (importa en todos los de
+# src/tenants.json). Settings → Secrets and variables → Actions. Sin ellos, no hace nada.
 name: Importar catálogo TCG
 
 on:
@@ -33,11 +33,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          CLIENTES: ${{ vars.CLIENTES }}
           JUEGOS: ${{ github.event.inputs.juegos }}
         run: |
           # Varios clientes: importa en cada uno (scripts/clientes.mjs).
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$CLIENTES" ]; then
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ]; then
             if [ -n "$JUEGOS" ]; then
               node scripts/clientes.mjs catalogo -- --juegos "$JUEGOS"
             else

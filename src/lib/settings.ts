@@ -8,6 +8,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { supabase } from './supabase'
+import { activeTenant } from './tenant'
 
 export interface AppSettings {
   businessName: string
@@ -18,8 +19,8 @@ export interface AppSettings {
 const KEY = 'hachiko.ajustes'
 
 const DEFAULTS: AppSettings = {
-  // Opcional por sitio: para mostrar el nombre en el login de un equipo nuevo.
-  businessName: (import.meta.env.VITE_BUSINESS_NAME as string | undefined)?.trim() ?? '',
+  // Del registro de clientes: para mostrar el nombre en el login de un equipo nuevo.
+  businessName: activeTenant?.name ?? '',
   codePrefix: 'HCH',
 }
 
