@@ -3,7 +3,6 @@ import { Navigate, useLocation, useNavigate, type Location } from 'react-router-
 import { useAuth } from '../auth/useAuth'
 import { Icon } from '../components/Icon'
 import { appTitle, useSettings } from '../lib/settings'
-import { supabaseConfigured } from '../lib/supabase'
 
 const LAST_EMAIL_KEY = 'hachiko.lastEmail'
 
@@ -71,12 +70,6 @@ export function LoginPage() {
         <h1 className="text-title-lg">{appTitle(settings)}</h1>
         <p className="mt-1 mb-6 text-ink-muted">Inicia sesión para continuar.</p>
 
-        {!supabaseConfigured && (
-          <p className="notice mb-4 bg-danger-bg text-danger-fg">
-            <Icon name="alert" className="mt-0.5" />
-            Falta configurar VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY (ver README).
-          </p>
-        )}
 
         <label htmlFor="email" className="field-label">Correo</label>
         <input

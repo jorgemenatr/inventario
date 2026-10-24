@@ -148,10 +148,24 @@ a mano con cada expansión).
 ## Varios clientes (SaaS)
 
 Cada cliente tiene **su propio proyecto de Supabase** (su base de datos, usuarios e
-imágenes) y **su propio sitio de Netlify**. Todos usan el mismo código: cada sitio de
-Netlify se publica desde la rama `main`, así que todos tienen la misma versión.
+imágenes). Todos usan **un solo sitio de Netlify** y el mismo código: la app ve el
+subdominio (`hachiko.kananpos.com`) y busca en **`src/tenants.json`** a qué proyecto
+conectarse. Cada cambio se construye una sola vez para todos.
 
-Lo que cambia entre clientes vive en su base, en la tabla `app_settings`:
+`src/tenants.json` guarda, por subdominio, el nombre, la URL del proyecto, su **anon key**
+(pública por diseño: los permisos los pone RLS; **nunca** una service_role) y el estado
+(`activo` o `suspendido`). Lo mantiene `npm run clientes`. Además:
+
+- `kananpos.com` y `www.` muestran una página de presentación; un subdominio que no está
+  en el registro muestra "Este negocio no existe"; uno `suspendido`, un aviso en lugar de
+  la app.
+- Fuera del dominio (`localhost`, `*.netlify.app`, deploy previews) se usan las variables
+  `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, como antes. En local,
+  `VITE_TENANT=hachiko` simula estar en ese cliente.
+- En Netlify, el sitio necesita el dominio comodín `*.kananpos.com` (o un alias por
+  cliente, `tienda.kananpos.com`, en **Domain management**).
+
+Lo que cambia entre clientes dentro de su base vive en la tabla `app_settings`:
 
 | Campo | Para qué |
 | --- | --- |
@@ -161,10 +175,10 @@ Lo que cambia entre clientes vive en su base, en la tabla `app_settings`:
 Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
 [Management API de Supabase](https://supabase.com/docs/reference/api/introduction):
 
-1. Crea un token personal en <https://supabase.com/dashboard/account/tokens>.
-2. Copia `.env.clientes.example` a `.env.clientes` y pon el token y los IDs de proyecto de
-   tus clientes en `CLIENTES` (separados por coma). ⚠️ El token da acceso a todos tus
-   proyectos: nunca en Netlify ni en variables `VITE_`.
+1. Crea un token personal en <https://supabase.com/dashboard/account/tokens> (acceso a
+   toda la organización).
+2. Copia `.env.clientes.example` a `.env.clientes` y pon el token. ⚠️ El token da acceso a
+   todos tus proyectos: nunca en Netlify ni en variables `VITE_`.
 
 ### Dar de alta un cliente
 
@@ -173,8 +187,8 @@ Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
 2. Corre:
 
    ```bash
-   npm run clientes -- alta --ref <ID> --negocio "Dragón Rojo" --prefijo DRG \
-     --admin-correo duena@dragonrojo.mx --admin-nombre "Ana López" \
+   npm run clientes -- alta --ref <ID> --subdominio dragon-rojo --negocio "Dragón Rojo" \
+     --prefijo DRG --admin-correo duena@dragonrojo.mx --admin-nombre "Ana López" \
      --juegos pokemon,one-piece,dragon-shield --categorias "Cafetería,Juegos de mesa"
    ```
 
@@ -182,21 +196,17 @@ Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
    prefijo, crea las categorías (los juegos como subcategorías de **TCG**, las marcas de
    accesorios en **Accesorios** y las de `--categorias` como principales), despliega la
    función `crear-usuario`, crea al primer admin (imprime su contraseña temporal), carga el
-   catálogo **solo de sus juegos** e imprime las variables para Netlify. Las categorías se
-   pueden cambiar después en **Configuración**. Se puede volver a correr si
-   algo falla a medias.
-3. En Netlify: **Add new site → Import an existing project → este repositorio**, rama
-   `main`, con las variables que imprimió el paso anterior (`VITE_SUPABASE_URL`,
-   `VITE_SUPABASE_ANON_KEY`, `VITE_BUSINESS_NAME`). Opcional: un dominio propio
-   (`dragonrojo.tuapp.com`).
-4. Agrega el ID a `CLIENTES` (en `.env.clientes` y en GitHub → **Settings → Secrets and
-   variables → Actions → Variables**).
-5. El catálogo lo mantiene el workflow semanal en todos los clientes (cada uno con sus
-   juegos). A mano: `npm run clientes -- catalogo --ref <ID>`.
+   catálogo **solo de sus juegos** y lo agrega a `src/tenants.json`. Se puede volver a
+   correr si algo falla a medias. Las categorías se cambian después en **Configuración**.
+3. Commit y push a `main`. Al publicar Netlify, el cliente ya entra en
+   `dragon-rojo.kananpos.com` (si el sitio no tiene el comodín, agrega ese alias en Netlify).
+
+Para cortar o devolver el acceso: `npm run clientes -- suspender --subdominio dragon-rojo`
+(o `reactivar`), commit y push.
 
 ### Publicar una versión nueva
 
-- **Frontend:** al hacer merge a `main`, Netlify publica todos los sitios.
+- **Frontend:** al hacer merge a `main`, Netlify publica el sitio (uno para todos).
 - **Base de datos:** `npm run clientes -- estado` muestra qué migraciones le faltan a cada
   cliente y `npm run clientes -- migrar` las aplica (cada una en su transacción; si una
   falla en un cliente, ese cliente queda en la anterior y los demás siguen). También desde
@@ -207,10 +217,11 @@ Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
 
 El registro de migraciones es el mismo que usa `supabase db push`
 (`supabase_migrations.schema_migrations`), así que ambas formas son compatibles.
-`--ref <ID>` limita cualquier comando a un solo cliente.
+`--ref <ID>` limita cualquier comando a un solo cliente; los comandos usan los clientes de
+`src/tenants.json` (o los IDs de `CLIENTES`, si la defines).
 
-Secrets en GitHub para los workflows: `SUPABASE_ACCESS_TOKEN` (secret) y `CLIENTES`
-(variable). Con ellos, el workflow del catálogo importa en todos los clientes.
+Secret en GitHub para los workflows: `SUPABASE_ACCESS_TOKEN`. Con él, el workflow del
+catálogo importa en todos los clientes del registro.
 
 ---
 
