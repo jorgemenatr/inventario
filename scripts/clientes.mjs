@@ -24,10 +24,12 @@
  *                                muestra un aviso en lugar de abrir).
  *   catalogo [-- --juegos …]     Importa el catálogo TCG en cada cliente
  *                                (pasa los argumentos a importar-catalogo.mjs).
- *   respaldo [--dir respaldos]   Respaldo de cada cliente: la base (pg_dump 17, con un
+ *   respaldo [--dir respaldos] [--sin-fotos]
+ *                                Respaldo de cada cliente: la base (pg_dump 17, con un
  *                                acceso temporal de solo lectura que da la API, sin la
- *                                contraseña) y las fotos del bucket. Lo corre cada semana
- *                                el workflow "Respaldo de clientes", que lo cifra.
+ *                                contraseña) y las fotos del bucket. Lo corre el workflow
+ *                                "Respaldo de clientes" (la base diario, las fotos los
+ *                                domingos), que lo cifra.
  *   restaurar --ref <nuevo> --dir respaldos/<ref-original> --confirmar <nuevo>
  *                                Restaura un respaldo (ya descifrado) en un proyecto NUEVO
  *                                y vacío. Necesita psql 17. Ver docs/RESPALDOS.md.
@@ -517,6 +519,7 @@ async function backupBucket(ref, bucket, dir, service) {
 
 async function cmdRespaldo(opts) {
   const root = typeof opts.dir === 'string' ? opts.dir : 'respaldos'
+  const fotos = !opts['sin-fotos']
   let failed = 0
   for (const ref of clientRefs(opts)) {
     const dir = join(root, ref)
@@ -534,8 +537,8 @@ async function cmdRespaldo(opts) {
         '--table=auth.identities',
         '--table=storage.buckets',
       ])
-      const { service } = await apiKeys(ref)
-      for (const bucket of BUCKETS) {
+      const { service } = fotos ? await apiKeys(ref) : {}
+      for (const bucket of fotos ? BUCKETS : []) {
         const n = await backupBucket(ref, bucket, join(dir, 'storage'), service)
         console.log(`  ${bucket}: ${n} archivos`)
       }

@@ -1,8 +1,8 @@
-# Respaldo de todos los clientes (los de src/tenants.json): la base completa
-# (pg_dump) y las fotos de productos, en un archivo CIFRADO.
-# - Corre solo cada domingo.
+# Respaldo de todos los clientes (los de src/tenants.json), en un archivo CIFRADO:
+# - Diario: la base completa (pg_dump: ventas, inventario, clientes, usuarios…).
+#   Se guarda 14 días.
+# - Domingos: la base y además las fotos de productos. Se guarda 35 días.
 # - También a mano: pestaña Actions → "Respaldo de clientes" → Run workflow.
-# - Se guarda como artifact de la corrida durante 35 días.
 #
 # El repositorio es público: cualquiera con cuenta de GitHub puede bajar los
 # artifacts. Por eso el respaldo SIEMPRE va cifrado con BACKUP_PASSPHRASE, y
@@ -15,8 +15,13 @@ name: Respaldo de clientes
 
 on:
   schedule:
-    - cron: '41 8 * * 0' # domingo 08:41 UTC (02:41 en CDMX)
+    - cron: '41 8 * * *' # diario 08:41 UTC (02:41 en CDMX)
   workflow_dispatch:
+    inputs:
+      fotos:
+        description: 'Incluir las fotos de productos'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -55,28 +60,44 @@ jobs:
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y -qq postgresql-client-17
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      # Fotos: los domingos (programado) o si se pide a mano.
+      - name: Elegir tipo de respaldo
+        env:
+          FOTOS_MANUAL: ${{ github.event.inputs.fotos }}
+        run: |
+          if [ "$FOTOS_MANUAL" = "true" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%u)" = "7" ]; }; then
+            echo "TIPO=completo" >> "$GITHUB_ENV"
+            echo "RETENCION=35" >> "$GITHUB_ENV"
+          else
+            echo "TIPO=base" >> "$GITHUB_ENV"
+            echo "RETENCION=14" >> "$GITHUB_ENV"
+          fi
       - name: Respaldar
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           pg_dump --version
-          node scripts/clientes.mjs respaldo --dir respaldos
+          if [ "$TIPO" = "completo" ]; then
+            node scripts/clientes.mjs respaldo --dir respaldos
+          else
+            node scripts/clientes.mjs respaldo --dir respaldos --sin-fotos
+          fi
       # Aunque un cliente falle, se sube lo que sí se respaldó (la corrida queda en rojo).
       - name: Cifrar
         if: ${{ !cancelled() && hashFiles('respaldos/**') != '' }}
         env:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
-          FILE="respaldo-$(date -u +%Y-%m-%d).tar.gz.gpg"
+          FILE="respaldo-$TIPO-$(date -u +%Y-%m-%d).tar.gz.gpg"
           tar -czf - respaldos | gpg --batch --yes --symmetric --cipher-algo AES256 \
             --passphrase-fd 3 --output "$FILE" 3<<<"$BACKUP_PASSPHRASE"
           rm -rf respaldos
           echo "FILE=$FILE" >> "$GITHUB_ENV"
-          echo "Respaldo cifrado: $FILE ($(du -h "$FILE" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+          echo "Respaldo cifrado ($TIPO, se guarda $RETENCION días): $FILE ($(du -h "$FILE" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() && env.FILE != '' }}
         with:
-          name: respaldo
+          name: respaldo-${{ env.TIPO }}
           path: ${{ env.FILE }}
-          retention-days: 35
+          retention-days: ${{ env.RETENCION }}
           if-no-files-found: error
