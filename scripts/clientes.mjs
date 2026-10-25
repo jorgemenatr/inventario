@@ -24,6 +24,13 @@
  *                                muestra un aviso en lugar de abrir).
  *   catalogo [-- --juegos …]     Importa el catálogo TCG en cada cliente
  *                                (pasa los argumentos a importar-catalogo.mjs).
+ *   respaldo [--dir respaldos]   Respaldo de cada cliente: la base (pg_dump 17, con un
+ *                                acceso temporal de solo lectura que da la API, sin la
+ *                                contraseña) y las fotos del bucket. Lo corre cada semana
+ *                                el workflow "Respaldo de clientes", que lo cifra.
+ *   restaurar --ref <nuevo> --dir respaldos/<ref-original> --confirmar <nuevo>
+ *                                Restaura un respaldo (ya descifrado) en un proyecto NUEVO
+ *                                y vacío. Necesita psql 17. Ver docs/RESPALDOS.md.
  *
  * Los clientes son los de src/tenants.json (el registro que usa la app para
  * saber a qué base conectarse por subdominio). --ref <id> limita cualquier
@@ -38,7 +45,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -458,12 +465,192 @@ function setStatus(estado) {
   }
 }
 
+// ---------- respaldo ----------
+const BUCKETS = ['product-images']
+
+/** Acceso temporal a la base (dura 5 minutos; no usa la contraseña). */
+async function dbLogin(ref, { readOnly = true } = {}) {
+  const { role, password } = await api('POST', `/projects/${ref}/cli/login-role`, { read_only: readOnly })
+  const pooler = await api('GET', `/projects/${ref}/config/database/pooler`)
+  const list = Array.isArray(pooler) ? pooler : [pooler]
+  const host = (list.find((p) => p.database_type === 'PRIMARY') ?? list[0])?.db_host
+  if (!host) throw new Error(`No encontré el pooler del proyecto ${ref}`)
+  // Puerto 5432 = modo sesión (pg_dump no funciona en modo transacción).
+  return {
+    args: ['-h', host, '-p', '5432', '-U', `${role}.${ref}`, '-d', 'postgres'],
+    env: { ...process.env, PGPASSWORD: password, PGSSLMODE: 'require' },
+  }
+}
+
+async function pgDump(ref, file, extra) {
+  const { args, env } = await dbLogin(ref)
+  const r = spawnSync('pg_dump', [...args, '--no-owner', '--file', file, ...extra], { env, stdio: ['ignore', 'inherit', 'inherit'] })
+  if (r.error) throw new Error(`No se pudo correr pg_dump (¿está instalado el cliente de Postgres 17?): ${r.error.message}`)
+  if (r.status !== 0) throw new Error(`pg_dump falló para ${ref}`)
+}
+
+async function backupBucket(ref, bucket, dir, service) {
+  const rows = await sql(
+    ref,
+    `select name from storage.objects where bucket_id = ${lit(bucket)} and name is not null order by name`,
+    true,
+  )
+  const url = `https://${ref}.supabase.co/storage/v1/object/${bucket}`
+  const headers = { apikey: service, Authorization: `Bearer ${service}` }
+  let done = 0
+  const queue = [...rows]
+  await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      for (let row = queue.shift(); row; row = queue.shift()) {
+        const path = row.name.split('/').map(encodeURIComponent).join('/')
+        const res = await fetch(`${url}/${path}`, { headers })
+        if (!res.ok) throw new Error(`No se pudo bajar ${bucket}/${row.name}: ${res.status}`)
+        const file = join(dir, bucket, ...row.name.split('/'))
+        mkdirSync(dirname(file), { recursive: true })
+        writeFileSync(file, Buffer.from(await res.arrayBuffer()))
+        done++
+      }
+    }),
+  )
+  return done
+}
+
+async function cmdRespaldo(opts) {
+  const root = typeof opts.dir === 'string' ? opts.dir : 'respaldos'
+  let failed = 0
+  for (const ref of clientRefs(opts)) {
+    const dir = join(root, ref)
+    mkdirSync(dir, { recursive: true })
+    try {
+      console.log(`\n=== ${ref}`)
+      // Tablas, funciones, permisos y datos de la app, más el registro de
+      // migraciones: se restaura completo en un proyecto nuevo.
+      await pgDump(ref, join(dir, 'app.sql'), ['--schema=public', '--schema=supabase_migrations'])
+      // Usuarios (con sus contraseñas cifradas) y los buckets: esos esquemas los
+      // crea Supabase, así que solo van los datos. Los archivos van aparte.
+      await pgDump(ref, join(dir, 'usuarios.sql'), [
+        '--data-only',
+        '--table=auth.users',
+        '--table=auth.identities',
+        '--table=storage.buckets',
+      ])
+      const { service } = await apiKeys(ref)
+      for (const bucket of BUCKETS) {
+        const n = await backupBucket(ref, bucket, join(dir, 'storage'), service)
+        console.log(`  ${bucket}: ${n} archivos`)
+      }
+      console.log('  ok')
+    } catch (e) {
+      // Un cliente con error no detiene a los demás.
+      console.error(`  ERROR → ${e.message}`)
+      failed++
+    }
+  }
+  if (failed) {
+    console.error(`\n${failed} cliente(s) sin respaldo.`)
+    process.exitCode = 1
+  }
+}
+
+// ---------- restaurar ----------
+// Sin los permisos automáticos de Supabase para tablas nuevas: el respaldo trae
+// los permisos exactos de cada tabla (y al final vuelve a poner los automáticos).
+// Sin esto, las tablas quedarían con más permisos que los originales.
+export const RESTORE_PRELUDE = ['tables', 'sequences', 'functions']
+  .map((t) => `alter default privileges for role postgres in schema public revoke all on ${t} from anon, authenticated, service_role;`)
+  .join('\n')
+
+/** El respaldo trae CREATE SCHEMA public, que ya existe en un proyecto de Supabase. */
+export const restorableAppSql = (text) => text.replace(/^CREATE SCHEMA public;$/m, '')
+
+const MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }
+
+function filesUnder(dir) {
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).flatMap((name) => {
+    const full = join(dir, name)
+    return statSync(full).isDirectory() ? filesUnder(full) : [full]
+  })
+}
+
+function psql(conn, input, label) {
+  const r = spawnSync('psql', [...conn.args, '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', '-'], {
+    env: conn.env,
+    input,
+    stdio: ['pipe', 'ignore', 'inherit'],
+    maxBuffer: 1 << 30,
+  })
+  if (r.error) throw new Error(`No se pudo correr psql (¿está instalado el cliente de Postgres 17?): ${r.error.message}`)
+  if (r.status !== 0) throw new Error(`Falló la restauración en: ${label}. Nada de lo que sigue se aplicó.`)
+}
+
+async function cmdRestaurar(opts) {
+  const ref = opts.ref
+  const dir = opts.dir
+  if (typeof ref !== 'string' || typeof dir !== 'string') {
+    throw new Error('Uso: npm run clientes -- restaurar --ref <nuevo> --dir respaldos/<ref-original> --confirmar <nuevo>')
+  }
+  if (opts.confirmar !== ref) throw new Error(`Para confirmar, repite el proyecto destino: --confirmar ${ref}`)
+  for (const f of ['app.sql', 'usuarios.sql']) {
+    if (!existsSync(join(dir, f))) throw new Error(`No encontré ${join(dir, f)} (¿descifraste y descomprimiste el respaldo?)`)
+  }
+  // Solo en un proyecto nuevo: nunca encima de una base con datos.
+  const [check] = await sql(
+    ref,
+    `select to_regclass('public.products') is null as vacio, (select count(*) from auth.users) as usuarios`,
+    true,
+  )
+  if (!check.vacio || Number(check.usuarios) > 0) {
+    throw new Error(`El proyecto ${ref} no está vacío. Solo se restaura en un proyecto nuevo.`)
+  }
+
+  console.log(`Restaurando ${dir} en ${ref}`)
+  let conn = await dbLogin(ref, { readOnly: false })
+  psql(conn, RESTORE_PRELUDE, 'permisos previos')
+  console.log('  1/3 usuarios')
+  psql(conn, readFileSync(join(dir, 'usuarios.sql')), 'usuarios.sql')
+  console.log('  2/3 base de la app')
+  conn = await dbLogin(ref, { readOnly: false })
+  psql(conn, restorableAppSql(readFileSync(join(dir, 'app.sql'), 'utf8')), 'app.sql')
+
+  console.log('  3/3 archivos')
+  const { service } = await apiKeys(ref)
+  const storageDir = join(dir, 'storage')
+  for (const bucket of BUCKETS) {
+    const base = join(storageDir, bucket)
+    const files = filesUnder(base)
+    for (const file of files) {
+      const name = file.slice(base.length + 1).split(/[\\/]/)
+      const ext = name.at(-1).split('.').pop().toLowerCase()
+      const res = await fetch(`https://${ref}.supabase.co/storage/v1/object/${bucket}/${name.map(encodeURIComponent).join('/')}`, {
+        method: 'POST',
+        headers: {
+          apikey: service,
+          Authorization: `Bearer ${service}`,
+          'Content-Type': MIME[ext] ?? 'application/octet-stream',
+          'x-upsert': 'true',
+        },
+        body: readFileSync(file),
+      })
+      if (!res.ok) throw new Error(`No se pudo subir ${bucket}/${name.join('/')}: ${res.status} ${await res.text()}`)
+    }
+    console.log(`  ${bucket}: ${files.length} archivos`)
+  }
+  console.log(`
+Listo. Revisa con: npm run clientes -- estado --ref ${ref}
+Falta: cerrar el registro público (Authentication → Sign In / Providers), desplegar
+las funciones (npm run clientes -- funciones --ref ${ref}) y apuntar el subdominio del
+cliente al proyecto nuevo en src/tenants.json.`)
+}
+
 const COMMANDS = {
   estado: cmdEstado,
   migrar: cmdMigrar,
   funciones: cmdFunciones,
   alta: cmdAlta,
   catalogo: cmdCatalogo,
+  respaldo: cmdRespaldo,
+  restaurar: cmdRestaurar,
   suspender: setStatus('suspendido'),
   reactivar: setStatus('activo'),
 }
