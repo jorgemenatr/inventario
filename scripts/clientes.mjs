@@ -9,30 +9,36 @@
  *   migrar [--prueba]            Aplica las migraciones pendientes (en orden, cada una
  *                                en su propia transacción). --prueba solo las lista.
  *   funciones                    Despliega las Edge Functions (crear-usuario).
- *   alta --ref <id> --negocio "Nombre" --prefijo ABC
+ *   alta --ref <id> --subdominio tienda --negocio "Nombre" --prefijo ABC
  *        --admin-correo a@b.mx --admin-nombre "Nombre"
  *        [--juegos pokemon,magic,dragon-shield] [--categorias "Cafetería,Juegos de mesa"]
  *                                Prepara un proyecto NUEVO: cierra el registro público,
  *                                corre las migraciones, guarda el nombre y el prefijo,
  *                                crea las categorías, despliega la función, crea el primer
- *                                admin, carga el catálogo de sus juegos e imprime las
- *                                variables para Netlify. --juegos: claves de
- *                                src/lib/catalogSources.json (los juegos van como
+ *                                admin, carga el catálogo de sus juegos y lo registra en
+ *                                src/tenants.json (tienda.<dominio_base>). --juegos: claves
+ *                                de src/lib/catalogSources.json (los juegos van como
  *                                subcategorías de "TCG"; los accesorios, en "Accesorios").
+ *   suspender --subdominio tienda / reactivar --subdominio tienda
+ *                                Cambia el estado en src/tenants.json (suspendido: la app
+ *                                muestra un aviso en lugar de abrir).
  *   catalogo [-- --juegos …]     Importa el catálogo TCG en cada cliente
  *                                (pasa los argumentos a importar-catalogo.mjs).
  *
- * --ref <id> limita cualquier comando a un solo proyecto.
+ * Los clientes son los de src/tenants.json (el registro que usa la app para
+ * saber a qué base conectarse por subdominio). --ref <id> limita cualquier
+ * comando a un solo proyecto.
  *
  * Variables de entorno (en .env.clientes o en los secrets de GitHub Actions):
  *   SUPABASE_ACCESS_TOKEN  Token personal de Supabase (Account → Access Tokens).
  *                          Da acceso a TODOS tus proyectos: nunca en el frontend.
- *   CLIENTES               IDs de proyecto (project ref) separados por coma.
+ *   CLIENTES               Opcional: IDs de proyecto separados por coma, en lugar
+ *                          de los del registro.
  */
 
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -109,16 +115,21 @@ async function apiKeys(ref) {
 }
 
 // ---------- clientes ----------
+// ---------- registro de clientes (src/tenants.json) ----------
+const TENANTS_FILE = join(ROOT, 'src', 'tenants.json')
+const readTenants = () => JSON.parse(readFileSync(TENANTS_FILE, 'utf8'))
+const writeTenants = (t) => writeFileSync(TENANTS_FILE, `${JSON.stringify(t, null, 2)}\n`)
+const refFromUrl = (url) => new URL(url).hostname.split('.')[0]
+
 function clientRefs(opts) {
   if (typeof opts.ref === 'string') return [opts.ref]
-  const refs = (process.env.CLIENTES ?? '')
+  let refs = (process.env.CLIENTES ?? '')
     .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter(Boolean)
-  if (!refs.length) {
-    throw new Error('No hay clientes: pon sus IDs de proyecto en CLIENTES (separados por coma) o usa --ref <id>.')
-  }
-  return refs
+  if (!refs.length) refs = Object.values(readTenants().clientes).map((c) => refFromUrl(c.supabase_url))
+  if (!refs.length) throw new Error('No hay clientes en src/tenants.json. Usa --ref <id>.')
+  return [...new Set(refs)]
 }
 
 async function projectInfo(ref) {
@@ -315,15 +326,24 @@ async function cmdFunciones(opts) {
 
 async function cmdAlta(opts) {
   const ref = opts.ref
+  const subdominio = typeof opts.subdominio === 'string' ? opts.subdominio.trim().toLowerCase() : ''
   const negocio = typeof opts.negocio === 'string' ? opts.negocio.trim() : ''
   const prefijo = typeof opts.prefijo === 'string' ? opts.prefijo.trim().toUpperCase() : ''
   const correo = typeof opts['admin-correo'] === 'string' ? opts['admin-correo'].trim().toLowerCase() : ''
   const nombre = typeof opts['admin-nombre'] === 'string' ? opts['admin-nombre'].trim() : ''
-  if (typeof ref !== 'string' || !negocio || !prefijo || !correo || !nombre) {
+  if (typeof ref !== 'string' || !subdominio || !negocio || !prefijo || !correo || !nombre) {
     throw new Error(
-      'Uso: npm run clientes -- alta --ref <id> --negocio "Nombre" --prefijo ABC ' +
+      'Uso: npm run clientes -- alta --ref <id> --subdominio tienda --negocio "Nombre" --prefijo ABC ' +
         '--admin-correo a@b.mx --admin-nombre "Nombre" [--juegos pokemon,magic] [--categorias "Cafetería,Comida"]',
     )
+  }
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$/.test(subdominio) || ['www', 'admin', 'api'].includes(subdominio)) {
+    throw new Error('El subdominio debe ser de letras minúsculas, números y guiones (p. ej. dragon-rojo).')
+  }
+  const tenants = readTenants()
+  const taken = tenants.clientes[subdominio]
+  if (taken && refFromUrl(taken.supabase_url) !== ref) {
+    throw new Error(`El subdominio "${subdominio}" ya es de otro cliente (${taken.nombre}).`)
   }
   if (!/^[A-Z]{2,5}$/.test(prefijo)) throw new Error('El prefijo debe ser de 2 a 5 letras (A-Z), p. ej. DRG.')
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) throw new Error('El correo del admin no parece válido.')
@@ -400,18 +420,15 @@ async function cmdAlta(opts) {
     if (r.status !== 0) console.log(`  ⚠️ No se pudo cargar el catálogo. Reintenta con: npm run clientes -- catalogo --ref ${ref}`)
   }
 
+  // La anon key es pública por diseño; la service_role nunca va al registro.
+  tenants.clientes[subdominio] = { nombre: negocio, supabase_url: url, anon_key: anon, estado: 'activo' }
+  writeTenants(tenants)
+
   console.log(`
-Listo. Falta publicar la app para este cliente:
-
-  Netlify → Add new site → Import from Git → este repositorio (rama main),
-  y en Site configuration → Environment variables:
-
-    VITE_SUPABASE_URL=${url}
-    VITE_SUPABASE_ANON_KEY=${anon}
-    VITE_BUSINESS_NAME=${negocio}
-
-  Agrega ${ref} a CLIENTES (en .env.clientes y en GitHub → Settings → Secrets
-  and variables → Actions → Variables) para que reciba las actualizaciones.
+Listo. Se registró en src/tenants.json como ${subdominio}.${tenants.dominio_base}.
+Falta publicarlo: commit y push a main (Netlify construye una sola vez para todos).
+Si el sitio no tiene el dominio comodín *.${tenants.dominio_base}, agrega
+${subdominio}.${tenants.dominio_base} en Netlify → Domain management.
 ${created ? `\nAcceso del admin (pídele que la cambie):\n  ${correo}\n  ${password}\n` : ''}`)
 }
 
@@ -430,12 +447,25 @@ async function cmdCatalogo(opts, passthrough) {
   if (failed) process.exitCode = 1
 }
 
+function setStatus(estado) {
+  return async (opts) => {
+    const sub = typeof opts.subdominio === 'string' ? opts.subdominio.trim().toLowerCase() : ''
+    const tenants = readTenants()
+    if (!tenants.clientes[sub]) throw new Error(`No hay ningún cliente "${sub}" en src/tenants.json.`)
+    tenants.clientes[sub].estado = estado
+    writeTenants(tenants)
+    console.log(`${sub}: ${estado}. Haz commit y push a main para que aplique.`)
+  }
+}
+
 const COMMANDS = {
   estado: cmdEstado,
   migrar: cmdMigrar,
   funciones: cmdFunciones,
   alta: cmdAlta,
   catalogo: cmdCatalogo,
+  suspender: setStatus('suspendido'),
+  reactivar: setStatus('activo'),
 }
 
 async function main() {

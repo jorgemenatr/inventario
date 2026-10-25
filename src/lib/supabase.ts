@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
+import { activeTenant } from './tenant'
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+// Proyecto de Supabase del cliente de este sitio (por subdominio o, fuera del
+// dominio, por variables de entorno; ver tenant.ts).
+const url = activeTenant?.supabaseUrl
+const anonKey = activeTenant?.anonKey
 
 export const supabaseConfigured = Boolean(url && anonKey)
 

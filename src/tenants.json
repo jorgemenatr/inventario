@@ -1,0 +1,12 @@
+{
+  "_comentario": "Registro de clientes. Cada subdominio de dominio_base usa su propio proyecto de Supabase. La anon key es pública por diseño (los permisos los pone RLS); NUNCA pongas aquí una service_role / secret key. Lo agrega y actualiza npm run clientes -- alta.",
+  "dominio_base": "kananpos.com",
+  "clientes": {
+    "hachiko": {
+      "nombre": "Hachiko",
+      "supabase_url": "https://crjhncoozeocnmxiuwpa.supabase.co",
+      "anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyamhuY29vemVvY25teGl1d3BhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3NjgwNDAsImV4cCI6MjEwNzM0NDA0MH0.Xapp9-Ey2oeHCMCqqlEN38BKo1tUTHC8Kg9RKCjXGss",
+      "estado": "activo"
+    }
+  }
+}
