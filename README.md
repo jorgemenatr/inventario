@@ -223,6 +223,12 @@ El registro de migraciones es el mismo que usa `supabase db push`
 Secret en GitHub para los workflows: `SUPABASE_ACCESS_TOKEN`. Con él, el workflow del
 catálogo importa en todos los clientes del registro.
 
+### Respaldos
+
+Cada domingo el workflow **Respaldo de clientes** respalda la base y las fotos de todos
+los clientes en un archivo cifrado (necesita además el secret `BACKUP_PASSPHRASE`). Cómo
+abrirlos y restaurar un cliente: [`docs/RESPALDOS.md`](docs/RESPALDOS.md).
+
 ---
 
 ## Usuarios y roles
