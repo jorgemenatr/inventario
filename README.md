@@ -225,8 +225,8 @@ catálogo importa en todos los clientes del registro.
 
 ### Respaldos
 
-Cada domingo el workflow **Respaldo de clientes** respalda la base y las fotos de todos
-los clientes en un archivo cifrado (necesita además el secret `BACKUP_PASSPHRASE`). Cómo
+El workflow **Respaldo de clientes** respalda la base de todos los clientes cada día (y
+además las fotos los domingos) en un archivo cifrado (necesita además el secret `BACKUP_PASSPHRASE`). Cómo
 abrirlos y restaurar un cliente: [`docs/RESPALDOS.md`](docs/RESPALDOS.md).
 
 ---
