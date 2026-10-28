@@ -312,6 +312,7 @@ y otros (`src/lib/catalogSources.json`).
 | `flesh-and-blood` | Flesh and Blood, sellado | 230 | — |
 | `dragon-shield` | **Todo** Dragon Shield: micas, deck boxes, playmats, carpetas, páginas, contadores | 800 | ~130 |
 | `ultra-pro-pokemon` | Ultra Pro **solo de Pokémon** (por nombre o por el tema del producto en TCGplayer): carpetas, portafolios, deck boxes, micas, playmats | 440 | ~45 |
+| `ultra-pro` | Ultra Pro **sin licencia** (nada de Magic, Pokémon, Warhammer, D&D, artistas…): colores lisos, Eclipse, Vivid, toploaders, one-touch, páginas, carpetas | 980 | ~240 |
 
 (Cifras de octubre de 2026.)
 

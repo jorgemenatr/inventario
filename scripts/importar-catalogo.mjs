@@ -37,6 +37,8 @@ const BATCH = 500
 //   grupo:      solo los sets/grupos cuyo nombre coincide
 //   producto:   solo los productos cuyo nombre coincide
 //   tema:       ...o cuyo Theme de TCGplayer coincide (p. ej. "Arceus 9-Pocket PRO-Binder")
+//   temaPermitido: solo los productos cuyo Theme coincide (Ultra Pro sin licencia)
+//   excluir:    nunca los productos cuyo nombre coincide (Magic, Warhammer, D&D…)
 const FUENTES = JSON.parse(readFileSync(new URL('../src/lib/catalogSources.json', import.meta.url), 'utf8'))
 const JUEGOS = Object.fromEntries(
   Object.entries({ ...FUENTES.juegos, ...FUENTES.accesorios }).map(([key, f]) => [
@@ -47,6 +49,8 @@ const JUEGOS = Object.fromEntries(
       grupo: f.grupo ? new RegExp(f.grupo, 'i') : undefined,
       producto: f.producto ? new RegExp(f.producto, 'i') : undefined,
       tema: f.tema ? new RegExp(f.tema, 'i') : undefined,
+      temaPermitido: f.temaPermitido ? new RegExp(f.temaPermitido, 'i') : undefined,
+      excluir: f.excluir ? new RegExp(f.excluir, 'i') : undefined,
     },
   ]),
 )
@@ -159,7 +163,7 @@ const bigImage = (url) => (url ? url.replace(/_200w\.jpg$/, '_in_1000x1000.jpg')
 let categoriesCache = null
 
 /** Importa una categoría de TCGplayer, opcionalmente filtrando grupos y productos. */
-async function importCategory(categoryId, { desde, nombre, grupo, producto, tema, source } = {}) {
+async function importCategory(categoryId, { desde, nombre, grupo, producto, tema, temaPermitido, excluir, source } = {}) {
   categoriesCache ??= await getJson(`${TCGCSV}/categories`)
   const category = categoriesCache.find((c) => c.categoryId === categoryId)
   if (!category) throw new Error(`No existe la categoría ${categoryId} en TCGplayer`)
@@ -185,7 +189,13 @@ async function importCategory(categoryId, { desde, nombre, grupo, producto, tema
     done++
     if (process.stdout.isTTY) process.stdout.write(`\r  ${game}: ${done}/${groups.length} grupos`)
     return products
-      .filter((p) => isSealed(p) && (!producto || producto.test(p.name ?? '') || tema?.test(ext(p, 'Theme') ?? '')))
+      .filter(
+        (p) =>
+          isSealed(p) &&
+          (!producto || producto.test(p.name ?? '') || tema?.test(ext(p, 'Theme') ?? '')) &&
+          (!temaPermitido || temaPermitido.test((ext(p, 'Theme') ?? '').trim())) &&
+          !excluir?.test(p.name ?? ''),
+      )
       .map((p) => ({
         id: p.productId,
         category_id: categoryId,
