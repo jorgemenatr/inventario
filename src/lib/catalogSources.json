@@ -1,5 +1,5 @@
 {
-  "_comentario": "Fuentes del catálogo de TCGplayer (vía tcgcsv.com). La clave se guarda en catalog_products.source y en product_categories.catalog_sources. categorias = categoryIds de TCGplayer (https://tcgcsv.com/tcgplayer/categories). grupo / producto = expresiones regulares (sin distinguir mayúsculas) para filtrar marcas o productos. nombre = lo que se guarda como juego.",
+  "_comentario": "Fuentes del catálogo de TCGplayer (vía tcgcsv.com). La clave se guarda en catalog_products.source y en product_categories.catalog_sources. categorias = categoryIds de TCGplayer (https://tcgcsv.com/tcgplayer/categories). grupo / producto = expresiones regulares (sin distinguir mayúsculas) para filtrar marcas o productos; tema = también entra el producto cuyo campo Theme de TCGplayer coincide; temaPermitido = solo entran los productos cuyo Theme coincide (vacío incluido si la expresión lo acepta); excluir = nunca entran los productos cuyo nombre coincide (licencias). nombre = lo que se guarda como juego.",
   "juegos": {
     "pokemon": { "label": "Pokémon", "categorias": [3] },
     "pokemon-japan": { "label": "Pokémon (Japón)", "categorias": [85] },
@@ -36,7 +36,16 @@
       "categorias": [31, 32, 33, 34, 35, 49, 50, 51, 52],
       "nombre": "Ultra Pro",
       "grupo": "ultra ?pro",
-      "producto": "pok[eé]mon|pikachu|charizard|eevee|blastoise|venusaur|gengar|pok[eé] ?ball"
+      "producto": "pok[eé]mon|pikachu|charizard|eevee|blastoise|venusaur|gengar|mewtwo|arceus|lucario|clefairy|pok[eé] ?ball",
+      "tema": "pok[eé]mon|pikachu|mewtwo"
+    },
+    "ultra-pro": {
+      "label": "Ultra Pro sin licencia (colores lisos, toploaders, one-touch, páginas…)",
+      "categorias": [31, 32, 33, 34, 35, 49, 50, 51, 52],
+      "nombre": "Ultra Pro",
+      "grupo": "ultra ?pro",
+      "temaPermitido": "^(ultra pro|other|fine art|multi-card one-touch|d20)?$",
+      "excluir": "magic|mtg|commander|planeswalker|pro tour|edgar markov|celestial (forest|island|mountain|swamp|plains)|pok[eé]mon|pikachu|charizard|eevee|blastoise|venusaur|gengar|mewtwo|arceus|lucario|clefairy|lillie|pok[eé] ?ball|dungeons ?(&|and) ?dragons|starfinder|pathfinder|bob ross|elder scrolls|bethesda|fallout|brotherhood of steel|doom|funko|zelda|transformers|hasbro|warhammer|40k|tyranid|necron|space marines|munchkin|frazetta|death dealer|dragon ball|bravest warriors|grumpy cat|shards of infinity|sriracha|rebecca guay|amy brown|ruth thompson|mauricio herrera|monte moore|sonny strait|\\bbrom\\b|ciruelo|cireulo|easley|parkinson"
     }
   }
 }
