@@ -536,7 +536,35 @@ function ProductTable({
 
   return (
     <div className="card overflow-x-auto">
-      <table className="w-full border-collapse text-left">
+      {/* Celular: un renglón compacto por producto. */}
+      <ul className="divide-y divide-line md:hidden">
+        {products.map((p) => (
+          <li key={p.barcode} className="flex items-start gap-3 px-4 py-3">
+            <ProductImage path={p.image_url} alt="" className="size-12 shrink-0 rounded-xs" />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="flex flex-wrap items-center gap-2 font-medium">
+                {p.name}
+                <PendingBadge product={p} />
+              </p>
+              <p className="font-mono text-[13px] break-all text-ink-muted">{p.barcode}</p>
+              {p.category && <p className="text-caption text-ink-muted">{p.category}</p>}
+              <div className="flex items-baseline justify-between gap-3 pt-1">
+                <span className="font-medium tabular-nums">{formatMoney(p.price)}</span>
+                <div
+                  className={`text-right tabular-nums ${
+                    storeStatus(p) === 'out' ? 'font-medium text-danger-fg' : storeStatus(p) === 'low' ? 'font-medium text-warning-fg' : 'text-ink-muted'
+                  }`}
+                >
+                  {formatInt(scopeQty(p, scope))} pzas
+                  <StoreNote product={p} scope={scope} />
+                </div>
+              </div>
+            </div>
+            {onEdit && <EditButton product={p} onEdit={onEdit} />}
+          </li>
+        ))}
+      </ul>
+      <table className="hidden w-full border-collapse text-left md:table">
         <thead>
           <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
             <th className="h-control-md w-14 px-4 font-medium">

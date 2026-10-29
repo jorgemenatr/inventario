@@ -191,8 +191,9 @@ export function TransfersPage() {
 
         {rows.length > 0 && (
           <div className="overflow-x-auto rounded-md border border-line">
-            <table className="w-full border-collapse text-left">
-              <thead>
+            {/* En el celular cada renglón se acomoda en dos líneas. */}
+            <table className="w-full border-collapse text-left max-md:block">
+              <thead className="max-md:hidden">
                 <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                   <th className="h-control-md px-3 font-medium">Producto</th>
                   <th className="h-control-md px-3 text-right font-medium">En {LOCATION_LABELS[from].toLowerCase()}</th>
@@ -200,22 +201,24 @@ export function TransfersPage() {
                   <th className="h-control-md w-12 px-2" />
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="max-md:block">
                 {rows.map((r) => (
-                  <tr key={r.barcode} className="border-t border-line">
-                    <td className="px-3 py-2">
+                  <tr key={r.barcode} className="border-t border-line max-md:grid max-md:grid-cols-[1fr_auto_auto] max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
+                    <td className="px-3 py-2 max-md:col-span-2 max-md:p-0">
                       <div className="flex items-center gap-3">
                         <ProductImage path={r.imagePath} alt="" className="size-10 shrink-0 rounded-xs" />
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{r.name}</p>
-                          <p className="truncate font-mono text-caption text-ink-subtle">{r.barcode}</p>
+                          <p className="font-medium md:truncate">{r.name}</p>
+                          <p className="font-mono text-caption break-all text-ink-subtle md:truncate">{r.barcode}</p>
                         </div>
                       </div>
                     </td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${r.short ? 'font-medium text-danger-fg' : ''}`}>
+                    <td className={`px-3 py-2 text-right tabular-nums max-md:row-start-2 max-md:self-start max-md:p-0 max-md:text-left ${r.short ? 'font-medium text-danger-fg' : ''}`}>
+                      <span className="block text-caption text-ink-muted md:hidden">En {LOCATION_LABELS[from].toLowerCase()}</span>
                       {formatInt(r.avail)}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2 text-right max-md:col-span-2 max-md:row-start-2 max-md:p-0">
+                      <span className="block text-caption text-ink-muted md:hidden">Mover</span>
                       <input
                         value={r.qtyText}
                         onChange={(e) => setQty(r.barcode, e.target.value)}
@@ -231,7 +234,7 @@ export function TransfersPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-2 max-md:col-start-3 max-md:row-start-1 max-md:justify-self-end max-md:p-0">
                       <button
                         type="button"
                         onClick={() => {

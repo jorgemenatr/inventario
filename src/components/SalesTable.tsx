@@ -5,6 +5,11 @@ import { getTicketItems, getTicketPayments } from '../lib/sales'
 import { PAYMENT_LABELS, PAYMENT_METHODS, type SaleRow, type TicketItemRow, type TicketPaymentRow } from '../lib/types'
 import { Icon } from './Icon'
 
+interface Detail {
+  items: TicketItemRow[]
+  payments: TicketPaymentRow[]
+}
+
 interface Props {
   sales: SaleRow[]
   /** Ocultar la columna de cliente (p. ej. en el detalle de un cliente). */
@@ -15,7 +20,7 @@ interface Props {
 /** Tabla de ventas cobradas; cada fila se despliega para ver los productos. */
 export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
   const [open, setOpen] = useState<string | null>(null)
-  const [items, setItems] = useState<Record<string, { items: TicketItemRow[]; payments: TicketPaymentRow[] } | 'error'>>({})
+  const [items, setItems] = useState<Record<string, Detail | 'error'>>({})
 
   function toggle(id: string) {
     setOpen((o) => (o === id ? null : id))
@@ -30,7 +35,47 @@ export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
 
   return (
     <div className="card overflow-x-auto">
-      <table className="w-full border-collapse text-left">
+      {/* Celular: una tarjeta por ticket; se despliega igual que la fila. */}
+      <ul className="divide-y divide-line md:hidden">
+        {sales.map((s) => {
+          const expanded = open === s.id
+          return (
+            <li key={s.id} className={expanded ? 'bg-subtle' : ''}>
+              <button
+                type="button"
+                onClick={() => toggle(s.id)}
+                aria-expanded={expanded}
+                className="flex w-full cursor-pointer items-start gap-3 px-4 py-3 text-left"
+              >
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="flex flex-wrap items-center gap-2 font-medium">
+                    {s.name}
+                    {s.paid_offline && <span className="badge badge-neutral">Sin conexión</span>}
+                  </p>
+                  {!hideCustomer && s.customer_name && <p className="text-ink-muted">{s.customer_name}</p>}
+                  <p className="text-caption text-ink-muted">
+                    {formatDateTime(s.paid_at)} · {formatInt(s.item_count)} art. ·{' '}
+                    {s.payment_method === 'mixed' ? 'Mixto' : PAYMENT_LABELS[s.payment_method]}
+                  </p>
+                </div>
+                <span className="shrink-0 font-medium tabular-nums">{formatMoney(s.total)}</span>
+                <Icon name={expanded ? 'chevron-up' : 'chevron-down'} className="mt-1 text-ink-subtle" />
+              </button>
+              {expanded && (
+                <div className="px-4 pb-4">
+                  {!hideCustomer && s.customer_id && (
+                    <Link to={`/clientes/${s.customer_id}`} className="mb-2 inline-block text-label text-brand-ink hover:underline">
+                      Ver cliente
+                    </Link>
+                  )}
+                  <SaleDetail sale={s} detail={items[s.id]} />
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      <table className="hidden w-full border-collapse text-left md:table">
         <thead>
           <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
             <th className="h-control-md w-8 px-3">
@@ -87,46 +132,7 @@ export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
                   <tr className="bg-subtle">
                     <td />
                     <td colSpan={cols - 1} className="px-3 pb-4">
-                      {!detail && <p className="py-2 text-ink-subtle">Cargando productos…</p>}
-                      {detail === 'error' && <p className="py-2 text-danger-fg">No se pudieron cargar los productos.</p>}
-                      {detail && detail !== 'error' && (
-                        <table className="w-full max-w-3xl border-collapse text-left">
-                          <tbody>
-                            {detail.items.map((i) => (
-                              <tr key={i.id} className="border-b border-line last:border-0">
-                                <td className="py-1.5 pr-3">
-                                  {i.product_name}
-                                  <span className="ml-2 font-mono text-caption text-ink-subtle">{i.barcode}</span>
-                                </td>
-                                <td className="py-1.5 pr-3 text-right whitespace-nowrap text-ink-muted tabular-nums">
-                                  {formatInt(i.quantity)} × {formatMoney(i.unit_price)}
-                                </td>
-                                <td className="py-1.5 text-right font-medium tabular-nums">{formatMoney(i.line_total)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                      {detail && detail !== 'error' && detail.payments.length > 0 && (
-                        <div className="mt-3 max-w-3xl">
-                          <p className="text-label text-ink-muted">{detail.payments.length > 1 ? 'Pago mixto' : 'Pago'}</p>
-                          <ul className="mt-1 flex flex-wrap gap-2">
-                            {[...detail.payments]
-                              .sort((a, b) => PAYMENT_METHODS.indexOf(a.method) - PAYMENT_METHODS.indexOf(b.method))
-                              .map((p) => (
-                                <li key={p.id} className="inline-flex items-center gap-2 rounded-pill border border-line bg-surface px-3 py-1 text-label">
-                                  {PAYMENT_LABELS[p.method]}
-                                  <span className="tabular-nums">{formatMoney(p.amount)}</span>
-                                </li>
-                              ))}
-                          </ul>
-                        </div>
-                      )}
-                      <p className="mt-2 text-caption text-ink-subtle">
-                        Cobró {s.created_by_name || s.created_by_email || '—'}
-                        {s.opened_at && ` · abierto ${formatDateTime(s.opened_at)}`}
-                      </p>
-                      {s.note && <p className="mt-1 text-caption text-warning-fg">{s.note}</p>}
+                      <SaleDetail sale={s} detail={detail} />
                     </td>
                   </tr>
                 )}
@@ -137,5 +143,53 @@ export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
       </table>
       {sales.length === 0 && <p className="px-4 py-10 text-center text-ink-subtle">{emptyText}</p>}
     </div>
+  )
+}
+
+/** Productos, pagos y quién cobró un ticket (al desplegar la fila). */
+function SaleDetail({ sale: s, detail }: { sale: SaleRow; detail: Detail | 'error' | undefined }) {
+  return (
+    <>
+      {!detail && <p className="py-2 text-ink-subtle">Cargando productos…</p>}
+      {detail === 'error' && <p className="py-2 text-danger-fg">No se pudieron cargar los productos.</p>}
+      {detail && detail !== 'error' && (
+        <table className="w-full max-w-3xl border-collapse text-left max-md:block">
+          <tbody className="max-md:block">
+            {detail.items.map((i) => (
+              <tr key={i.id} className="border-b border-line last:border-0 max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-3 max-md:py-2">
+                <td className="py-1.5 pr-3 max-md:basis-full max-md:p-0">
+                  {i.product_name}
+                  <span className="ml-2 font-mono text-caption text-ink-subtle">{i.barcode}</span>
+                </td>
+                <td className="py-1.5 pr-3 text-right whitespace-nowrap text-ink-muted tabular-nums max-md:mr-auto max-md:p-0 max-md:text-caption">
+                  {formatInt(i.quantity)} × {formatMoney(i.unit_price)}
+                </td>
+                <td className="py-1.5 text-right font-medium tabular-nums max-md:p-0">{formatMoney(i.line_total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {detail && detail !== 'error' && detail.payments.length > 0 && (
+        <div className="mt-3 max-w-3xl">
+          <p className="text-label text-ink-muted">{detail.payments.length > 1 ? 'Pago mixto' : 'Pago'}</p>
+          <ul className="mt-1 flex flex-wrap gap-2">
+            {[...detail.payments]
+              .sort((a, b) => PAYMENT_METHODS.indexOf(a.method) - PAYMENT_METHODS.indexOf(b.method))
+              .map((p) => (
+                <li key={p.id} className="inline-flex items-center gap-2 rounded-pill border border-line bg-surface px-3 py-1 text-label">
+                  {PAYMENT_LABELS[p.method]}
+                  <span className="tabular-nums">{formatMoney(p.amount)}</span>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+      <p className="mt-2 text-caption text-ink-subtle">
+        Cobró {s.created_by_name || s.created_by_email || '—'}
+        {s.opened_at && ` · abierto ${formatDateTime(s.opened_at)}`}
+      </p>
+      {s.note && <p className="mt-1 text-caption text-warning-fg">{s.note}</p>}
+    </>
   )
 }

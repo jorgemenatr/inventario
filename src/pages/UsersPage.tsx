@@ -71,7 +71,37 @@ export function UsersPage() {
 
       {users && (
         <div className="card overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          {/* Celular: una tarjeta por usuario. */}
+          <ul className="divide-y divide-line md:hidden">
+            {users.map((u) => (
+              <li key={u.id} className="flex items-start gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="font-medium">
+                    {u.full_name || '—'}
+                    {u.id === user?.id && <span className="ml-2 text-caption font-normal text-ink-subtle">(tú)</span>}
+                  </p>
+                  <p className="break-all text-ink-muted">{u.email}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-caption text-ink-muted">
+                    <span className={`badge ${u.role === 'admin' ? 'badge-info' : 'badge-neutral'}`}>{ROLE_LABELS[u.role] ?? u.role}</span>
+                    {u.created_at && <span>Alta {formatDateTime(u.created_at)}</span>}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSaved(null)
+                    setEditing(u)
+                  }}
+                  title="Editar usuario"
+                  aria-label={`Editar ${u.full_name || u.email}`}
+                  className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink"
+                >
+                  <Icon name="pencil" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full border-collapse text-left md:table">
             <thead>
               <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                 <th className="h-control-md px-4 font-medium">Nombre</th>

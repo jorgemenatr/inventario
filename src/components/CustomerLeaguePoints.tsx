@@ -63,7 +63,23 @@ export function CustomerLeaguePoints({ customer }: { customer: Customer }) {
 
       {history && (
         <div className="card overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          {/* Celular: un renglón por registro. */}
+          <ul className="divide-y divide-line md:hidden">
+            {history.map((r) => (
+              <li key={r.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p>{r.note || <span className="text-ink-subtle">Sin comentario</span>}</p>
+                  <p className="text-caption text-ink-muted">
+                    {formatDay(r.awarded_on)} · {r.created_by_name || r.created_by_email || '—'}
+                  </p>
+                </div>
+                <span className={`shrink-0 font-medium tabular-nums ${r.points > 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
+                  {formatPoints(r.points)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full border-collapse text-left md:table">
             <thead>
               <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                 <th className="h-control-md px-4 font-medium">Fecha</th>

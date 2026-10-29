@@ -125,7 +125,40 @@ export function CustomersPage() {
 
       {customers && (
         <div className="card overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          {/* Celular: una tarjeta por cliente. */}
+          <ul className="divide-y divide-line md:hidden">
+            {filtered.map((c) => (
+              <li key={c.id} className="flex items-start gap-2 px-4 py-3">
+                <Link to={`/clientes/${c.id}`} className="min-w-0 flex-1 space-y-1">
+                  <p className="font-medium">{c.name}</p>
+                  {(c.phone || c.email) && (
+                    <p className="text-caption break-all text-ink-muted">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>
+                  )}
+                  {c.games.length > 0 && <GameTags games={c.games} max={4} />}
+                  <p className="flex flex-wrap gap-x-3 text-caption text-ink-muted tabular-nums">
+                    <span>
+                      Puntos:{' '}
+                      <span className="font-medium text-ink">{!league ? '…' : (league.get(c.id) ?? 0).toLocaleString('es-MX')}</span>
+                    </span>
+                    <span>
+                      Créditos:{' '}
+                      <span className="font-medium text-brand-ink">{!balances ? '…' : formatMoney(balances.get(c.id)?.balance ?? 0)}</span>
+                    </span>
+                  </p>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setPointsFor(c)}
+                  title="Agregar puntos de liga"
+                  aria-label={`Agregar puntos de liga a ${c.name}`}
+                  className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-brand-soft hover:text-brand-ink"
+                >
+                  <Icon name="trophy" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full border-collapse text-left md:table">
             <thead>
               <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                 <th className="h-control-md px-4 font-medium">Nombre</th>

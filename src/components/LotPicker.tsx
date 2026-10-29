@@ -107,8 +107,8 @@ export function LotPicker({ productId, productName, location, remove, purpose, o
           )}
           {lots && lots.length > 0 && (
             <div className="overflow-x-auto rounded-md border border-line">
-              <table className="w-full border-collapse text-left">
-                <thead>
+              <table className="w-full border-collapse text-left max-md:block">
+                <thead className="max-md:hidden">
                   <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                     <th className="h-control-md px-3 font-medium">Lote</th>
                     <th className="h-control-md px-3 font-medium">Proveedor</th>
@@ -117,19 +117,28 @@ export function LotPicker({ productId, productName, location, remove, purpose, o
                     <th className="h-control-md px-3 text-right font-medium">Sacar</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="max-md:block">
                   {picks.map(({ lot, invalid }) => (
-                    <tr key={lot.lot_id} className="border-t border-line">
-                      <td className="px-3 py-2">
+                    <tr
+                      key={lot.lot_id}
+                      className="border-t border-line max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-1 max-md:px-3 max-md:py-3"
+                    >
+                      <td className="px-3 py-2 max-md:basis-full max-md:p-0">
                         <p className="font-medium">Lote {lot.number}</p>
                         <p className="text-caption text-ink-muted">
                           {LOT_ORIGIN_LABELS[lot.origin]} · {formatDateTime(lot.received_at)}
                         </p>
                       </td>
-                      <td className="px-3 py-2 text-ink-muted">{lot.supplier_name ?? 'Sin proveedor'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(lot.unit_cost)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatInt(lot.quantity)}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-3 py-2 text-ink-muted max-md:basis-full max-md:p-0 max-md:text-caption">{lot.supplier_name ?? 'Sin proveedor'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums max-md:p-0">
+                        <span className="text-ink-muted md:hidden">Costo </span>
+                        {formatMoney(lot.unit_cost)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums max-md:p-0">
+                        <span className="text-ink-muted md:hidden">· Hay </span>
+                        {formatInt(lot.quantity)}
+                      </td>
+                      <td className="px-3 py-2 text-right max-md:ml-auto max-md:p-0">
                         <input
                           value={values[lot.lot_id] ?? ''}
                           onChange={(e) => setValues((v) => ({ ...v, [lot.lot_id]: e.target.value }))}
