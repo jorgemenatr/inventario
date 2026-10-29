@@ -8,6 +8,7 @@ import { exportName } from '../lib/settings'
 import { isNetworkError, supabase } from '../lib/supabase'
 import { Icon } from '../components/Icon'
 import { LotPicker } from '../components/LotPicker'
+import { MoreMenu } from '../components/MoreMenu'
 import { needsLotChoice } from '../lib/lots'
 import { LOCATION_LABELS, MOVEMENT_LABELS, type LotPick, type MovementHistoryRow, type Product } from '../lib/types'
 import { inventoryStore, type QueueItem } from '../store/inventoryStore'
@@ -86,8 +87,8 @@ export function HistoryPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title md:block">Historial de movimientos</h1>
+      <div className="flex flex-wrap items-center gap-3 max-md:hidden">
+        <h1 className="mr-auto text-title">Historial de movimientos</h1>
         <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
           <Icon name="download" />
           Exportar CSV
@@ -139,17 +140,28 @@ export function HistoryPage() {
         </section>
       )}
 
-      <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
-        <Icon name="search" />
-        <input
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Buscar por código o nombre"
-          aria-label="Buscar por código o nombre"
-          className="min-w-0 flex-1 bg-transparent text-ink outline-none focus-visible:outline-none"
-        />
-      </label>
+      <div className="flex items-center gap-3">
+        <label className="flex h-control-md w-full max-w-sm min-w-0 items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+          <Icon name="search" />
+          <input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Buscar por código o nombre"
+            aria-label="Buscar por código o nombre"
+            className="min-w-0 flex-1 bg-transparent text-ink outline-none focus-visible:outline-none"
+          />
+        </label>
+        {online && !exporting && (
+          <MoreMenu
+            className="md:hidden"
+            items={[
+              { label: 'Exportar CSV', icon: 'download', onClick: () => void doExport('csv') },
+              { label: 'Exportar Excel', icon: 'download', onClick: () => void doExport('xlsx') },
+            ]}
+          />
+        )}
+      </div>
 
       {saved && (
         <p className="notice bg-success-bg text-success-fg" role="status">

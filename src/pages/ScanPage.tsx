@@ -3,6 +3,7 @@ import { ProductFormModal } from '../components/ProductFormModal'
 import { Icon } from '../components/Icon'
 import { LocationSelect } from '../components/LocationSelect'
 import { LotPicker } from '../components/LotPicker'
+import { MoreMenu } from '../components/MoreMenu'
 import { ProductImage } from '../components/ProductImage'
 import { SupplierSelect } from '../components/SupplierSelect'
 import { useKeepFocus } from '../components/useKeepFocus'
@@ -236,13 +237,13 @@ export function ScanPage() {
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
       {/* Título y acciones de página */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 max-md:justify-end">
         <h1 className="hidden mr-auto text-title md:block">Agregar</h1>
-        <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
+        <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
           <Icon name="download" />
           Exportar CSV
         </button>
-        <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary">
+        <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
           <Icon name="download" />
           {exporting ? 'Exportando…' : 'Exportar Excel'}
         </button>
@@ -259,6 +260,15 @@ export function ScanPage() {
           <Icon name="plus" />
           Producto sin código
         </button>
+        {online && !exporting && (
+          <MoreMenu
+            className="md:hidden"
+            items={[
+              { label: 'Exportar CSV', icon: 'download', onClick: () => void doExport('csv') },
+              { label: 'Exportar Excel', icon: 'download', onClick: () => void doExport('xlsx') },
+            ]}
+          />
+        )}
       </div>
       {!online && (
         <p className="-mt-2 text-right text-caption text-ink-subtle">
@@ -330,7 +340,7 @@ export function ScanPage() {
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="h-16 w-full rounded-md border-2 border-control bg-surface px-4 font-mono text-3xl tracking-wider text-ink focus:border-brand"
+              className="h-16 w-full rounded-md border-2 border-control bg-surface px-4 font-mono text-3xl tracking-wider text-ink focus:border-brand max-md:h-14 max-md:text-xl max-md:tracking-normal"
               placeholder="Código de barras…"
             />
             <div className="mt-4 flex flex-wrap items-end gap-4">

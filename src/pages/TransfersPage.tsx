@@ -162,7 +162,7 @@ export function TransfersPage() {
 
       <section className="card flex flex-col gap-4 p-5">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-title-lg">
+          <p className="text-title-lg max-md:text-title">
             {LOCATION_LABELS[from]} <span className="text-ink-subtle">→</span> {LOCATION_LABELS[to]}
           </p>
           <button type="button" onClick={invert} className="btn btn-secondary">

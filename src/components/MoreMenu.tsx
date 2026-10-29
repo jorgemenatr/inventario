@@ -11,7 +11,18 @@ export interface MoreMenuItem {
 }
 
 /** Botón "⋯" con acciones secundarias (en el celular, donde no caben como botones). */
-export function MoreMenu({ items, className }: { items: MoreMenuItem[]; className?: string }) {
+export function MoreMenu({
+  items,
+  className,
+  variant = 'secondary',
+  disabled,
+}: {
+  items: MoreMenuItem[]
+  className?: string
+  /** 'ghost': solo el icono, para renglones de lista. */
+  variant?: 'secondary' | 'ghost'
+  disabled?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -37,7 +48,8 @@ export function MoreMenu({ items, className }: { items: MoreMenuItem[]; classNam
         aria-expanded={open}
         aria-label="Más acciones"
         title="Más acciones"
-        className="btn btn-secondary w-control-md px-0"
+        disabled={disabled}
+        className={`btn w-control-md px-0 ${variant === 'ghost' ? 'btn-ghost text-ink-muted' : 'btn-secondary'}`}
       >
         <Icon name="more" size={20} />
       </button>
