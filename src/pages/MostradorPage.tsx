@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { Icon } from '../components/Icon'
 import { ProductImage } from '../components/ProductImage'
@@ -8,6 +7,7 @@ import { PaymentPanel } from '../components/pos/PaymentPanel'
 import { ProductPicker } from '../components/pos/ProductPicker'
 import { gameSuggestions } from '../lib/customers'
 import { formatInt, formatMoney } from '../lib/format'
+import { ticketFolio } from '../lib/sales'
 import { sounds } from '../lib/sounds'
 import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
 import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
@@ -95,13 +95,7 @@ export function MostradorPage() {
 
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title md:block">Mostrador</h1>
-        <Link to="/ventas" className="btn btn-secondary">
-          <Icon name="receipt" />
-          Ventas
-        </Link>
-      </div>
+      <h1 className="hidden text-title md:block">Mostrador</h1>
 
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">
@@ -117,7 +111,7 @@ export function MostradorPage() {
             <p className="text-title">
               {lastSale.pending
                 ? 'Venta guardada sin conexión (el folio se asigna al sincronizar)'
-                : `Venta registrada · ${lastSale.name}`}
+                : `Venta registrada · #${ticketFolio(lastSale.name)}`}
             </p>
             <p className="text-heading">
               {formatMoney(lastSale.total)} con{' '}
@@ -181,7 +175,7 @@ export function MostradorPage() {
           <section className="card flex min-h-80 flex-col items-center justify-center gap-3 p-8 text-center">
             <Icon name="receipt" size={40} className="text-ink-subtle" />
             <p className="text-title-lg text-ink-muted">Abre un ticket para empezar a vender</p>
-            <p className="text-ink-subtle">Al cobrarlo recibe su folio (Ticket 1, 2, 3…).</p>
+            <p className="text-ink-subtle">Al cobrarlo recibe su folio (1, 2, 3…).</p>
             <button type="button" onClick={createTicket} className="btn btn-primary btn-lg mt-2">
               <Icon name="plus" size={20} />
               Nuevo ticket

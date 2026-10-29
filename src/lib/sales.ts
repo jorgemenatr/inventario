@@ -11,6 +11,20 @@ export interface SalesFilter {
 
 const PAGE = 100
 
+/**
+ * Folio de una venta ("140"). Las ventas anteriores a la migración
+ * nombre_tickets se guardaron como "Ticket 140".
+ */
+export function ticketFolio(name: string | null | undefined) {
+  return (name ?? '').replace(/^Ticket\s+/i, '')
+}
+
+/** Título de una venta: "140. Ana Martínez" (o solo "140" si no se muestra el cliente). */
+export function saleTitle(sale: { name: string; customer_name: string | null }, withCustomer = true) {
+  const folio = ticketFolio(sale.name)
+  return withCustomer ? `${folio}. ${sale.customer_name ?? 'Sin cliente'}` : `#${folio}`
+}
+
 /** Inicio del día local en ISO (para filtrar por fecha en la zona de la tienda). */
 function dayStart(date: string) {
   return new Date(`${date}T00:00:00`).toISOString()

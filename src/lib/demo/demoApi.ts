@@ -94,7 +94,7 @@ const by = { created_by: ADMIN_ID, created_by_email: 'admin@demo.mx', created_by
 const METHODS = ['cash', 'card', 'mixed', 'credit', 'transfer']
 const sales: Row[] = Array.from({ length: 14 }, (_, i) => ({
   id: `t${i}`,
-  name: `Ticket ${140 - i}`,
+  name: String(140 - i),
   status: 'paid',
   customer_id: i % 3 ? `c${i % 6}` : null,
   customer_name: i % 3 ? CUSTOMER_NAMES[i % 6] : null,
@@ -195,7 +195,7 @@ const tables: Record<string, Row[]> = {
     amount: 100 + i * 25,
     note: i === 0 ? 'Premio 1er lugar torneo regional' : null,
     ticket_id: i % 2 ? 't1' : null,
-    ticket_name: i % 2 ? 'Ticket 139' : null,
+    ticket_name: i % 2 ? '139' : null,
     batch_id: null,
     created_at: ago(i * 3000),
     ...by,
@@ -306,7 +306,7 @@ const rpcs: Record<string, (args: Row) => unknown> = {
     const total = items.reduce((s, it) => s + it.quantity * it.unit_price, 0)
     const ticket = {
       id: a.p_ticket_id,
-      name: `Ticket ${nextFolio++}`,
+      name: String(nextFolio++),
       status: 'paid',
       customer_id: a.p_customer_id ?? null,
       payment_method: a.p_payment_method,

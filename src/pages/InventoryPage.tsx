@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { FiltersButton } from '../components/FiltersButton'
 import { Icon } from '../components/Icon'
+import { MoreMenu } from '../components/MoreMenu'
 import { ProductEditModal } from '../components/ProductEditModal'
 import { ProductImage } from '../components/ProductImage'
 import { Segmented } from '../components/Segmented'
@@ -174,12 +176,17 @@ export function InventoryPage() {
   }
 
   const filtersActive = search.trim() !== '' || category !== '' || stock !== 'all'
+  // En el celular las categorías, la búsqueda y los filtros van plegados.
+  const [showFilters, setShowFilters] = useState(false)
+  const filtersClass = showFilters ? '' : 'max-md:hidden'
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="hidden mr-auto text-title md:block">Inventario</h1>
-        <Segmented
+        <FiltersButton open={showFilters} active={filtersActive} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
+        <div className="max-md:order-last max-md:w-full">
+          <Segmented
           value={scope}
           onChange={setScope}
           label="Existencias"
@@ -188,18 +195,19 @@ export function InventoryPage() {
             { value: 'warehouse', label: 'Bodega', icon: 'box' },
             { value: 'total', label: 'Total' },
           ]}
-        />
+          />
+        </div>
         {isAdmin && (
           <>
-            <Link to="/movimiento-bodega" className="btn btn-secondary">
+            <Link to="/movimiento-bodega" className="btn btn-secondary hidden md:inline-flex">
               <Icon name="swap" />
               Movimiento de bodega
             </Link>
-            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
+            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
               <Icon name="download" />
               CSV
             </button>
-            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary">
+            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
               <Icon name="download" />
               {exporting ? 'Exportando…' : 'Excel'}
             </button>
@@ -220,10 +228,24 @@ export function InventoryPage() {
               className={`flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 text-label ${view === v ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
             >
               <Icon name={icon} />
-              {text}
+              <span className="max-md:sr-only">{text}</span>
             </button>
           ))}
         </div>
+        {isAdmin && (
+          <MoreMenu
+            className="md:hidden"
+            items={[
+              { label: 'Movimiento de bodega', icon: 'swap', to: '/movimiento-bodega' },
+              ...(online && !exporting
+                ? [
+                    { label: 'Exportar CSV', icon: 'download' as const, onClick: () => void doExport('csv') },
+                    { label: 'Exportar Excel', icon: 'download' as const, onClick: () => void doExport('xlsx') },
+                  ]
+                : []),
+            ]}
+          />
+        )}
       </div>
 
       {exportError && (
@@ -264,7 +286,7 @@ export function InventoryPage() {
       </div>
 
       {/* Categorías */}
-      <div className="flex flex-col gap-2">
+      <div className={`flex flex-col gap-2 ${filtersClass}`}>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Categoría">
           <Chip active={category === ''} onClick={() => setCategory('')}>
             Todas
@@ -306,7 +328,7 @@ export function InventoryPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={`flex flex-wrap items-center gap-3 ${filtersClass}`}>
         <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
           <Icon name="search" />
           <input
@@ -329,23 +351,22 @@ export function InventoryPage() {
           <option value="out">Sin stock ({SCOPE_LABELS[scope]})</option>
           <option value="alert">Sin stock o bajo en tienda</option>
         </select>
-        {view === 'grid' && (
-          <select
-            value={`${sort.key}:${sort.dir}`}
-            onChange={(e) => {
-              const [key, dir] = e.target.value.split(':')
-              setSort({ key: key as SortKey, dir: Number(dir) as 1 | -1 })
-            }}
-            aria-label="Ordenar"
-            className="field w-auto cursor-pointer"
-          >
-            <option value="name:1">Nombre (A–Z)</option>
-            <option value="quantity:-1">Más stock</option>
-            <option value="quantity:1">Menos stock</option>
-            <option value="price:-1">Precio más alto</option>
-            <option value="price:1">Precio más bajo</option>
-          </select>
-        )}
+        {/* En la lista de md+ se ordena con los encabezados (en el celular la lista no los tiene). */}
+        <select
+          value={`${sort.key}:${sort.dir}`}
+          onChange={(e) => {
+            const [key, dir] = e.target.value.split(':')
+            setSort({ key: key as SortKey, dir: Number(dir) as 1 | -1 })
+          }}
+          aria-label="Ordenar"
+          className={`field w-auto cursor-pointer ${view === 'list' ? 'md:hidden' : ''}`}
+        >
+          <option value="name:1">Nombre (A–Z)</option>
+          <option value="quantity:-1">Más stock</option>
+          <option value="quantity:1">Menos stock</option>
+          <option value="price:-1">Precio más alto</option>
+          <option value="price:1">Precio más bajo</option>
+        </select>
         {filtersActive && (
           <button
             type="button"

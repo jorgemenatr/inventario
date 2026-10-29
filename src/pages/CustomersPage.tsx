@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CreditsModal } from '../components/CreditsModal'
 import { CustomerFormModal } from '../components/CustomerFormModal'
+import { FiltersButton } from '../components/FiltersButton'
 import { GameTags } from '../components/GamesInput'
 import { Icon } from '../components/Icon'
 import { LeaguePointsModal } from '../components/LeaguePointsModal'
+import { MoreMenu } from '../components/MoreMenu'
 import { gameSuggestions, listCustomers } from '../lib/customers'
 import { listCreditBalances } from '../lib/credits'
 import { formatInt, formatMoney } from '../lib/format'
@@ -20,6 +22,8 @@ export function CustomersPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [game, setGame] = useState('')
+  // En el celular la búsqueda y el filtro van plegados.
+  const [showFilters, setShowFilters] = useState(false)
   const [creating, setCreating] = useState(false)
   const [granting, setGranting] = useState(false)
   const [balances, setBalances] = useState<Map<string, CreditBalance> | null>(null)
@@ -68,11 +72,12 @@ export function CustomersPage() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="hidden mr-auto text-title md:block">Clientes</h1>
-        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-secondary">
+        <FiltersButton open={showFilters} active={!!search.trim() || !!game} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
+        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-secondary hidden md:inline-flex">
           <Icon name="trophy" />
           Agregar puntos de liga
         </button>
-        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-secondary">
+        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-secondary hidden md:inline-flex">
           <Icon name="plus" />
           Agregar créditos
         </button>
@@ -80,9 +85,18 @@ export function CustomersPage() {
           <Icon name="plus" />
           Nuevo cliente
         </button>
+        {!!customers?.length && (
+          <MoreMenu
+            className="md:hidden"
+            items={[
+              { label: 'Agregar puntos de liga', icon: 'trophy', onClick: () => setPointsFor('many') },
+              { label: 'Agregar créditos', icon: 'plus', onClick: () => setGranting(true) },
+            ]}
+          />
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={`flex flex-wrap items-center gap-3 ${showFilters ? '' : 'max-md:hidden'}`}>
         <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
           <Icon name="search" />
           <input

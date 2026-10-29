@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getCreditBalance, listCreditHistory } from '../lib/credits'
 import { formatDateTime, formatMoney } from '../lib/format'
+import { ticketFolio } from '../lib/sales'
 import { isNetworkError } from '../lib/supabase'
 import type { CreditBalance, CreditMovementRow, Customer } from '../lib/types'
 import { CreditsModal } from './CreditsModal'
@@ -80,7 +81,7 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
                     {m.kind === 'sale' ? (
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="badge badge-neutral">Compra</span>
-                        {m.ticket_name}
+                        #{ticketFolio(m.ticket_name)}
                       </span>
                     ) : (
                       m.note
@@ -114,7 +115,7 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
                     {m.kind === 'sale' ? (
                       <span className="flex items-center gap-2">
                         <span className="badge badge-neutral">Compra</span>
-                        {m.ticket_name}
+                        #{ticketFolio(m.ticket_name)}
                       </span>
                     ) : (
                       m.note
