@@ -486,6 +486,11 @@
   .notice {
     @apply flex items-start gap-2 rounded-md px-3 py-2.5 text-body;
   }
+
+  /* Título de sección: misma altura que una fila con botones, para que no brinque al cambiar de página. */
+  .page-title {
+    @apply flex min-h-control-md items-center text-title-lg uppercase;
+  }
 }
 
 /* Un botón extruido a todo lo ancho deja lugar a su extrusión (gana a w-full). */

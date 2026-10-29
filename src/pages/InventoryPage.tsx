@@ -184,7 +184,7 @@ export function InventoryPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title-lg uppercase md:block">Inventario</h1>
+        <h1 className="page-title hidden mr-auto md:flex">Inventario</h1>
         <FiltersButton open={showFilters} active={mobileFiltersActive} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
         <div className={`max-md:order-last max-md:w-full ${filtersClass}`}>
           <Segmented

@@ -126,7 +126,7 @@ export function Layout() {
       >
         <div className="flex items-center gap-2 px-2 pt-1 pb-2">
           <KananMark size={32} className="shrink-0" />
-          <span className="min-w-0 flex-1 font-display text-heading leading-tight font-extrabold">{appTitle(settings)}</span>
+          <span className="min-w-0 flex-1 truncate font-display text-heading leading-tight font-extrabold">{settings.businessName || 'Kanan'}</span>
           <button
             type="button"
             onClick={() => setMenuOpen(false)}

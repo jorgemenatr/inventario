@@ -95,7 +95,7 @@ export function MostradorPage() {
 
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
-      <h1 className="hidden text-title-lg uppercase md:block">Mostrador</h1>
+      <h1 className="page-title hidden md:flex">Mostrador</h1>
 
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">

@@ -71,7 +71,7 @@ export function CustomersPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title-lg uppercase md:block">Clientes</h1>
+        <h1 className="page-title hidden mr-auto md:flex">Clientes</h1>
         <FiltersButton open={showFilters} active={!!search.trim() || !!game} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
         <button type="button" onClick={() => setCreating(true)} className="btn btn-primary">
           <Icon name="plus" />

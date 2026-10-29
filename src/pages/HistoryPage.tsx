@@ -88,7 +88,7 @@ export function HistoryPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3 max-md:hidden">
-        <h1 className="mr-auto text-title uppercase md:text-title-lg">Historial de movimientos</h1>
+        <h1 className="page-title mr-auto">Historial de movimientos</h1>
       </div>
 
       {(queue.length > 0 || failed.length > 0) && (

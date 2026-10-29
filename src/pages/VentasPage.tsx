@@ -61,7 +61,7 @@ export function VentasPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="hidden text-title-lg uppercase md:block">Ventas</h1>
+      <h1 className="page-title hidden md:flex">Ventas</h1>
 
       <FiltersButton
         open={showFilters}
