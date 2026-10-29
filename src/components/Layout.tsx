@@ -142,14 +142,14 @@ export function Layout() {
             const children = n.children?.filter(allowed)
             return (
               <div key={n.to}>
-                <NavLink to={n.to} end={n.end} className={navItem}>
+                <NavLink to={n.to} end={n.end} className={navItem} onClick={() => setMenuOpen(false)}>
                   <Icon name={n.icon} size={20} />
                   <span>{n.label}</span>
                 </NavLink>
                 {!!children?.length && (
                   <div className="mt-0.5 ml-4 flex flex-col gap-0.5 border-l border-nav-border pl-2">
                     {children!.map((c) => (
-                      <NavLink key={c.to} to={c.to} end={c.end} className={navItem}>
+                      <NavLink key={c.to} to={c.to} end={c.end} className={navItem} onClick={() => setMenuOpen(false)}>
                         <Icon name={c.icon} size={18} />
                         <span>{c.label}</span>
                       </NavLink>

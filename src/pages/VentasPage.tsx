@@ -58,7 +58,7 @@ export function VentasPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="text-title">Ventas</h1>
+      <h1 className="hidden text-title md:block">Ventas</h1>
 
       <div className="flex flex-wrap items-end gap-3">
         <div>

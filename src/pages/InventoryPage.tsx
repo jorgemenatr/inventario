@@ -178,7 +178,7 @@ export function InventoryPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-title">Inventario</h1>
+        <h1 className="hidden mr-auto text-title md:block">Inventario</h1>
         <Segmented
           value={scope}
           onChange={setScope}

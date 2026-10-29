@@ -69,7 +69,7 @@ export function ConfigPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="text-title">Configuración</h1>
+      <h1 className="hidden text-title md:block">Configuración</h1>
 
       <BusinessCard />
 

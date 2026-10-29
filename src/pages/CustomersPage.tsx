@@ -67,7 +67,7 @@ export function CustomersPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-title">Clientes</h1>
+        <h1 className="hidden mr-auto text-title md:block">Clientes</h1>
         <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-secondary">
           <Icon name="trophy" />
           Agregar puntos de liga

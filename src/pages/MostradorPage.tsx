@@ -96,7 +96,7 @@ export function MostradorPage() {
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-title">Mostrador</h1>
+        <h1 className="hidden mr-auto text-title md:block">Mostrador</h1>
         <Link to="/ventas" className="btn btn-secondary">
           <Icon name="receipt" />
           Ventas
