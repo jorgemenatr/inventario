@@ -13,6 +13,7 @@
  *        --admin-correo a@b.mx --admin-nombre "Nombre"
  *        [--juegos pokemon,magic,dragon-shield] [--categorias "Cafetería,Juegos de mesa"]
  *                                Prepara un proyecto NUEVO: cierra el registro público,
+ *                                apunta la Site URL de Auth a su subdominio,
  *                                corre las migraciones, guarda el nombre y el prefijo,
  *                                crea las categorías, despliega la función, crea el primer
  *                                admin, carga el catálogo de sus juegos y lo registra en
@@ -366,8 +367,16 @@ async function cmdAlta(opts) {
   console.log(`Proyecto ${ref} · ${info.name} · ${info.region} · ${info.status}`)
   if (info.status !== 'ACTIVE_HEALTHY') throw new Error('El proyecto todavía no está listo (espera a que diga ACTIVE_HEALTHY).')
 
+  // Site URL y redirects: los enlaces de los correos de Auth (p. ej. recuperar la
+  // contraseña) llevan al subdominio del cliente y no a localhost.
+  const siteUrl = `https://${subdominio}.${tenants.dominio_base}`
   console.log('\n1. Cerrando el registro público (solo un admin crea usuarios)')
-  await api('PATCH', `/projects/${ref}/config/auth`, { disable_signup: true })
+  await api('PATCH', `/projects/${ref}/config/auth`, {
+    disable_signup: true,
+    site_url: siteUrl,
+    uri_allow_list: `https://*.${tenants.dominio_base}/**`,
+  })
+  console.log(`  Site URL ${siteUrl}`)
 
   console.log('\n2. Migraciones')
   await migrate(ref)
@@ -436,8 +445,8 @@ async function cmdAlta(opts) {
   console.log(`
 Listo. Se registró en src/tenants.json como ${subdominio}.${tenants.dominio_base}.
 Falta publicarlo: commit y push a main (Netlify construye una sola vez para todos).
-Si el sitio no tiene el dominio comodín *.${tenants.dominio_base}, agrega
-${subdominio}.${tenants.dominio_base} en Netlify → Domain management.
+Y en Netlify → Domain management → Add domain alias: ${subdominio}.${tenants.dominio_base}
+(el DNS y el certificado los pone Netlify solo).
 ${created ? `\nAcceso del admin (pídele que la cambie):\n  ${correo}\n  ${password}\n` : ''}`)
 }
 

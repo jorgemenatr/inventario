@@ -164,8 +164,9 @@ conectarse. Cada cambio se construye una sola vez para todos.
 - Fuera del dominio (`localhost`, `*.netlify.app`, deploy previews) se usan las variables
   `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, como antes. En local,
   `VITE_TENANT=hachiko` simula estar en ese cliente.
-- En Netlify, el sitio necesita el dominio comodín `*.kananpos.com` (o un alias por
-  cliente, `tienda.kananpos.com`, en **Domain management**).
+- En Netlify, cada cliente es un alias del sitio (`tienda.kananpos.com` en **Domain
+  management → Add domain alias**). El dominio usa Netlify DNS y el certificado ya cubre
+  `*.kananpos.com`, así que no hace falta tocar el DNS.
 
 Lo que cambia entre clientes dentro de su base vive en la tabla `app_settings`:
 
@@ -194,14 +195,14 @@ Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
      --juegos pokemon,one-piece,dragon-shield --categorias "Cafetería,Juegos de mesa"
    ```
 
-   Esto cierra el registro público, corre todas las migraciones, guarda el nombre y el
-   prefijo, crea las categorías (los juegos como subcategorías de **TCG**, las marcas de
+   Esto cierra el registro público, apunta la Site URL de Auth a su subdominio, corre
+   todas las migraciones, guarda el nombre y el prefijo, crea las categorías (los juegos como subcategorías de **TCG**, las marcas de
    accesorios en **Accesorios** y las de `--categorias` como principales), despliega la
    función `crear-usuario`, crea al primer admin (imprime su contraseña temporal), carga el
    catálogo **solo de sus juegos** y lo agrega a `src/tenants.json`. Se puede volver a
    correr si algo falla a medias. Las categorías se cambian después en **Configuración**.
 3. Commit y push a `main`. Al publicar Netlify, el cliente ya entra en
-   `dragon-rojo.kananpos.com` (si el sitio no tiene el comodín, agrega ese alias en Netlify).
+   `dragon-rojo.kananpos.com` (antes, agrega ese alias en Netlify → **Domain management**).
 
 Para cortar o devolver el acceso: `npm run clientes -- suspender --subdominio dragon-rojo`
 (o `reactivar`), commit y push.
