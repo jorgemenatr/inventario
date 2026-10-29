@@ -506,12 +506,8 @@ function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; s
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
       {products.map((p) => (
         <li key={p.barcode} className="card flex flex-col overflow-hidden">
-          {/* Sin foto, en el celular el recuadro es bajo para que quepan más productos. */}
-          <ProductImage
-            path={p.image_url}
-            alt={p.name}
-            className={`aspect-square w-full border-0 border-b ${p.image_url ? '' : 'max-md:aspect-[3/1]'}`}
-          />
+          {/* Cuadrada, con o sin foto (las fotos se guardan cuadradas): todas las tarjetas miden igual. */}
+          <ProductImage path={p.image_url} alt={p.name} className="aspect-square w-full border-0 border-b" />
           <div className="flex flex-1 flex-col gap-1 p-3">
             <div className="flex items-start gap-1">
               <p className="line-clamp-2 flex-1 text-label text-ink" title={p.name}>
