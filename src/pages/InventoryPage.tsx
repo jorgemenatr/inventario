@@ -506,11 +506,11 @@ function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; s
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
       {products.map((p) => (
         <li key={p.barcode} className="card flex flex-col overflow-hidden">
-          {/* Sin foto, en el celular no se reserva el espacio: la tarjeta crece a la altura de su fila. */}
+          {/* Sin foto, en el celular el recuadro es bajo para que quepan más productos. */}
           <ProductImage
             path={p.image_url}
             alt={p.name}
-            className={`aspect-square w-full border-0 border-b ${p.image_url ? '' : 'max-md:hidden'}`}
+            className={`aspect-square w-full border-0 border-b ${p.image_url ? '' : 'max-md:aspect-[3/1]'}`}
           />
           <div className="flex flex-1 flex-col gap-1 p-3">
             <div className="flex items-start gap-1">
