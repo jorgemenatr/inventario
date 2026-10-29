@@ -69,18 +69,19 @@ export function VentasPage() {
         onToggle={() => setShowFilters((v) => !v)}
       />
 
-      <div className={`flex flex-wrap items-end gap-3 ${showFilters ? '' : 'max-md:hidden'}`}>
+      {/* En el celular: fechas lado a lado, forma de pago y botones a todo lo ancho. */}
+      <div className={`flex flex-wrap items-end gap-3 max-md:grid max-md:grid-cols-2 ${showFilters ? '' : 'max-md:hidden'}`}>
         <div>
           <label className="field-label" htmlFor="v-from">Desde</label>
-          <input id="v-from" type="date" value={filter.from ?? ''} max={filter.to || undefined} onChange={(e) => set({ from: e.target.value || undefined })} className="field" />
+          <input id="v-from" type="date" value={filter.from ?? ''} max={filter.to || undefined} onChange={(e) => set({ from: e.target.value || undefined })} className="field max-md:w-full" />
         </div>
         <div>
           <label className="field-label" htmlFor="v-to">Hasta</label>
-          <input id="v-to" type="date" value={filter.to ?? ''} min={filter.from || undefined} onChange={(e) => set({ to: e.target.value || undefined })} className="field" />
+          <input id="v-to" type="date" value={filter.to ?? ''} min={filter.from || undefined} onChange={(e) => set({ to: e.target.value || undefined })} className="field max-md:w-full" />
         </div>
-        <div>
+        <div className="max-md:col-span-2">
           <label className="field-label" htmlFor="v-method">Forma de pago</label>
-          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as TicketPaymentMethod | '' })} className="field cursor-pointer">
+          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as TicketPaymentMethod | '' })} className="field cursor-pointer max-md:w-full">
             <option value="">Todas</option>
             {FILTER_METHODS.map((m) => (
               <option key={m} value={m}>
@@ -89,11 +90,11 @@ export function VentasPage() {
             ))}
           </select>
         </div>
-        <div className="flex gap-2">
-          <button type="button" className="btn btn-secondary" onClick={() => set({ from: today(), to: today() })}>
+        <div className="flex gap-2 max-md:col-span-2">
+          <button type="button" className="btn btn-secondary max-md:flex-1" onClick={() => set({ from: today(), to: today() })}>
             Hoy
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => set({ from: undefined, to: undefined })}>
+          <button type="button" className="btn btn-ghost max-md:flex-1 max-md:border-control max-md:bg-surface" onClick={() => set({ from: undefined, to: undefined })}>
             Todas las fechas
           </button>
         </div>

@@ -265,7 +265,7 @@ export function InventoryPage() {
           <p className="text-label text-ink-muted">Piezas {SCOPE_LABELS[scope]}</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
         </div>
-        <div className="card p-4">
+        <div className="card p-4 max-md:col-span-2">
           <p className="text-label text-ink-muted">Valor a precio de venta ({SCOPE_LABELS[scope]})</p>
           <p className="text-kpi tabular-nums">{formatMoney(totals.value)}</p>
         </div>
@@ -273,7 +273,7 @@ export function InventoryPage() {
           type="button"
           onClick={() => setStock((s) => (s === 'alert' ? 'all' : 'alert'))}
           aria-pressed={stock === 'alert'}
-          className={`card cursor-pointer p-4 text-left hover:bg-subtle ${stock === 'alert' ? 'outline-2 outline-brand' : ''}`}
+          className={`card cursor-pointer p-4 text-left hover:bg-subtle max-md:hidden ${stock === 'alert' ? 'outline-2 outline-brand' : ''}`}
         >
           <p className="text-label text-ink-muted">Alertas de tienda</p>
           <p className="text-kpi tabular-nums">
@@ -504,7 +504,12 @@ function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; s
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
       {products.map((p) => (
         <li key={p.barcode} className="card flex flex-col overflow-hidden">
-          <ProductImage path={p.image_url} alt={p.name} className="aspect-square w-full border-0 border-b" />
+          {/* Sin foto, en el celular el recuadro es bajo para que quepan más productos. */}
+          <ProductImage
+            path={p.image_url}
+            alt={p.name}
+            className={`aspect-square w-full border-0 border-b ${p.image_url ? '' : 'max-md:aspect-[3/1]'}`}
+          />
           <div className="flex flex-1 flex-col gap-1 p-3">
             <div className="flex items-start gap-1">
               <p className="line-clamp-2 flex-1 text-label text-ink" title={p.name}>
