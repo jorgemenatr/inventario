@@ -1,6 +1,6 @@
 /*
- * Iconos de trazo al estilo de Kanan (24×24, trazo grueso de 2.25px con puntas
- * y uniones rectas, heredan color con currentColor). Los marcados "app" se
+ * Iconos de trazo al estilo de Kanan (24×24, trazo de 1.75px con puntas
+ * y uniones redondeadas, heredan color con currentColor). Los marcados "app" se
  * dibujaron para necesidades propias de esta app.
  */
 const ICONS = {
@@ -33,10 +33,12 @@ const ICONS = {
   store: '<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9h16v1.5a2.7 2.7 0 01-5.3 0 2.7 2.7 0 01-5.4 0 2.7 2.7 0 01-5.3 0z"/><path d="M5.5 13v7h13v-7M10 20v-4h4v4"/>',
   users: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M15.5 5.2a3.5 3.5 0 010 6.6M18 14.2a6.5 6.5 0 013.5 5.8"/>',
   pencil: '<path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  package: '<path d="M4.5 9.5v7.8L12 20.5l7.5-3.2V9.5"/><path d="M12 12v8.5"/><path d="M4.5 9.5L12 12l7.5-2.5"/><path d="M4.5 9.5L2 6.5l7.5-2.5L12 7"/><path d="M19.5 9.5l2.5-3-7.5-2.5L12 7"/>',
+  'id-card': '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="9" cy="11" r="1.9"/><path d="M5.6 19.5a3.4 3.4 0 016.8 0"/><path d="M14.5 11h3.5M14.5 14h3.5"/>',
   shield: '<path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/>',
   swap: '<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>',
   truck: '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7.5" cy="17.5" r="1.75"/><circle cx="17" cy="17.5" r="1.75"/>',
-  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+  settings: '<path d="M9.15 5.61L10.11 2.69A9.5 9.5 0 0 1 13.89 2.69L14.85 5.61A7 7 0 0 1 16.11 6.33L19.12 5.71A9.5 9.5 0 0 1 21.01 8.98L18.96 11.28A7 7 0 0 1 18.96 12.72L21.01 15.02A9.5 9.5 0 0 1 19.12 18.29L16.11 17.67A7 7 0 0 1 14.85 18.39L13.89 21.31A9.5 9.5 0 0 1 10.11 21.31L9.15 18.39A7 7 0 0 1 7.89 17.67L4.88 18.29A9.5 9.5 0 0 1 2.99 15.02L5.04 12.72A7 7 0 0 1 5.04 11.28L2.99 8.98A9.5 9.5 0 0 1 4.88 5.71L7.89 6.33A7 7 0 0 1 9.15 5.61z"/><circle cx="12" cy="12" r="2.75"/>',
   trash: '<path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   more: '<circle cx="5" cy="12" r="1.25"/><circle cx="12" cy="12" r="1.25"/><circle cx="19" cy="12" r="1.25"/>',
@@ -65,9 +67,9 @@ export function Icon({ name, size = 16, label, className }: Props) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2.25}
-      strokeLinecap="square"
-      strokeLinejoin="miter"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       role={label ? 'img' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}

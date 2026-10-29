@@ -28,7 +28,7 @@ const NAV: NavItem[] = [
   {
     to: '/inventario',
     label: 'Inventario',
-    icon: 'grid',
+    icon: 'package',
     children: [
       // Escaneo: alta y conteo de productos con el lector.
       { to: '/agregar', label: 'Agregar', icon: 'barcode', admin: true },
@@ -37,7 +37,7 @@ const NAV: NavItem[] = [
       { to: '/historial', label: 'Historial', icon: 'history' },
     ],
   },
-  { to: '/usuarios', label: 'Usuarios', icon: 'shield', admin: true },
+  { to: '/usuarios', label: 'Usuarios', icon: 'id-card', admin: true },
   { to: '/configuracion', label: 'Configuración', icon: 'settings', admin: true },
 ]
 
