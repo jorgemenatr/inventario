@@ -1,9 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { activeTenant } from './tenant'
 
+// Modo demo (npm run dev:demo): las peticiones las contesta un simulador
+// local en vez de Supabase. Fuera de ese modo, Vite elimina este import.
+const DEMO = import.meta.env.VITE_DEMO === '1'
+const demoFetch = DEMO ? import('./demo/demoApi').then((m) => m.demoFetch) : null
+
 // Proyecto de Supabase del cliente de este sitio (por subdominio o, fuera del
-// dominio, por variables de entorno; ver tenant.ts).
-const url = activeTenant?.supabaseUrl
+// dominio, por variables de entorno; ver tenant.ts). En demo, el propio sitio:
+// así las fotos de muestra se cargan del servidor de desarrollo.
+const url = DEMO ? location.origin : activeTenant?.supabaseUrl
 const anonKey = activeTenant?.anonKey
 
 export const supabaseConfigured = Boolean(url && anonKey)
@@ -11,11 +17,6 @@ export const supabaseConfigured = Boolean(url && anonKey)
 // Ninguna petición puede colgarse indefinidamente: si la red se cae a medio
 // request, la cola offline necesita enterarse para encolar la operación.
 const REQUEST_TIMEOUT_MS = 12_000
-
-// Modo demo (npm run dev:demo): las peticiones las contesta un simulador
-// local en vez de Supabase. Fuera de ese modo, Vite elimina este import.
-const DEMO = import.meta.env.VITE_DEMO === '1'
-const demoFetch = DEMO ? import('./demo/demoApi').then((m) => m.demoFetch) : null
 
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   if (demoFetch) return demoFetch.then((f) => f(input, init))

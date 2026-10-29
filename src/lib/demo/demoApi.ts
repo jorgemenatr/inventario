@@ -53,8 +53,13 @@ const SAMPLE: [string, string, number][] = [
   ['Dados d20 Chessex set de 7', 'Accesorios', 189],
 ]
 
+// Fotos de muestra (ver fotos/): unos productos con foto y otros sin.
+const PHOTOS = import.meta.glob('./fotos/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+const PHOTO_BY_SAMPLE: Record<number, string> = { 0: 'etb', 1: 'booster-box', 3: 'micas', 4: 'tapete', 5: 'carpeta', 6: 'cafe' }
+
 const products: Product[] = Array.from({ length: 24 }, (_, i) => {
   const [name, category, price] = SAMPLE[i % SAMPLE.length]
+  const photo = i < SAMPLE.length ? PHOTO_BY_SAMPLE[i] : undefined
   const internal = i % 3 === 0
   return {
     id: `p${i}`,
@@ -67,7 +72,7 @@ const products: Product[] = Array.from({ length: 24 }, (_, i) => {
     price,
     quantity: i % 7 === 0 ? 0 : (i * 3) % 17,
     warehouse_quantity: (i * 5) % 11,
-    image_url: null,
+    image_url: photo ? `demo/${photo}.jpg` : null,
     is_internal_code: internal,
     description: null,
     catalog_product_id: null,
@@ -386,7 +391,18 @@ export async function demoFetch(input: RequestInfo | URL, init?: RequestInit): P
   if (path.startsWith('/auth/v1/user')) return json(demoUser())
   if (path.startsWith('/auth/v1/logout')) return json(undefined, 204)
   if (path.startsWith('/auth/v1/')) return json({})
-  if (path.startsWith('/storage/v1/')) return method === 'POST' && path.includes('/sign') ? json([]) : notAvailable('Subir imágenes')
+  if (path.startsWith('/storage/v1/object/sign/') && method === 'POST') {
+    // Supabase arma la URL como <origen>/storage/v1 + signedURL; con "/../.." queda
+    // en el archivo que sirve Vite (ver supabase.ts: en demo la URL es el origen).
+    const { paths = [] } = (await req.json().catch(() => ({}))) as { paths?: string[] }
+    return json(
+      paths.map((p) => {
+        const file = PHOTOS[`./fotos/${p.replace(/^demo\//, '')}`]
+        return { path: p, signedURL: file ? `/../..${file}` : null, error: file ? null : 'not found' }
+      }),
+    )
+  }
+  if (path.startsWith('/storage/v1/')) return notAvailable('Subir imágenes')
   if (path.startsWith('/functions/v1/')) return notAvailable(path.split('/').pop() ?? 'función')
 
   if (path.startsWith('/rest/v1/rpc/')) {

@@ -176,6 +176,8 @@ export function InventoryPage() {
   }
 
   const filtersActive = search.trim() !== '' || category !== '' || stock !== 'all'
+  // En el celular, Tienda/Bodega/Total también va dentro de Filtros.
+  const mobileFiltersActive = filtersActive || scope !== 'total'
   // En el celular las categorías, la búsqueda y los filtros van plegados.
   const [showFilters, setShowFilters] = useState(false)
   const filtersClass = showFilters ? '' : 'max-md:hidden'
@@ -184,8 +186,8 @@ export function InventoryPage() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="hidden mr-auto text-title md:block">Inventario</h1>
-        <FiltersButton open={showFilters} active={filtersActive} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
-        <div className="max-md:order-last max-md:w-full">
+        <FiltersButton open={showFilters} active={mobileFiltersActive} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
+        <div className={`max-md:order-last max-md:w-full ${filtersClass}`}>
           <Segmented
           value={scope}
           onChange={setScope}
@@ -255,8 +257,8 @@ export function InventoryPage() {
         </p>
       )}
 
-      {/* Resumen */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Resumen: solo en pantallas grandes. */}
+      <div className="hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
         <div className="card p-4">
           <p className="text-label text-ink-muted">Productos</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.products)}</p>
@@ -265,7 +267,7 @@ export function InventoryPage() {
           <p className="text-label text-ink-muted">Piezas {SCOPE_LABELS[scope]}</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
         </div>
-        <div className="card p-4 max-md:col-span-2">
+        <div className="card p-4">
           <p className="text-label text-ink-muted">Valor a precio de venta ({SCOPE_LABELS[scope]})</p>
           <p className="text-kpi tabular-nums">{formatMoney(totals.value)}</p>
         </div>
@@ -273,7 +275,7 @@ export function InventoryPage() {
           type="button"
           onClick={() => setStock((s) => (s === 'alert' ? 'all' : 'alert'))}
           aria-pressed={stock === 'alert'}
-          className={`card cursor-pointer p-4 text-left hover:bg-subtle max-md:hidden ${stock === 'alert' ? 'outline-2 outline-brand' : ''}`}
+          className={`card cursor-pointer p-4 text-left hover:bg-subtle ${stock === 'alert' ? 'outline-2 outline-brand' : ''}`}
         >
           <p className="text-label text-ink-muted">Alertas de tienda</p>
           <p className="text-kpi tabular-nums">
@@ -504,11 +506,11 @@ function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; s
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
       {products.map((p) => (
         <li key={p.barcode} className="card flex flex-col overflow-hidden">
-          {/* Sin foto, en el celular el recuadro es bajo para que quepan más productos. */}
+          {/* Sin foto, en el celular no se reserva el espacio: la tarjeta crece a la altura de su fila. */}
           <ProductImage
             path={p.image_url}
             alt={p.name}
-            className={`aspect-square w-full border-0 border-b ${p.image_url ? '' : 'max-md:aspect-[3/1]'}`}
+            className={`aspect-square w-full border-0 border-b ${p.image_url ? '' : 'max-md:hidden'}`}
           />
           <div className="flex flex-1 flex-col gap-1 p-3">
             <div className="flex items-start gap-1">
