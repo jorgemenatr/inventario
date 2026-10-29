@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { appTitle, useSettings } from '../lib/settings'
@@ -45,11 +46,29 @@ function inSection(item: NavItem, pathname: string) {
   return match(item) || (item.children ?? []).some(match)
 }
 
+/** Nombre de la sección actual (barra superior en el celular). */
+function sectionLabel(pathname: string) {
+  const all = NAV.flatMap((n) => [n, ...(n.children ?? [])])
+  return all.find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`))?.label ?? ''
+}
+
 export function Layout() {
   const { pathname } = useLocation()
   const { user, profile, signOut } = useAuth()
   const settings = useSettings()
-  const { queue } = useInventory()
+  const { queue, online } = useInventory()
+  // Menú lateral en el celular (en pantallas md+ siempre está visible).
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  // Se cierra al navegar.
+  useEffect(() => setMenuOpen(false), [pathname])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [menuOpen])
   const navigate = useNavigate()
   const simulator = useSimulatorEnabled()
   const isAdmin = profile?.role === 'admin'
@@ -77,32 +96,68 @@ export function Layout() {
 
   return (
     <div className="flex h-full flex-col md:flex-row">
+      {/* Celular: barra delgada con el botón del menú. */}
+      <header className="flex h-14 shrink-0 items-center gap-2 bg-nav-bg px-2 text-nav-ink md:hidden print:hidden">
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Abrir menú"
+          aria-expanded={menuOpen}
+          aria-controls="menu-principal"
+          className="grid size-11 cursor-pointer place-items-center rounded-md hover:bg-nav-hover focus-visible:outline-nav-focus"
+        >
+          <Icon name="menu" size={22} />
+        </button>
+        <span className="min-w-0 flex-1 truncate text-heading">{sectionLabel(pathname) || appTitle(settings)}</span>
+        <span
+          className={`mr-3 size-2.5 shrink-0 rounded-pill ${!online ? 'bg-danger-solid' : queue.length > 0 ? 'bg-warning-solid' : 'bg-success-solid'}`}
+          title={!online ? 'Sin conexión' : queue.length > 0 ? 'Pendiente por sincronizar' : 'En línea'}
+          role="img"
+          aria-label={!online ? 'Sin conexión' : queue.length > 0 ? 'Pendiente por sincronizar' : 'En línea'}
+        />
+      </header>
+
+      {menuOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50 md:hidden print:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
+      )}
+
       <nav
+        id="menu-principal"
         aria-label="Principal"
-        className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-nav-border bg-nav-bg p-3 text-nav-ink md:w-sidebar md:flex-col md:flex-nowrap md:items-stretch md:gap-4 md:border-r md:p-4 print:hidden"
+        className={`fixed inset-y-0 left-0 z-50 flex w-sidebar max-w-[85vw] shrink-0 flex-col gap-4 overflow-y-auto border-r border-nav-border bg-nav-bg p-4 text-nav-ink transition-transform duration-200 md:static md:z-auto md:max-w-none md:translate-x-0 md:transition-none print:hidden ${
+          menuOpen ? 'translate-x-0' : 'invisible -translate-x-full md:visible'
+        }`}
       >
-        <div className="flex items-center gap-2 px-2 md:pt-1 md:pb-2">
+        <div className="flex items-center gap-2 px-2 pt-1 pb-2">
           <span className="grid size-7 place-items-center rounded-md bg-nav-avatar-bg text-nav-active-ink">
             <Icon name="box" />
           </span>
-          <span className="text-heading">{appTitle(settings)}</span>
+          <span className="min-w-0 flex-1 text-heading">{appTitle(settings)}</span>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Cerrar menú"
+            className="grid size-control-md cursor-pointer place-items-center rounded-md text-nav-ink-muted hover:bg-nav-hover hover:text-nav-ink focus-visible:outline-nav-focus md:hidden"
+          >
+            <Icon name="x" size={20} />
+          </button>
         </div>
 
-        <div className="flex flex-wrap gap-0.5 md:flex-col md:flex-nowrap">
+        <div className="flex flex-col gap-0.5">
           {NAV.filter(allowed).map((n) => {
             const children = n.children?.filter(allowed)
             const open = !!children?.length && inSection(n, pathname)
             return (
-              <div key={n.to} className="contents md:block">
+              <div key={n.to}>
                 <NavLink to={n.to} end={n.end} className={navItem}>
                   <Icon name={n.icon} size={20} />
                   <span>{n.label}</span>
                   {!!children?.length && (
-                    <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} className="ml-auto hidden text-nav-ink-subtle md:block" />
+                    <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} className="ml-auto text-nav-ink-subtle" />
                   )}
                 </NavLink>
                 {open && (
-                  <div className="contents md:mt-0.5 md:ml-4 md:flex md:flex-col md:gap-0.5 md:border-l md:border-nav-border md:pl-2">
+                  <div className="mt-0.5 ml-4 flex flex-col gap-0.5 border-l border-nav-border pl-2">
                     {children!.map((c) => (
                       <NavLink key={c.to} to={c.to} end={c.end} className={navItem}>
                         <Icon name={c.icon} size={18} />
@@ -116,9 +171,9 @@ export function Layout() {
           })}
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-3 md:mt-auto md:ml-0 md:flex-col md:flex-nowrap md:items-stretch">
+        <div className="mt-auto flex flex-col items-stretch gap-3">
           <ConnectionBadge />
-          <div className="flex items-center gap-3 border-nav-border px-2 md:border-t md:pt-3">
+          <div className="flex items-center gap-3 border-t border-nav-border px-2 pt-3">
             <span
               className="grid size-8 shrink-0 place-items-center rounded-pill bg-nav-avatar-bg text-label text-nav-ink uppercase"
               aria-hidden
