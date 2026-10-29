@@ -16,7 +16,7 @@ interface NavItem {
   end?: boolean
   /** Solo para administradores. */
   admin?: boolean
-  /** Subsecciones: se muestran solo mientras se está dentro de la sección. */
+  /** Subsecciones: siempre visibles, debajo de la sección. */
   children?: NavItem[]
 }
 
@@ -39,12 +39,6 @@ const NAV: NavItem[] = [
   { to: '/usuarios', label: 'Usuarios', icon: 'shield', admin: true },
   { to: '/configuracion', label: 'Configuración', icon: 'settings', admin: true },
 ]
-
-/** ¿La ruta actual es la sección o alguna de sus subsecciones? */
-function inSection(item: NavItem, pathname: string) {
-  const match = (n: NavItem) => (n.end ? pathname === n.to : pathname === n.to || pathname.startsWith(`${n.to}/`))
-  return match(item) || (item.children ?? []).some(match)
-}
 
 /** Nombre de la sección actual (barra superior en el celular). */
 function sectionLabel(pathname: string) {
@@ -146,17 +140,13 @@ export function Layout() {
         <div className="flex flex-col gap-0.5">
           {NAV.filter(allowed).map((n) => {
             const children = n.children?.filter(allowed)
-            const open = !!children?.length && inSection(n, pathname)
             return (
               <div key={n.to}>
                 <NavLink to={n.to} end={n.end} className={navItem}>
                   <Icon name={n.icon} size={20} />
                   <span>{n.label}</span>
-                  {!!children?.length && (
-                    <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} className="ml-auto text-nav-ink-subtle" />
-                  )}
                 </NavLink>
-                {open && (
+                {!!children?.length && (
                   <div className="mt-0.5 ml-4 flex flex-col gap-0.5 border-l border-nav-border pl-2">
                     {children!.map((c) => (
                       <NavLink key={c.to} to={c.to} end={c.end} className={navItem}>
