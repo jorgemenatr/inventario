@@ -106,7 +106,7 @@ export function Layout() {
         <KananMark size={26} className="shrink-0" />
         <span className="min-w-0 flex-1 truncate font-display text-heading font-extrabold uppercase">{sectionLabel(pathname) || appTitle(settings)}</span>
         <span
-          className={`mr-3 size-2.5 shrink-0 rounded-pill ${!online ? 'bg-danger-solid' : queue.length > 0 ? 'bg-warning-solid' : 'bg-success-solid'}`}
+          className={`mr-3 size-2.5 shrink-0 ${!online ? 'bg-danger-solid' : queue.length > 0 ? 'bg-warning-solid' : 'bg-success-solid'}`}
           title={!online ? 'Sin conexión' : queue.length > 0 ? 'Pendiente por sincronizar' : 'En línea'}
           role="img"
           aria-label={!online ? 'Sin conexión' : queue.length > 0 ? 'Pendiente por sincronizar' : 'En línea'}
@@ -114,7 +114,7 @@ export function Layout() {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 md:hidden print:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
+        <div className="fixed inset-0 z-40 bg-brand-side/60 md:hidden print:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
       )}
 
       <nav

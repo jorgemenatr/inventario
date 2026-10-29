@@ -76,7 +76,7 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, 
         />
         {open && (results.length > 0 || query.trim()) && (
           <ul
-            className="absolute z-20 mt-1 max-h-80 w-full divide-y divide-line overflow-auto rounded-md border border-line bg-surface shadow-popover"
+            className="absolute z-20 mt-1 max-h-80 w-full divide-y divide-line overflow-auto border-2 border-line-side bg-surface shadow-popover"
             role="listbox"
           >
             {results.map((c, i) => (

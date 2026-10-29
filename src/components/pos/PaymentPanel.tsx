@@ -184,7 +184,7 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
                 type="button"
                 aria-pressed={on}
                 onClick={() => toggle(m)}
-                className={`h-11 cursor-pointer rounded-md border-2 text-label ${on ? (m === 'credit' ? 'border-gold-side bg-gold text-on-gold' : 'border-brand bg-brand text-on-brand') : 'border-control bg-surface text-ink hover:bg-subtle'}`}
+                className={`choice ${m === 'credit' ? 'choice-gold' : ''}`}
               >
                 {PAYMENT_LABELS[m]}
               </button>

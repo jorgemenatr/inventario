@@ -234,15 +234,15 @@ export function ProductFormModal({ barcode, defaultQuantity, defaultLocation = '
     onSaved(outcome)
   }
 
-  const input = 'field h-10'
+  const input = 'field'
   const label = 'field-label'
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="pf-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="pf-title">
       <form
         onSubmit={onSubmit}
         onKeyDownCapture={onKeyDownCapture}
-        className="max-h-full w-full max-w-2xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-2xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <div>

@@ -52,9 +52,7 @@ export function GamesInput({ id, value, onChange, suggestions }: Props) {
               type="button"
               aria-pressed={on}
               onClick={() => toggle(g)}
-              className={`inline-flex h-control-sm cursor-pointer items-center gap-1.5 rounded-pill border px-3 text-label ${
-                on ? 'border-brand bg-brand-soft text-brand-ink' : 'border-line bg-surface text-ink-muted hover:bg-subtle'
-              }`}
+className="choice choice-sm"
             >
               {on && <Icon name="check" size={14} />}
               {g}
@@ -88,12 +86,12 @@ export function GameTags({ games, max }: { games: string[]; max?: number }) {
   return (
     <span className="flex flex-wrap gap-1">
       {shown.map((g) => (
-        <span key={g} className="inline-flex items-center rounded-pill bg-brand-soft px-2.5 py-0.5 text-caption text-brand-ink">
+        <span key={g} className="inline-flex items-center border border-jade bg-brand-soft px-2 py-0.5 text-caption font-semibold text-brand-ink">
           {g}
         </span>
       ))}
       {max && games.length > max && (
-        <span className="inline-flex items-center rounded-pill bg-subtle px-2.5 py-0.5 text-caption text-ink-muted">
+        <span className="inline-flex items-center border border-line bg-subtle px-2 py-0.5 text-caption font-semibold text-ink-muted">
           +{games.length - max}
         </span>
       )}

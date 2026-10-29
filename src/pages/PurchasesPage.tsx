@@ -158,7 +158,7 @@ export function PurchasesPage() {
           </div>
           <div>
             <label className="field-label" htmlFor="pu-folio">Folio / factura</label>
-            <input id="pu-folio" value={folio} onChange={(e) => setFolio(e.target.value)} autoComplete="off" className="field h-10" />
+            <input id="pu-folio" value={folio} onChange={(e) => setFolio(e.target.value)} autoComplete="off" className="field" />
           </div>
           <div>
             <span className="field-label">Llega a</span>
@@ -166,7 +166,7 @@ export function PurchasesPage() {
           </div>
           <div className="md:col-span-2">
             <label className="field-label" htmlFor="pu-note">Notas</label>
-            <input id="pu-note" value={note} onChange={(e) => setNote(e.target.value)} autoComplete="off" className="field h-10" />
+            <input id="pu-note" value={note} onChange={(e) => setNote(e.target.value)} autoComplete="off" className="field" />
           </div>
         </div>
 
@@ -194,7 +194,7 @@ export function PurchasesPage() {
             {/* En el celular cada renglón se acomoda en dos líneas. */}
             <table className="w-full border-collapse text-left max-md:block">
               <thead className="max-md:hidden">
-                <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+                <tr className="thead-row">
                   <th className="h-control-md px-3 font-medium">Producto</th>
                   <th className="h-control-md px-3 text-right font-medium">Cantidad</th>
                   <th className="h-control-md px-3 text-right font-medium">Costo unitario</th>
@@ -223,7 +223,7 @@ export function PurchasesPage() {
                         autoComplete="off"
                         aria-label={`Cantidad de ${r.name}`}
                         aria-invalid={Number.isNaN(r.qty)}
-                        className={`field h-9 w-20 text-right tabular-nums max-md:w-14 ${Number.isNaN(r.qty) ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                        className={`field h-control-sm w-20 text-right tabular-nums max-md:w-14 ${Number.isNaN(r.qty) ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
                       />
                     </td>
                     <td className="px-3 py-2 text-right max-md:row-start-2 max-md:p-0 max-md:text-left">
@@ -236,7 +236,7 @@ export function PurchasesPage() {
                         placeholder="0.00"
                         aria-label={`Costo unitario de ${r.name}`}
                         aria-invalid={Number.isNaN(r.cost)}
-                        className={`field h-9 w-28 text-right tabular-nums max-md:w-22 ${Number.isNaN(r.cost) && r.costText.trim() !== '' ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                        className={`field h-control-sm w-28 text-right tabular-nums max-md:w-22 ${Number.isNaN(r.cost) && r.costText.trim() !== '' ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
                       />
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums max-md:row-start-2 max-md:min-w-22 max-md:p-0">
@@ -401,11 +401,11 @@ function PurchaseItem({ purchase: p, onChanged }: { purchase: PurchaseRow; onCha
               </div>
               <div>
                 <label className="field-label" htmlFor={`pe-folio-${p.id}`}>Folio</label>
-                <input id={`pe-folio-${p.id}`} value={folio} onChange={(e) => setFolio(e.target.value)} className="field h-10" />
+                <input id={`pe-folio-${p.id}`} value={folio} onChange={(e) => setFolio(e.target.value)} className="field" />
               </div>
               <div>
                 <label className="field-label" htmlFor={`pe-note-${p.id}`}>Notas</label>
-                <input id={`pe-note-${p.id}`} value={note} onChange={(e) => setNote(e.target.value)} className="field h-10" />
+                <input id={`pe-note-${p.id}`} value={note} onChange={(e) => setNote(e.target.value)} className="field" />
               </div>
             </div>
           )}
@@ -436,7 +436,7 @@ function PurchaseItem({ purchase: p, onChanged }: { purchase: PurchaseRow; onCha
                           onChange={(e) => setCosts((c) => ({ ...c, [i.id]: e.target.value }))}
                           inputMode="decimal"
                           aria-label={`Costo de ${i.product_name}`}
-                          className="field h-8 w-24 text-right tabular-nums"
+                          className="field h-control-sm w-24 text-right tabular-nums"
                         />
                       ) : (
                         formatMoney(i.unit_cost)
@@ -467,7 +467,7 @@ function PurchaseItem({ purchase: p, onChanged }: { purchase: PurchaseRow; onCha
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Ej. Se capturó dos veces / el proveedor no la entregó"
                   autoFocus
-                  className="field h-10"
+                  className="field"
                 />
               </div>
               <button type="button" onClick={() => setMode('view')} className="btn btn-ghost">

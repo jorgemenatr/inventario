@@ -69,7 +69,7 @@ export function CreditsModal({ customers, fixedCustomer, onCancel, onSaved }: Pr
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cr-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="cr-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -79,7 +79,7 @@ export function CreditsModal({ customers, fixedCustomer, onCancel, onSaved }: Pr
             onCancel()
           }
         }}
-        className="max-h-full w-full max-w-2xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-2xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <div>
@@ -106,7 +106,7 @@ export function CreditsModal({ customers, fixedCustomer, onCancel, onSaved }: Pr
               placeholder="Ej. Premio torneo Pokémon (1er lugar)"
               autoFocus
               autoComplete="off"
-              className="field h-10"
+              className="field"
             />
           </div>
 
@@ -157,7 +157,7 @@ export function CreditsModal({ customers, fixedCustomer, onCancel, onSaved }: Pr
                       type="button"
                       onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
                       aria-label="Quitar renglón"
-                      className="grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-danger-bg hover:text-danger-fg"
+                      className="grid size-11 shrink-0 cursor-pointer place-items-center text-ink-muted hover:bg-danger-bg hover:text-danger-fg"
                     >
                       <Icon name="x" />
                     </button>
@@ -187,7 +187,7 @@ export function CreditsModal({ customers, fixedCustomer, onCancel, onSaved }: Pr
               {chosen.length} cliente(s) · <span className="font-medium text-ink tabular-nums">{formatMoney(total)}</span>
             </span>
           )}
-          <button type="submit" disabled={saving} className="btn btn-primary btn-lg w-full sm:w-auto">
+          <button type="submit" disabled={saving} className="btn btn-gold btn-lg w-full sm:w-auto">
             <Icon name="check" size={20} />
             {saving ? 'Guardando…' : fixedCustomer ? 'Agregar crédito' : 'Agregar créditos'}
           </button>

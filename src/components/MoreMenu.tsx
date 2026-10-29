@@ -49,12 +49,12 @@ export function MoreMenu({
         aria-label="Más acciones"
         title="Más acciones"
         disabled={disabled}
-        className={`btn w-control-md px-0 ${variant === 'ghost' ? 'btn-ghost text-ink-muted' : 'btn-secondary'}`}
+        className={`btn btn-icon ${variant === 'ghost' ? 'btn-ghost text-ink-muted' : 'btn-secondary'}`}
       >
         <Icon name="more" size={20} />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-1 min-w-56 overflow-hidden rounded-md border border-line bg-surface py-1 shadow-popover">
+        <div role="menu" className="absolute right-0 z-30 mt-1 min-w-56 overflow-hidden border-2 border-line-side bg-surface py-1 shadow-popover">
           {items.map((it) => (
             <button
               key={it.label}

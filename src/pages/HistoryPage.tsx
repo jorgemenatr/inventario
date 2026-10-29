@@ -231,7 +231,7 @@ export function HistoryPage() {
         </ul>
         <table className="hidden w-full border-collapse text-left md:table">
           <thead>
-            <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+            <tr className="thead-row">
               <th className="h-control-md px-4 font-medium">Fecha</th>
               <th className="h-control-md px-4 font-medium">Código</th>
               <th className="h-control-md px-4 font-medium">Producto</th>
@@ -380,7 +380,7 @@ function CancelMovementModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cm-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="cm-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -390,7 +390,7 @@ function CancelMovementModal({
             onCancel()
           }
         }}
-        className="w-full max-w-lg rounded-lg border border-line bg-surface shadow-popover"
+        className="w-full max-w-lg dialog"
       >
         <div className="border-b border-line px-6 py-5">
           <h2 id="cm-title" className="text-title">Cancelar movimiento</h2>
@@ -419,7 +419,7 @@ function CancelMovementModal({
               placeholder="Ej. Se escaneó dos veces la misma caja"
               autoFocus
               autoComplete="off"
-              className="field h-10"
+              className="field"
             />
           </div>
           {error && (

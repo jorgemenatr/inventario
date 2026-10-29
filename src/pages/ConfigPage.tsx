@@ -196,7 +196,7 @@ function BusinessCard() {
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
         <div className="w-full max-w-sm">
           <label className="field-label" htmlFor="cfg-name">Nombre</label>
-          <input id="cfg-name" className="field h-10" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+          <input id="cfg-name" className="field" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
         </div>
         <button
           type="submit"
@@ -350,7 +350,7 @@ function CategoryModal({
   const renamed = current && current.name !== name.trim()
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -360,7 +360,7 @@ function CategoryModal({
             onCancel()
           }
         }}
-        className="max-h-full w-full max-w-xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <h2 id="cf-title" className="text-title">
@@ -377,7 +377,7 @@ function CategoryModal({
             <label className="field-label" htmlFor="cf-name">Nombre *</label>
             <input
               id="cf-name"
-              className="field h-10"
+              className="field"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={60}
@@ -394,7 +394,7 @@ function CategoryModal({
               <label className="field-label" htmlFor="cf-parent">Dentro de</label>
               <select
                 id="cf-parent"
-                className="field h-10 cursor-pointer"
+                className="field cursor-pointer"
                 value={parentId ?? ''}
                 onChange={(e) => setParentId(e.target.value || null)}
               >

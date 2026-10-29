@@ -76,7 +76,7 @@ export function LeaguePointsModal({ customers, fixedCustomer, onCancel, onSaved 
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="lp-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="lp-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -86,7 +86,7 @@ export function LeaguePointsModal({ customers, fixedCustomer, onCancel, onSaved 
             onCancel()
           }
         }}
-        className="max-h-full w-full max-w-2xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-2xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <div>
@@ -107,7 +107,7 @@ export function LeaguePointsModal({ customers, fixedCustomer, onCancel, onSaved 
           <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
             <div>
               <label className="field-label" htmlFor="lp-date">Fecha *</label>
-              <input id="lp-date" type="date" value={awardedOn} onChange={(e) => setAwardedOn(e.target.value)} className="field h-10" />
+              <input id="lp-date" type="date" value={awardedOn} onChange={(e) => setAwardedOn(e.target.value)} className="field" />
             </div>
             <div>
               <label className="field-label" htmlFor="lp-note">Comentario</label>
@@ -118,7 +118,7 @@ export function LeaguePointsModal({ customers, fixedCustomer, onCancel, onSaved 
                 placeholder="Ej. Liga Pokémon, semana 3 (2do lugar)"
                 autoFocus
                 autoComplete="off"
-                className="field h-10"
+                className="field"
               />
             </div>
           </div>
@@ -171,7 +171,7 @@ export function LeaguePointsModal({ customers, fixedCustomer, onCancel, onSaved 
                       type="button"
                       onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
                       aria-label="Quitar renglón"
-                      className="grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-danger-bg hover:text-danger-fg"
+                      className="grid size-11 shrink-0 cursor-pointer place-items-center text-ink-muted hover:bg-danger-bg hover:text-danger-fg"
                     >
                       <Icon name="x" />
                     </button>
@@ -202,7 +202,7 @@ export function LeaguePointsModal({ customers, fixedCustomer, onCancel, onSaved 
               {chosen.length} cliente(s) · <span className="font-medium text-ink tabular-nums">{formatPoints(total)} pts</span>
             </span>
           )}
-          <button type="submit" disabled={saving} className="btn btn-primary btn-lg w-full sm:w-auto">
+          <button type="submit" disabled={saving} className="btn btn-gold btn-lg w-full sm:w-auto">
             <Icon name="check" size={20} />
             {saving ? 'Guardando…' : 'Agregar puntos'}
           </button>

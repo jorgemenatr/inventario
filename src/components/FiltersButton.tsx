@@ -24,7 +24,7 @@ export function FiltersButton({
     >
       <Icon name="filter" />
       Filtros
-      {active && <span className="size-2 rounded-pill bg-brand" aria-label="(hay filtros activos)" />}
+      {active && <span className="size-2 bg-brand" aria-label="(hay filtros activos)" />}
     </button>
   )
 }

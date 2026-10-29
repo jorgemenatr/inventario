@@ -61,7 +61,7 @@ export function SalesTable({ sales, hideCustomer, emptyText }: Props) {
       </ul>
       <table className="hidden w-full border-collapse text-left md:table">
         <thead>
-          <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+          <tr className="thead-row">
             <th className="h-control-md w-8 px-3">
               <span className="sr-only">Detalle</span>
             </th>
@@ -182,7 +182,7 @@ function SaleDetail({ sale: s, detail }: { sale: SaleRow; detail: Detail | 'erro
             {[...detail.payments]
               .sort((a, b) => PAYMENT_METHODS.indexOf(a.method) - PAYMENT_METHODS.indexOf(b.method))
               .map((p) => (
-                <li key={p.id} className="inline-flex items-center gap-2 rounded-pill border border-line bg-surface px-3 py-1 text-label">
+                <li key={p.id} className="inline-flex items-center gap-2 border border-line bg-surface px-2.5 py-1 text-label">
                   {PAYMENT_LABELS[p.method]}
                   <span className="tabular-nums">{formatMoney(p.amount)}</span>
                 </li>

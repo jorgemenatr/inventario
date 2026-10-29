@@ -109,7 +109,7 @@ export function ScannerSimulator() {
   return (
     <div
       ref={panelRef}
-      className="fixed right-3 bottom-3 z-[60] w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-popover print:hidden"
+      className="fixed right-3 bottom-3 z-[60] w-80 overflow-hidden dialog print:hidden"
     >
       <button
         type="button"

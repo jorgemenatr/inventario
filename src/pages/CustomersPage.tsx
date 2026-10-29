@@ -174,7 +174,7 @@ export function CustomersPage() {
           </ul>
           <table className="hidden w-full border-collapse text-left md:table">
             <thead>
-              <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+              <tr className="thead-row">
                 <th className="h-control-md px-4 font-medium">Nombre</th>
                 <th className="h-control-md px-4 font-medium">Teléfono</th>
                 <th className="h-control-md px-4 font-medium">Correo</th>

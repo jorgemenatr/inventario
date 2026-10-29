@@ -308,7 +308,7 @@ export function ScanPage() {
                 autoComplete="off"
                 placeholder="El último"
                 aria-invalid={!costValid}
-                className={`field h-10 w-32 tabular-nums ${costValid ? '' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
+                className={`field w-32 tabular-nums ${costValid ? '' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
               />
             </div>
             <p className="basis-full text-caption text-ink-muted">
@@ -365,7 +365,7 @@ export function ScanPage() {
                   className={`h-11 w-28 rounded-md border bg-surface px-3 text-center text-title tabular-nums ${qtyValid ? 'border-control text-ink' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
                 />
               </div>
-              <div className="flex h-11 gap-0.5 rounded-md border border-control bg-surface p-0.5" role="group" aria-label="Modo">
+              <div className="seg h-12" role="group" aria-label="Modo">
                 {(
                   [
                     ['add', 'Sumar'],
@@ -377,7 +377,7 @@ export function ScanPage() {
                     type="button"
                     aria-pressed={mode === m}
                     onClick={() => setMode(m)}
-                    className={`cursor-pointer rounded-[6px] px-4 text-heading ${mode === m ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
+                    className="seg-option px-4 text-[15px]"
                   >
                     {text}
                   </button>

@@ -215,7 +215,7 @@ export function InventoryPage() {
             </button>
           </>
         )}
-        <div className="flex h-control-md gap-0.5 rounded-md border border-control bg-surface p-0.5" role="group" aria-label="Vista">
+        <div className="seg" role="group" aria-label="Vista">
           {(
             [
               ['grid', 'grid', 'Cuadrícula'],
@@ -227,7 +227,7 @@ export function InventoryPage() {
               type="button"
               aria-pressed={view === v}
               onClick={() => setView(v)}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 text-label ${view === v ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
+              className="seg-option"
             >
               <Icon name={icon} />
               <span className="max-md:sr-only">{text}</span>
@@ -590,7 +590,7 @@ function ProductTable({
       </ul>
       <table className="hidden w-full border-collapse text-left md:table">
         <thead>
-          <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+          <tr className="thead-row">
             <th className="h-control-md w-14 px-4 font-medium">
               <span className="sr-only">Imagen</span>
             </th>

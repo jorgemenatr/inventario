@@ -384,6 +384,65 @@
   }
   .icon-btn:disabled { @apply cursor-not-allowed; opacity: 0.45; }
 
+  /*
+   * Control de segmentos y botones de opción (aria-pressed): opción elegida en
+   * verde cenote. Mayúsculas como el resto de los botones.
+   */
+  .seg {
+    @apply flex h-control-md gap-0.5 border-2 border-control bg-surface p-0.5;
+  }
+  .seg-option {
+    @apply flex cursor-pointer items-center justify-center gap-1.5 px-3 text-ink-muted uppercase hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
+    font-family: var(--font-display);
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: 0.04em;
+  }
+  .seg-option[aria-pressed="true"], .seg-option[aria-selected="true"] {
+    @apply bg-brand text-on-brand hover:bg-brand;
+  }
+
+  /* Encabezado de tabla: etiquetas chicas en mayúsculas sobre surface-sunken. */
+  .thead-row {
+    @apply bg-subtle text-caption whitespace-nowrap text-ink-muted uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /*
+   * Botón de opción suelto (formas de pago, juegos): contorno de control; el
+   * elegido (aria-pressed) en verde cenote. choice-gold lo pinta dorado
+   * (créditos de tienda).
+   */
+  .choice {
+    @apply inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 border-2 border-control bg-surface px-3 text-ink uppercase hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-45;
+    font-family: var(--font-display);
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: 0.04em;
+  }
+  .choice[aria-pressed="true"] { @apply border-brand bg-brand text-on-brand; }
+  .choice-gold[aria-pressed="true"] { @apply border-gold-side bg-gold text-on-gold; }
+  .choice-sm { @apply h-control-sm px-2.5; font-size: 12px; }
+
+  /* Ventana modal: hoja clara con contorno y extrusión de 8px, como un bloque de papel. */
+  .dialog {
+    --side: var(--color-line-side);
+    @apply border-2 bg-surface;
+    border-color: var(--side);
+    box-shadow:
+      -1px 1px 0 var(--side), -2px 2px 0 var(--side), -3px 3px 0 var(--side),
+      -4px 4px 0 var(--side), -5px 5px 0 var(--side), -6px 6px 0 var(--side),
+      -7px 7px 0 var(--side), -8px 8px 0 var(--side);
+  }
+
+  /* Botón de solo ícono: cuadrado del alto del botón (contando la extrusión). */
+  .btn-icon { width: var(--h); @apply px-0; }
+  .btn-icon:not(.btn-sm):is(.btn-primary, .btn-gold, .btn-secondary) { width: calc(var(--h) - var(--ext)); }
+
   /* Input de texto (TextField): 44px, borde de 2px; al enfocar, borde jade y halo menta. */
   .field {
     @apply h-control-md w-full rounded-md border-2 border-control bg-surface px-3 text-body text-ink;
