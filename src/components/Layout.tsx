@@ -103,7 +103,8 @@ export function Layout() {
         >
           <Icon name="menu" size={22} />
         </button>
-        <span className="min-w-0 flex-1 truncate text-heading">{sectionLabel(pathname) || appTitle(settings)}</span>
+        <KananMark size={26} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate font-display text-heading font-extrabold uppercase">{sectionLabel(pathname) || appTitle(settings)}</span>
         <span
           className={`mr-3 size-2.5 shrink-0 rounded-pill ${!online ? 'bg-danger-solid' : queue.length > 0 ? 'bg-warning-solid' : 'bg-success-solid'}`}
           title={!online ? 'Sin conexión' : queue.length > 0 ? 'Pendiente por sincronizar' : 'En línea'}

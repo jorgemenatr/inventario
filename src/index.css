@@ -141,92 +141,96 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --color-app: #12201f;
-      --color-surface: #1a2e2c;
-      --color-subtle: #0b1514;
-      --color-line: #2c4542;
-      --color-control: #6f8a86;
-      --color-ink: #f4f6f3;
-      --color-ink-muted: #a9bdb9;
-      --color-ink-subtle: #93a9a5;
-      --color-brand: #1e7a6e;
-      --color-brand-hover: #2a9a8b;
-      --color-brand-soft: #173a37;
-      --color-brand-tint: #0f4c4a;
-      --color-brand-ink: #7fc8b8;
+      --color-app: #101413;
+      --color-surface: #171c1b;
+      --color-subtle: #0b0e0e;
+      --color-line: #283130;
+      --color-control: #64716e;
+      --color-ink: #eef1f0;
+      --color-ink-muted: #a4aeac;
+      --color-ink-subtle: #8e9997;
+      --color-brand: #1d6a61;
+      --color-brand-hover: #237a6f;
+      --color-brand-soft: #1a2624;
+      --color-brand-tint: #0f3f3b;
+      --color-brand-ink: #8fcfc0;
       --color-on-brand: #f4f6f3;
-      --color-jade: #2a9a8b;
-      --color-gold-soft: #3a2a0e;
-      --color-brand-side: #0f4c4a;
-      --color-gold-side: #7a5210;
-      --color-line-side: #6f8a86;
-      --color-success-bg: #143430;
-      --color-success-fg: #5fc2a8;
-      --color-success-solid: #5fc2a8;
-      --color-warning-bg: #3a2a0e;
-      --color-warning-fg: #f0b95a;
-      --color-warning-solid: #f0b95a;
-      --color-danger-bg: #3e1c17;
-      --color-danger-fg: #f08a73;
-      --color-danger-solid: #f08a73;
-      --color-info-bg: #173a37;
-      --color-info-fg: #7fc8b8;
-      --color-info-solid: #5fc2a8;
-      --color-nav-bg: #0b1514;
-      --color-nav-border: #2c4542;
-      --color-nav-ink: #f4f6f3;
-      --color-nav-ink-muted: #a9bdb9;
-      --color-nav-ink-subtle: #93a9a5;
-      --color-nav-hover: #142624;
-      --color-nav-active-bg: #1e7a6e;
-      --color-nav-avatar-bg: #1e7a6e;
-      --color-nav-focus: #2a9a8b;
-      --elevation-popover: -6px 6px 0 0 #0b1514;
+      --color-jade: #3aa392;
+      --color-mint: #5fa596;
+      --color-gold: #d39a37;
+      --color-gold-soft: #2b2414;
+      --color-brand-side: #0b2a27;
+      --color-gold-side: #6b4a12;
+      --color-line-side: #64716e;
+      --color-success-bg: #15241f;
+      --color-success-fg: #6cc4ad;
+      --color-success-solid: #6cc4ad;
+      --color-warning-bg: #2a2214;
+      --color-warning-fg: #e9b85f;
+      --color-warning-solid: #e9b85f;
+      --color-danger-bg: #2c1a17;
+      --color-danger-fg: #ef8f7a;
+      --color-danger-solid: #ef8f7a;
+      --color-info-bg: #1a2624;
+      --color-info-fg: #8fcfc0;
+      --color-info-solid: #6cc4ad;
+      --color-nav-bg: #0b0e0e;
+      --color-nav-border: #222a29;
+      --color-nav-ink: #eef1f0;
+      --color-nav-ink-muted: #a4aeac;
+      --color-nav-ink-subtle: #8e9997;
+      --color-nav-hover: #161b1a;
+      --color-nav-active-bg: #1d6a61;
+      --color-nav-avatar-bg: #1d6a61;
+      --color-nav-focus: #3aa392;
+      --elevation-popover: -6px 6px 0 0 #050707;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --color-app: #12201f;
-    --color-surface: #1a2e2c;
-    --color-subtle: #0b1514;
-    --color-line: #2c4542;
-    --color-control: #6f8a86;
-    --color-ink: #f4f6f3;
-    --color-ink-muted: #a9bdb9;
-    --color-ink-subtle: #93a9a5;
-    --color-brand: #1e7a6e;
-    --color-brand-hover: #2a9a8b;
-    --color-brand-soft: #173a37;
-    --color-brand-tint: #0f4c4a;
-    --color-brand-ink: #7fc8b8;
+    --color-app: #101413;
+    --color-surface: #171c1b;
+    --color-subtle: #0b0e0e;
+    --color-line: #283130;
+    --color-control: #64716e;
+    --color-ink: #eef1f0;
+    --color-ink-muted: #a4aeac;
+    --color-ink-subtle: #8e9997;
+    --color-brand: #1d6a61;
+    --color-brand-hover: #237a6f;
+    --color-brand-soft: #1a2624;
+    --color-brand-tint: #0f3f3b;
+    --color-brand-ink: #8fcfc0;
     --color-on-brand: #f4f6f3;
-    --color-jade: #2a9a8b;
-    --color-gold-soft: #3a2a0e;
-    --color-brand-side: #0f4c4a;
-    --color-gold-side: #7a5210;
-    --color-line-side: #6f8a86;
-    --color-success-bg: #143430;
-    --color-success-fg: #5fc2a8;
-    --color-success-solid: #5fc2a8;
-    --color-warning-bg: #3a2a0e;
-    --color-warning-fg: #f0b95a;
-    --color-warning-solid: #f0b95a;
-    --color-danger-bg: #3e1c17;
-    --color-danger-fg: #f08a73;
-    --color-danger-solid: #f08a73;
-    --color-info-bg: #173a37;
-    --color-info-fg: #7fc8b8;
-    --color-info-solid: #5fc2a8;
-    --color-nav-bg: #0b1514;
-    --color-nav-border: #2c4542;
-    --color-nav-ink: #f4f6f3;
-    --color-nav-ink-muted: #a9bdb9;
-    --color-nav-ink-subtle: #93a9a5;
-    --color-nav-hover: #142624;
-    --color-nav-active-bg: #1e7a6e;
-    --color-nav-avatar-bg: #1e7a6e;
-    --color-nav-focus: #2a9a8b;
-    --elevation-popover: -6px 6px 0 0 #0b1514;
+    --color-jade: #3aa392;
+    --color-mint: #5fa596;
+    --color-gold: #d39a37;
+    --color-gold-soft: #2b2414;
+    --color-brand-side: #0b2a27;
+    --color-gold-side: #6b4a12;
+    --color-line-side: #64716e;
+    --color-success-bg: #15241f;
+    --color-success-fg: #6cc4ad;
+    --color-success-solid: #6cc4ad;
+    --color-warning-bg: #2a2214;
+    --color-warning-fg: #e9b85f;
+    --color-warning-solid: #e9b85f;
+    --color-danger-bg: #2c1a17;
+    --color-danger-fg: #ef8f7a;
+    --color-danger-solid: #ef8f7a;
+    --color-info-bg: #1a2624;
+    --color-info-fg: #8fcfc0;
+    --color-info-solid: #6cc4ad;
+    --color-nav-bg: #0b0e0e;
+    --color-nav-border: #222a29;
+    --color-nav-ink: #eef1f0;
+    --color-nav-ink-muted: #a4aeac;
+    --color-nav-ink-subtle: #8e9997;
+    --color-nav-hover: #161b1a;
+    --color-nav-active-bg: #1d6a61;
+    --color-nav-avatar-bg: #1d6a61;
+    --color-nav-focus: #3aa392;
+    --elevation-popover: -6px 6px 0 0 #050707;
     color-scheme: dark;
   }
 }
@@ -308,15 +312,20 @@
 
   /*
    * Button: primary | gold | secondary | ghost | danger; md (44px), sm (36px)
-   * o lg (56px). primary, gold y secondary son bloques extruidos que se hunden
-   * en su extrusión al presionarlos; ghost y danger son planos.
-   * btn-block lo estira al ancho del contenedor dejando lugar a la extrusión.
+   * o lg (56px). Todos en mayúsculas con Archivo y esquinas rectas.
+   * primary, gold y secondary en md y lg son bloques extruidos que se hunden en
+   * su extrusión al presionarlos. La extrusión cuenta dentro del alto y del
+   * ancho del botón (cara + extrusión = 44px), así mide lo mismo que un campo
+   * de la misma fila. btn-sm y ghost/danger son planos.
+   * btn-block lo estira al ancho del contenedor.
    */
   .btn {
-    --ext: 5px;
+    --h: var(--spacing-control-md);
+    --ext: 0px;
     --face: transparent;
     --side: transparent;
-    @apply inline-flex h-control-md shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap border-0 px-5 uppercase;
+    @apply inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-none border-0 px-5 uppercase;
+    height: var(--h);
     font-family: var(--font-display);
     font-size: 15px;
     line-height: 20px;
@@ -327,58 +336,51 @@
     transition: transform 0.08s ease, filter 0.12s ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .btn-sm { @apply h-control-sm gap-1.5 px-3.5; font-size: 13px; }
-  .btn-lg { --ext: 8px; @apply h-14 gap-2.5 px-7; font-size: 18px; line-height: 24px; }
-  .btn-block { width: calc(100% - var(--ext)); margin-left: var(--ext); }
+  .btn-sm { --h: var(--spacing-control-sm); @apply gap-1.5 px-3; font-size: 13px; line-height: 18px; }
+  .btn-lg { --h: 56px; @apply gap-2.5 px-7; font-size: 18px; line-height: 24px; }
+  .btn-block { width: calc(100% - var(--ext)); }
 
-  /* Reserva el lugar de la extrusión a la izquierda para no tapar al vecino. */
-  .btn-primary, .btn-gold, .btn-secondary {
-    margin-left: var(--ext);
+  .btn-primary { --face: var(--color-brand); --side: var(--color-brand-side); color: var(--color-on-brand); }
+  .btn-gold { --face: var(--color-gold); --side: var(--color-gold-side); color: var(--color-on-gold); }
+  .btn-secondary { --face: var(--color-surface); --side: var(--color-line-side); color: var(--color-ink); }
+  .btn-sm.btn-secondary { --side: var(--color-control); box-shadow: inset 0 0 0 2px var(--side); }
+
+  /* Bloque extruido: la cara pierde lo que mide la extrusión y el margen la reserva. */
+  .btn:not(.btn-sm):is(.btn-primary, .btn-gold, .btn-secondary) {
+    --ext: 5px;
+    height: calc(var(--h) - var(--ext));
+    margin: 0 0 var(--ext) var(--ext);
     box-shadow:
+      inset 0 0 0 var(--contour, 0px) var(--side),
       -1px 1px 0 var(--side), -2px 2px 0 var(--side), -3px 3px 0 var(--side),
       -4px 4px 0 var(--side), -5px 5px 0 var(--side);
   }
   .btn-lg:is(.btn-primary, .btn-gold, .btn-secondary) {
+    --ext: 8px;
     box-shadow:
+      inset 0 0 0 var(--contour, 0px) var(--side),
       -1px 1px 0 var(--side), -2px 2px 0 var(--side), -3px 3px 0 var(--side),
       -4px 4px 0 var(--side), -5px 5px 0 var(--side), -6px 6px 0 var(--side),
       -7px 7px 0 var(--side), -8px 8px 0 var(--side);
   }
-  .btn-primary { --face: var(--color-brand); --side: var(--color-brand-side); color: var(--color-on-brand); }
-  .btn-gold { --face: var(--color-gold); --side: var(--color-gold-side); color: var(--color-on-gold); }
-  .btn-secondary {
-    --face: var(--color-surface);
-    --side: var(--color-line-side);
-    color: var(--color-ink);
-  }
   /* Contorno de 2px en el color de la extrusión. */
-  .btn-secondary {
-    box-shadow:
-      inset 0 0 0 2px var(--side),
-      -1px 1px 0 var(--side), -2px 2px 0 var(--side), -3px 3px 0 var(--side),
-      -4px 4px 0 var(--side), -5px 5px 0 var(--side);
-  }
-  .btn:is(.btn-primary, .btn-gold, .btn-secondary):hover:not(:disabled) { filter: brightness(1.1); }
-  .btn-secondary:hover:not(:disabled) { --face: var(--color-subtle); filter: none; }
-  .btn:is(.btn-primary, .btn-gold, .btn-secondary):active:not(:disabled) {
+  .btn-secondary { --contour: 2px; }
+  .btn:is(.btn-primary, .btn-gold):hover:not(:disabled) { filter: brightness(1.1); }
+  .btn-secondary:hover:not(:disabled) { --face: var(--color-subtle); }
+  .btn:not(.btn-sm):is(.btn-primary, .btn-gold, .btn-secondary):active:not(:disabled) {
     transform: translate(calc(-1 * var(--ext)), var(--ext));
-    box-shadow: none;
+    box-shadow: inset 0 0 0 var(--contour, 0px) var(--side);
   }
-  .btn-secondary:active:not(:disabled) { box-shadow: inset 0 0 0 2px var(--side); }
-  .btn-ghost { color: var(--color-jade); @apply rounded-md; }
+  .btn-ghost { color: var(--color-jade); }
   .btn-ghost:hover:not(:disabled) { --face: var(--color-subtle); }
-  .btn-danger {
-    color: var(--color-danger-fg);
-    @apply rounded-md;
-    box-shadow: inset 0 0 0 2px currentColor;
-  }
+  .btn-danger { color: var(--color-danger-fg); box-shadow: inset 0 0 0 2px currentColor; }
   .btn-danger:hover:not(:disabled) { --face: var(--color-danger-bg); }
-  .btn:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 4px; }
+  .btn:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 3px; }
   .btn:disabled { @apply cursor-not-allowed; opacity: 0.45; }
 
   /* Botón cuadrado de ícono (cantidades, quitar): plano, con borde de control. */
   .icon-btn {
-    @apply grid size-control-sm shrink-0 cursor-pointer place-items-center rounded-md border-2 border-control bg-surface text-ink hover:bg-subtle;
+    @apply grid size-control-sm shrink-0 cursor-pointer place-items-center border-2 border-control bg-surface text-ink hover:bg-subtle;
   }
   .icon-btn:disabled { @apply cursor-not-allowed; opacity: 0.45; }
 
@@ -412,4 +414,9 @@
   .notice {
     @apply flex items-start gap-2 rounded-md px-3 py-2.5 text-body;
   }
+}
+
+/* Un botón extruido a todo lo ancho deja lugar a su extrusión (gana a w-full). */
+@layer utilities {
+  .btn.w-full { width: calc(100% - var(--ext)); }
 }

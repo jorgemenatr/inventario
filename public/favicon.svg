@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#0f172a"/><g fill="#fff"><rect x="6" y="8" width="2" height="16"/><rect x="10" y="8" width="1" height="16"/><rect x="13" y="8" width="3" height="16"/><rect x="18" y="8" width="1" height="16"/><rect x="21" y="8" width="2" height="16"/><rect x="25" y="8" width="1" height="16"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Kanan">
+<defs><polygon id="k" points="205,305 243,305 243,363 273,333 273,305 311,305 311,345 284,372 311,399 311,441 273,441 273,413 243,383 243,441 205,441"></polygon></defs>
+<rect width="512" height="512" rx="112" fill="#0F4C4A"></rect>
+<g transform="translate(270 242) scale(2.2) translate(-258 -373)">
+<use href="#k" transform="translate(-14 14)" fill="#12201F"></use><use href="#k" transform="translate(-13 13)" fill="#12201F"></use><use href="#k" transform="translate(-12 12)" fill="#12201F"></use><use href="#k" transform="translate(-11 11)" fill="#12201F"></use><use href="#k" transform="translate(-10 10)" fill="#12201F"></use><use href="#k" transform="translate(-9 9)" fill="#12201F"></use><use href="#k" transform="translate(-8 8)" fill="#12201F"></use><use href="#k" transform="translate(-7 7)" fill="#12201F"></use><use href="#k" transform="translate(-6 6)" fill="#12201F"></use><use href="#k" transform="translate(-5 5)" fill="#12201F"></use><use href="#k" transform="translate(-4 4)" fill="#12201F"></use><use href="#k" transform="translate(-3 3)" fill="#12201F"></use><use href="#k" transform="translate(-2 2)" fill="#12201F"></use><use href="#k" transform="translate(-1 1)" fill="#12201F"></use>
+<use href="#k" fill="#F4F6F3"></use>
+</g>
+</svg>
