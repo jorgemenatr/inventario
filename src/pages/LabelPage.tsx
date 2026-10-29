@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import JsBarcode from 'jsbarcode'
 import { Icon } from '../components/Icon'
+import { KananMark } from '../components/KananMark'
 import { formatMoney } from '../lib/format'
 import { useInventory } from '../store/useInventory'
 
@@ -38,6 +39,7 @@ export function LabelPage() {
         }
       `}</style>
       <div className="mb-6 flex flex-wrap items-center gap-3 print:hidden">
+        <KananMark size={36} className="shrink-0" />
         <h1 className="mr-auto text-title uppercase md:text-title-lg">Etiqueta</h1>
         <button type="button" onClick={() => window.close()} className="btn btn-secondary">
           Cerrar
