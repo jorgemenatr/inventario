@@ -1,8 +1,10 @@
-# Inventario Hachiko · Fase 1 (captura de inventario)
+# Kanan POS
 
-App web para hacer el levantamiento inicial del inventario de Hachiko con un lector
-de código de barras USB conectado a una laptop. La base de datos queda lista para
-construir después el punto de venta (POS) sobre ella.
+Punto de venta e inventario para tiendas (TCG, accesorios y más), en
+[kananpos.com](https://kananpos.com). Cada cliente entra por su subdominio
+(`hachiko.kananpos.com`) y tiene su propio proyecto de Supabase (ver
+[Varios clientes](#varios-clientes-saas)). Funciona con lector de código de barras USB
+y sigue capturando sin internet.
 
 **Stack:** Vite + React + TypeScript · Tailwind CSS · Supabase (Postgres, Auth, Storage)
 · React Router · SheetJS · JsBarcode · Netlify.
