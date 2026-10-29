@@ -104,6 +104,14 @@
   --spacing-sidebar: 232px;
 }
 
+/* En el celular las cifras grandes van en tarjetas de media pantalla: más chicas para que quepan. */
+@media (width < 48rem) {
+  :root {
+    --text-kpi: 22px;
+    --text-kpi--line-height: 28px;
+  }
+}
+
 /* Tema oscuro: mismo nombre de token, otro valor. Sigue al sistema operativo
    salvo que se fuerce con data-theme="light" | "dark" en <html>. */
 @layer theme {

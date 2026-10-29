@@ -8,6 +8,7 @@ import { exportName } from '../lib/settings'
 import { isNetworkError, supabase } from '../lib/supabase'
 import { Icon } from '../components/Icon'
 import { LotPicker } from '../components/LotPicker'
+import { MoreMenu } from '../components/MoreMenu'
 import { needsLotChoice } from '../lib/lots'
 import { LOCATION_LABELS, MOVEMENT_LABELS, type LotPick, type MovementHistoryRow, type Product } from '../lib/types'
 import { inventoryStore, type QueueItem } from '../store/inventoryStore'
@@ -86,7 +87,7 @@ export function HistoryPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 max-md:hidden">
         <h1 className="mr-auto text-title">Historial de movimientos</h1>
         <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
           <Icon name="download" />
@@ -139,17 +140,28 @@ export function HistoryPage() {
         </section>
       )}
 
-      <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
-        <Icon name="search" />
-        <input
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Buscar por código o nombre"
-          aria-label="Buscar por código o nombre"
-          className="min-w-0 flex-1 bg-transparent text-ink outline-none focus-visible:outline-none"
-        />
-      </label>
+      <div className="flex items-center gap-3">
+        <label className="flex h-control-md w-full max-w-sm min-w-0 items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+          <Icon name="search" />
+          <input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Buscar por código o nombre"
+            aria-label="Buscar por código o nombre"
+            className="min-w-0 flex-1 bg-transparent text-ink outline-none focus-visible:outline-none"
+          />
+        </label>
+        {online && !exporting && (
+          <MoreMenu
+            className="md:hidden"
+            items={[
+              { label: 'Exportar CSV', icon: 'download', onClick: () => void doExport('csv') },
+              { label: 'Exportar Excel', icon: 'download', onClick: () => void doExport('xlsx') },
+            ]}
+          />
+        )}
+      </div>
 
       {saved && (
         <p className="notice bg-success-bg text-success-fg" role="status">
@@ -165,7 +177,59 @@ export function HistoryPage() {
       )}
 
       <div className="card overflow-x-auto">
-        <table className="w-full border-collapse text-left">
+        {/* Celular: una tarjeta por movimiento. */}
+        <ul className="divide-y divide-line md:hidden">
+          {rows.map((m) => (
+            <li key={m.id} className={`space-y-1.5 px-4 py-3 ${m.cancelled_by_movement_id ? 'text-ink-subtle' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 font-medium">{m.product_name}</p>
+                <span className={`shrink-0 font-medium tabular-nums ${deltaClass(m)}`}>
+                  {m.delta > 0 ? '+' : ''}
+                  {formatInt(m.delta)}
+                </span>
+              </div>
+              <p className="font-mono text-[13px] break-all text-ink-muted">{m.barcode}</p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption">
+                <span>{MOVEMENT_LABELS[m.type] ?? m.type}</span>
+                {m.location === 'warehouse' ? <span className="badge badge-warning">Bodega</span> : <span className="text-ink-muted">· {LOCATION_LABELS.store}</span>}
+                <span className="text-ink-muted">· queda {formatInt(m.quantity_after)}</span>
+                {m.lot_numbers && <span className="text-ink-subtle">· Lote {m.lot_numbers}</span>}
+                {m.reverts_movement_id && <span className="badge badge-info">Cancelación</span>}
+                {m.cancelled_by_movement_id && <span className="badge badge-danger">Cancelado</span>}
+              </div>
+              {(m.note || m.cancelled_by_movement_id) && (
+                <p className="text-caption text-ink-muted">
+                  {m.note}
+                  {m.cancelled_by_movement_id && (
+                    <span className="block text-danger-fg">
+                      Cancelado{m.cancelled_by_name ? ` por ${m.cancelled_by_name}` : ''}
+                      {m.cancelled_at ? ` el ${formatDateTime(m.cancelled_at)}` : ''}
+                    </span>
+                  )}
+                </p>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-caption text-ink-muted">
+                  {formatDateTime(m.created_at)} · {m.created_by_name || m.created_by_email || '—'}
+                </span>
+                {isAdmin && cancellable(m) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaved(null)
+                      setCancelling(m)
+                    }}
+                    className="btn btn-ghost btn-sm shrink-0"
+                  >
+                    <Icon name="undo" />
+                    Cancelar
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <table className="hidden w-full border-collapse text-left md:table">
           <thead>
             <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
               <th className="h-control-md px-4 font-medium">Fecha</th>
@@ -208,9 +272,7 @@ export function HistoryPage() {
                 <td className="h-row px-4 whitespace-nowrap">
                   {m.location === 'warehouse' ? <span className="badge badge-warning">Bodega</span> : <span className="text-ink-muted">{LOCATION_LABELS.store}</span>}
                 </td>
-                <td
-                  className={`h-row px-4 text-right font-medium tabular-nums ${m.cancelled_by_movement_id ? 'line-through' : m.delta > 0 ? 'text-success-fg' : m.delta < 0 ? 'text-danger-fg' : ''}`}
-                >
+                <td className={`h-row px-4 text-right font-medium tabular-nums ${deltaClass(m)}`}>
                   {m.delta > 0 ? '+' : ''}
                   {formatInt(m.delta)}
                 </td>
@@ -271,6 +333,12 @@ export function HistoryPage() {
       )}
     </div>
   )
+}
+
+/** Color del cambio de piezas (tachado si se canceló). */
+function deltaClass(m: MovementHistoryRow) {
+  if (m.cancelled_by_movement_id) return 'line-through'
+  return m.delta > 0 ? 'text-success-fg' : m.delta < 0 ? 'text-danger-fg' : ''
 }
 
 /** Cancelar un movimiento: pide el motivo. El movimiento no se borra, queda marcado. */

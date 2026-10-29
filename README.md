@@ -56,6 +56,7 @@ Las migraciones están en `supabase/migrations/` y deben aplicarse **en orden**:
 | `20261019000300_costo_solo_admin.sql` | El rol de la app ya no puede leer `products.cost` (aplicar cuando la app publicada ya use `product_costs`) |
 | `20261020000100_configuracion_negocio.sql` | Tabla `app_settings`: nombre del negocio y prefijo de los códigos internos (`HCH-`), para tener [varios clientes](#varios-clientes-saas). Las bases que ya existían quedan como Hachiko / `HCH` |
 | `20261020000200_categorias_configurables.sql` | Categorías por negocio (`product_categories`) ligadas a juegos del catálogo; `catalog_products.source`; la búsqueda del catálogo solo muestra lo que se vende. Aplicar **antes** de publicar la app nueva |
+| `20261029000100_nombre_tickets.sql` | El nombre del ticket es solo el folio (`140` en vez de `Ticket 140`); la app muestra "140. Cliente". Se puede aplicar antes o después de publicar |
 
 **Opción A: SQL Editor (lo más sencillo).** En el dashboard ve a **SQL Editor → New query**,
 pega el contenido de cada archivo en orden y presiona **Run**.
@@ -128,6 +129,23 @@ npm install
 npm run dev          # http://localhost:5173
 npm run build        # verifica tipos y genera dist/
 ```
+
+#### Modo demo (sin Supabase)
+
+Para revisar la interfaz (p. ej. en el celular) con datos inventados, sin tocar ninguna base:
+
+```bash
+npm run dev:demo     # http://localhost:5173 y la IP de la red local
+```
+
+- Entra con cualquier correo y contraseña. Si el correo contiene `mostrador` entras con ese
+  rol; si no, como administrador.
+- Para abrirlo en el celular, conéctalo a la misma red WiFi y abre la dirección `Network:`
+  que imprime Vite (p. ej. `http://192.168.1.20:5173`).
+- Las altas, cambios y cobros se guardan solo en memoria y se pierden al recargar. Lo que el
+  simulador no cubre (subir fotos, compras, ajustes, etc.) muestra "no está disponible en modo demo".
+- Los datos están en `src/lib/demo/demoApi.ts` y su configuración en `.env.demo`. Ese código
+  solo se incluye con `--mode demo`; no va en el build de producción.
 
 ### 7. Publicar en Netlify
 

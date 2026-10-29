@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { FiltersButton } from '../components/FiltersButton'
 import { Icon } from '../components/Icon'
+import { MoreMenu } from '../components/MoreMenu'
 import { ProductEditModal } from '../components/ProductEditModal'
 import { ProductImage } from '../components/ProductImage'
 import { Segmented } from '../components/Segmented'
@@ -174,12 +176,19 @@ export function InventoryPage() {
   }
 
   const filtersActive = search.trim() !== '' || category !== '' || stock !== 'all'
+  // En el celular, Tienda/Bodega/Total también va dentro de Filtros.
+  const mobileFiltersActive = filtersActive || scope !== 'total'
+  // En el celular las categorías, la búsqueda y los filtros van plegados.
+  const [showFilters, setShowFilters] = useState(false)
+  const filtersClass = showFilters ? '' : 'max-md:hidden'
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-title">Inventario</h1>
-        <Segmented
+        <h1 className="hidden mr-auto text-title md:block">Inventario</h1>
+        <FiltersButton open={showFilters} active={mobileFiltersActive} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
+        <div className={`max-md:order-last max-md:w-full ${filtersClass}`}>
+          <Segmented
           value={scope}
           onChange={setScope}
           label="Existencias"
@@ -188,18 +197,19 @@ export function InventoryPage() {
             { value: 'warehouse', label: 'Bodega', icon: 'box' },
             { value: 'total', label: 'Total' },
           ]}
-        />
+          />
+        </div>
         {isAdmin && (
           <>
-            <Link to="/movimiento-bodega" className="btn btn-secondary">
+            <Link to="/movimiento-bodega" className="btn btn-secondary hidden md:inline-flex">
               <Icon name="swap" />
               Movimiento de bodega
             </Link>
-            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
+            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
               <Icon name="download" />
               CSV
             </button>
-            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary">
+            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
               <Icon name="download" />
               {exporting ? 'Exportando…' : 'Excel'}
             </button>
@@ -220,10 +230,24 @@ export function InventoryPage() {
               className={`flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 text-label ${view === v ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
             >
               <Icon name={icon} />
-              {text}
+              <span className="max-md:sr-only">{text}</span>
             </button>
           ))}
         </div>
+        {isAdmin && (
+          <MoreMenu
+            className="md:hidden"
+            items={[
+              { label: 'Movimiento de bodega', icon: 'swap', to: '/movimiento-bodega' },
+              ...(online && !exporting
+                ? [
+                    { label: 'Exportar CSV', icon: 'download' as const, onClick: () => void doExport('csv') },
+                    { label: 'Exportar Excel', icon: 'download' as const, onClick: () => void doExport('xlsx') },
+                  ]
+                : []),
+            ]}
+          />
+        )}
       </div>
 
       {exportError && (
@@ -233,8 +257,8 @@ export function InventoryPage() {
         </p>
       )}
 
-      {/* Resumen */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Resumen: solo en pantallas grandes. */}
+      <div className="hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
         <div className="card p-4">
           <p className="text-label text-ink-muted">Productos</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.products)}</p>
@@ -264,7 +288,7 @@ export function InventoryPage() {
       </div>
 
       {/* Categorías */}
-      <div className="flex flex-col gap-2">
+      <div className={`flex flex-col gap-2 ${filtersClass}`}>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Categoría">
           <Chip active={category === ''} onClick={() => setCategory('')}>
             Todas
@@ -306,7 +330,7 @@ export function InventoryPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={`flex flex-wrap items-center gap-3 ${filtersClass}`}>
         <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
           <Icon name="search" />
           <input
@@ -329,23 +353,22 @@ export function InventoryPage() {
           <option value="out">Sin stock ({SCOPE_LABELS[scope]})</option>
           <option value="alert">Sin stock o bajo en tienda</option>
         </select>
-        {view === 'grid' && (
-          <select
-            value={`${sort.key}:${sort.dir}`}
-            onChange={(e) => {
-              const [key, dir] = e.target.value.split(':')
-              setSort({ key: key as SortKey, dir: Number(dir) as 1 | -1 })
-            }}
-            aria-label="Ordenar"
-            className="field w-auto cursor-pointer"
-          >
-            <option value="name:1">Nombre (A–Z)</option>
-            <option value="quantity:-1">Más stock</option>
-            <option value="quantity:1">Menos stock</option>
-            <option value="price:-1">Precio más alto</option>
-            <option value="price:1">Precio más bajo</option>
-          </select>
-        )}
+        {/* En la lista de md+ se ordena con los encabezados (en el celular la lista no los tiene). */}
+        <select
+          value={`${sort.key}:${sort.dir}`}
+          onChange={(e) => {
+            const [key, dir] = e.target.value.split(':')
+            setSort({ key: key as SortKey, dir: Number(dir) as 1 | -1 })
+          }}
+          aria-label="Ordenar"
+          className={`field w-auto cursor-pointer ${view === 'list' ? 'md:hidden' : ''}`}
+        >
+          <option value="name:1">Nombre (A–Z)</option>
+          <option value="quantity:-1">Más stock</option>
+          <option value="quantity:1">Menos stock</option>
+          <option value="price:-1">Precio más alto</option>
+          <option value="price:1">Precio más bajo</option>
+        </select>
         {filtersActive && (
           <button
             type="button"
@@ -483,6 +506,7 @@ function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; s
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
       {products.map((p) => (
         <li key={p.barcode} className="card flex flex-col overflow-hidden">
+          {/* Cuadrada, con o sin foto (las fotos se guardan cuadradas): todas las tarjetas miden igual. */}
           <ProductImage path={p.image_url} alt={p.name} className="aspect-square w-full border-0 border-b" />
           <div className="flex flex-1 flex-col gap-1 p-3">
             <div className="flex items-start gap-1">
@@ -536,7 +560,35 @@ function ProductTable({
 
   return (
     <div className="card overflow-x-auto">
-      <table className="w-full border-collapse text-left">
+      {/* Celular: un renglón compacto por producto. */}
+      <ul className="divide-y divide-line md:hidden">
+        {products.map((p) => (
+          <li key={p.barcode} className="flex items-start gap-3 px-4 py-3">
+            <ProductImage path={p.image_url} alt="" className="size-12 shrink-0 rounded-xs" />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="flex flex-wrap items-center gap-2 font-medium">
+                {p.name}
+                <PendingBadge product={p} />
+              </p>
+              <p className="font-mono text-[13px] break-all text-ink-muted">{p.barcode}</p>
+              {p.category && <p className="text-caption text-ink-muted">{p.category}</p>}
+              <div className="flex items-baseline justify-between gap-3 pt-1">
+                <span className="font-medium tabular-nums">{formatMoney(p.price)}</span>
+                <div
+                  className={`text-right tabular-nums ${
+                    storeStatus(p) === 'out' ? 'font-medium text-danger-fg' : storeStatus(p) === 'low' ? 'font-medium text-warning-fg' : 'text-ink-muted'
+                  }`}
+                >
+                  {formatInt(scopeQty(p, scope))} pzas
+                  <StoreNote product={p} scope={scope} />
+                </div>
+              </div>
+            </div>
+            {onEdit && <EditButton product={p} onEdit={onEdit} />}
+          </li>
+        ))}
+      </ul>
+      <table className="hidden w-full border-collapse text-left md:table">
         <thead>
           <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
             <th className="h-control-md w-14 px-4 font-medium">

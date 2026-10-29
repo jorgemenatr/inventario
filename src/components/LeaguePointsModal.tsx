@@ -99,7 +99,7 @@ export function LeaguePointsModal({ customers, fixedCustomer, onCancel, onSaved 
           </div>
           <button type="button" onClick={onCancel} className="btn btn-ghost">
             <Icon name="x" />
-            Cancelar (Esc)
+            Cancelar<span className="hidden md:inline"> (Esc)</span>
           </button>
         </div>
 

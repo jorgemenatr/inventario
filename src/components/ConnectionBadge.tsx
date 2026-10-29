@@ -22,7 +22,7 @@ export function ConnectionBadge() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 md:flex-col md:flex-nowrap md:items-stretch">
+    <div className="flex flex-col items-stretch gap-2">
       <button
         type="button"
         onClick={() => void inventoryStore.checkConnection()}

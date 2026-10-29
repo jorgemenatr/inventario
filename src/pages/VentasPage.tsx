@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { FiltersButton } from '../components/FiltersButton'
 import { Icon } from '../components/Icon'
 import { SalesTable } from '../components/SalesTable'
 import { formatDateTime, formatInt, formatMoney } from '../lib/format'
@@ -26,6 +27,8 @@ export function VentasPage() {
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // En el celular los filtros van plegados.
+  const [showFilters, setShowFilters] = useState(false)
 
   const pendingSales = queue.flatMap((q) => (q.kind === 'sale' ? [q] : []))
   // Si cambian los filtros mientras carga, solo cuenta la respuesta más reciente.
@@ -58,20 +61,27 @@ export function VentasPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="text-title">Ventas</h1>
+      <h1 className="hidden text-title md:block">Ventas</h1>
 
-      <div className="flex flex-wrap items-end gap-3">
+      <FiltersButton
+        open={showFilters}
+        active={filter.from !== today() || filter.to !== today() || !!filter.method}
+        onToggle={() => setShowFilters((v) => !v)}
+      />
+
+      {/* En el celular: fechas lado a lado, forma de pago y botones a todo lo ancho. */}
+      <div className={`flex flex-wrap items-end gap-3 max-md:grid max-md:grid-cols-2 ${showFilters ? '' : 'max-md:hidden'}`}>
         <div>
           <label className="field-label" htmlFor="v-from">Desde</label>
-          <input id="v-from" type="date" value={filter.from ?? ''} max={filter.to || undefined} onChange={(e) => set({ from: e.target.value || undefined })} className="field" />
+          <input id="v-from" type="date" value={filter.from ?? ''} max={filter.to || undefined} onChange={(e) => set({ from: e.target.value || undefined })} className="field max-md:w-full" />
         </div>
         <div>
           <label className="field-label" htmlFor="v-to">Hasta</label>
-          <input id="v-to" type="date" value={filter.to ?? ''} min={filter.from || undefined} onChange={(e) => set({ to: e.target.value || undefined })} className="field" />
+          <input id="v-to" type="date" value={filter.to ?? ''} min={filter.from || undefined} onChange={(e) => set({ to: e.target.value || undefined })} className="field max-md:w-full" />
         </div>
-        <div>
+        <div className="max-md:col-span-2">
           <label className="field-label" htmlFor="v-method">Forma de pago</label>
-          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as TicketPaymentMethod | '' })} className="field cursor-pointer">
+          <select id="v-method" value={filter.method ?? ''} onChange={(e) => set({ method: e.target.value as TicketPaymentMethod | '' })} className="field cursor-pointer max-md:w-full">
             <option value="">Todas</option>
             {FILTER_METHODS.map((m) => (
               <option key={m} value={m}>
@@ -80,18 +90,19 @@ export function VentasPage() {
             ))}
           </select>
         </div>
-        <div className="flex gap-2">
-          <button type="button" className="btn btn-secondary" onClick={() => set({ from: today(), to: today() })}>
+        <div className="flex gap-2 max-md:col-span-2">
+          <button type="button" className="btn btn-secondary max-md:flex-1" onClick={() => set({ from: today(), to: today() })}>
             Hoy
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => set({ from: undefined, to: undefined })}>
+          <button type="button" className="btn btn-ghost max-md:flex-1 max-md:border-control max-md:bg-surface" onClick={() => set({ from: undefined, to: undefined })}>
             Todas las fechas
           </button>
         </div>
       </div>
 
       {summary && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+        // Resumen tipo tablero: solo en pantallas grandes.
+        <div className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-6">
           <div className="card col-span-1 p-4">
             <p className="text-label text-ink-muted">Ventas</p>
             <p className="text-kpi tabular-nums">{formatInt(summary.count)}</p>

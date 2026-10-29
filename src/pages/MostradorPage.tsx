@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { Icon } from '../components/Icon'
 import { ProductImage } from '../components/ProductImage'
@@ -8,6 +7,7 @@ import { PaymentPanel } from '../components/pos/PaymentPanel'
 import { ProductPicker } from '../components/pos/ProductPicker'
 import { gameSuggestions } from '../lib/customers'
 import { formatInt, formatMoney } from '../lib/format'
+import { ticketFolio } from '../lib/sales'
 import { sounds } from '../lib/sounds'
 import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
 import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
@@ -95,13 +95,7 @@ export function MostradorPage() {
 
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-title">Mostrador</h1>
-        <Link to="/ventas" className="btn btn-secondary">
-          <Icon name="receipt" />
-          Ventas
-        </Link>
-      </div>
+      <h1 className="hidden text-title md:block">Mostrador</h1>
 
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">
@@ -117,7 +111,7 @@ export function MostradorPage() {
             <p className="text-title">
               {lastSale.pending
                 ? 'Venta guardada sin conexión (el folio se asigna al sincronizar)'
-                : `Venta registrada · ${lastSale.name}`}
+                : `Venta registrada · #${ticketFolio(lastSale.name)}`}
             </p>
             <p className="text-heading">
               {formatMoney(lastSale.total)} con{' '}
@@ -181,7 +175,7 @@ export function MostradorPage() {
           <section className="card flex min-h-80 flex-col items-center justify-center gap-3 p-8 text-center">
             <Icon name="receipt" size={40} className="text-ink-subtle" />
             <p className="text-title-lg text-ink-muted">Abre un ticket para empezar a vender</p>
-            <p className="text-ink-subtle">Al cobrarlo recibe su folio (Ticket 1, 2, 3…).</p>
+            <p className="text-ink-subtle">Al cobrarlo recibe su folio (1, 2, 3…).</p>
             <button type="button" onClick={createTicket} className="btn btn-primary btn-lg mt-2">
               <Icon name="plus" size={20} />
               Nuevo ticket
@@ -295,8 +289,9 @@ function TicketLines({
   }
   return (
     <div className="overflow-x-auto rounded-md border border-line">
-      <table className="w-full border-collapse text-left">
-        <thead>
+      {/* En el celular cada renglón se acomoda en dos líneas (ver LineRow). */}
+      <table className="w-full border-collapse text-left max-md:block">
+        <thead className="max-md:hidden">
           <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
             <th className="h-control-md px-3 font-medium">Producto</th>
             <th className="h-control-md px-3 text-right font-medium">Precio</th>
@@ -307,7 +302,7 @@ function TicketLines({
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="max-md:block">
           {ticket.lines.map((l) => (
             <LineRow key={l.barcode} ticket={ticket} line={l} product={products[l.barcode]} onChanged={onChanged} />
           ))}
@@ -339,20 +334,21 @@ function LineRow({
   }
 
   return (
-    <tr className="border-t border-line">
-      <td className="px-3 py-2">
+    <tr className="border-t border-line max-md:grid max-md:grid-cols-[1fr_auto_auto] max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
+      <td className="px-3 py-2 max-md:col-span-2 max-md:p-0">
         <div className="flex items-center gap-3">
           <ProductImage path={line.imagePath} alt="" className="size-10 shrink-0 rounded-xs" />
           <div className="min-w-40">
             <p className="text-label text-ink">{line.name}</p>
             <p className="font-mono text-caption text-ink-subtle">{line.barcode}</p>
+            <p className="text-caption text-ink-muted tabular-nums md:hidden">{formatMoney(line.unitPrice)} c/u</p>
             {!product && <p className="text-caption text-danger-fg">Este producto ya no está en el inventario.</p>}
           </div>
         </div>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(line.unitPrice)}</td>
-      <td className="px-3 py-2">
-        <div className="mx-auto flex w-fit items-center gap-1">
+      <td className="px-3 py-2 text-right tabular-nums max-md:hidden">{formatMoney(line.unitPrice)}</td>
+      <td className="px-3 py-2 max-md:row-start-2 max-md:p-0">
+        <div className="mx-auto flex w-fit max-md:mx-0 items-center gap-1">
           <button
             type="button"
             aria-label={`Quitar una pieza de ${line.name}`}
@@ -389,8 +385,8 @@ function LineRow({
           </button>
         </div>
       </td>
-      <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(line.quantity * line.unitPrice)}</td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2 text-right font-medium tabular-nums max-md:col-span-2 max-md:row-start-2 max-md:p-0">{formatMoney(line.quantity * line.unitPrice)}</td>
+      <td className="px-3 py-2 max-md:col-start-3 max-md:row-start-1 max-md:justify-self-end max-md:p-0">
         <button
           type="button"
           onClick={() => {

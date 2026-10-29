@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CreditsModal } from '../components/CreditsModal'
 import { CustomerFormModal } from '../components/CustomerFormModal'
+import { FiltersButton } from '../components/FiltersButton'
 import { GameTags } from '../components/GamesInput'
 import { Icon } from '../components/Icon'
 import { LeaguePointsModal } from '../components/LeaguePointsModal'
+import { MoreMenu } from '../components/MoreMenu'
 import { gameSuggestions, listCustomers } from '../lib/customers'
 import { listCreditBalances } from '../lib/credits'
 import { formatInt, formatMoney } from '../lib/format'
@@ -20,6 +22,8 @@ export function CustomersPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [game, setGame] = useState('')
+  // En el celular la búsqueda y el filtro van plegados.
+  const [showFilters, setShowFilters] = useState(false)
   const [creating, setCreating] = useState(false)
   const [granting, setGranting] = useState(false)
   const [balances, setBalances] = useState<Map<string, CreditBalance> | null>(null)
@@ -67,12 +71,13 @@ export function CustomersPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-title">Clientes</h1>
-        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-secondary">
+        <h1 className="hidden mr-auto text-title md:block">Clientes</h1>
+        <FiltersButton open={showFilters} active={!!search.trim() || !!game} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
+        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-secondary hidden md:inline-flex">
           <Icon name="trophy" />
           Agregar puntos de liga
         </button>
-        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-secondary">
+        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-secondary hidden md:inline-flex">
           <Icon name="plus" />
           Agregar créditos
         </button>
@@ -80,9 +85,18 @@ export function CustomersPage() {
           <Icon name="plus" />
           Nuevo cliente
         </button>
+        {!!customers?.length && (
+          <MoreMenu
+            className="md:hidden"
+            items={[
+              { label: 'Agregar puntos de liga', icon: 'trophy', onClick: () => setPointsFor('many') },
+              { label: 'Agregar créditos', icon: 'plus', onClick: () => setGranting(true) },
+            ]}
+          />
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={`flex flex-wrap items-center gap-3 ${showFilters ? '' : 'max-md:hidden'}`}>
         <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
           <Icon name="search" />
           <input
@@ -125,7 +139,40 @@ export function CustomersPage() {
 
       {customers && (
         <div className="card overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          {/* Celular: una tarjeta por cliente. */}
+          <ul className="divide-y divide-line md:hidden">
+            {filtered.map((c) => (
+              <li key={c.id} className="flex items-start gap-2 px-4 py-3">
+                <Link to={`/clientes/${c.id}`} className="min-w-0 flex-1 space-y-1">
+                  <p className="font-medium">{c.name}</p>
+                  {(c.phone || c.email) && (
+                    <p className="text-caption break-all text-ink-muted">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>
+                  )}
+                  {c.games.length > 0 && <GameTags games={c.games} max={4} />}
+                  <p className="flex flex-wrap gap-x-3 text-caption text-ink-muted tabular-nums">
+                    <span>
+                      Puntos:{' '}
+                      <span className="font-medium text-ink">{!league ? '…' : (league.get(c.id) ?? 0).toLocaleString('es-MX')}</span>
+                    </span>
+                    <span>
+                      Créditos:{' '}
+                      <span className="font-medium text-brand-ink">{!balances ? '…' : formatMoney(balances.get(c.id)?.balance ?? 0)}</span>
+                    </span>
+                  </p>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setPointsFor(c)}
+                  title="Agregar puntos de liga"
+                  aria-label={`Agregar puntos de liga a ${c.name}`}
+                  className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-brand-soft hover:text-brand-ink"
+                >
+                  <Icon name="trophy" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full border-collapse text-left md:table">
             <thead>
               <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                 <th className="h-control-md px-4 font-medium">Nombre</th>

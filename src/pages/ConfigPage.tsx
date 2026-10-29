@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
+import { MoreMenu } from '../components/MoreMenu'
 import { getCatalogStatus, type CatalogStatus } from '../lib/catalog'
 import {
   CATALOG_SOURCES,
@@ -69,7 +70,7 @@ export function ConfigPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="text-title">Configuración</h1>
+      <h1 className="hidden text-title md:block">Configuración</h1>
 
       <BusinessCard />
 
@@ -243,10 +244,12 @@ function CategoryRow({
   onAddChild?: () => void
 }) {
   const iconBtn =
-    'grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink disabled:cursor-default disabled:opacity-40'
+    'grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink disabled:cursor-default disabled:opacity-40 max-md:size-control-md'
+  // En md+ las acciones van todas a la vista; en el celular, subir/bajar y el resto en el menú ⋯.
+  const desktopOnly = 'hidden md:inline-flex'
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="mr-auto min-w-0">
+    <div className="flex items-center gap-1 md:flex-wrap md:gap-2">
+      <div className="min-w-0 flex-1">
         <p className={category.parent_id ? '' : 'text-label'}>
           {category.name}
           {count > 0 && <span className="ml-2 text-caption text-ink-subtle">{formatInt(count)} productos</span>}
@@ -264,17 +267,27 @@ function CategoryRow({
         <Icon name="arrow-down" />
       </button>
       {onAddChild && (
-        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onAddChild}>
+        <button type="button" className={`btn btn-ghost btn-sm ${desktopOnly}`} disabled={busy} onClick={onAddChild}>
           <Icon name="plus" />
           Subcategoría
         </button>
       )}
-      <button type="button" className={iconBtn} disabled={busy} onClick={onEdit} title="Editar" aria-label={`Editar ${category.name}`}>
+      <button type="button" className={`${iconBtn} max-md:hidden`} disabled={busy} onClick={onEdit} title="Editar" aria-label={`Editar ${category.name}`}>
         <Icon name="pencil" />
       </button>
-      <button type="button" className={iconBtn} disabled={busy} onClick={onDelete} title="Borrar" aria-label={`Borrar ${category.name}`}>
+      <button type="button" className={`${iconBtn} max-md:hidden`} disabled={busy} onClick={onDelete} title="Borrar" aria-label={`Borrar ${category.name}`}>
         <Icon name="trash" />
       </button>
+      <MoreMenu
+        className="md:hidden"
+        variant="ghost"
+        disabled={busy}
+        items={[
+          ...(onAddChild ? [{ label: 'Agregar subcategoría', icon: 'plus' as const, onClick: onAddChild }] : []),
+          { label: 'Editar', icon: 'pencil', onClick: onEdit },
+          { label: 'Borrar', icon: 'trash', onClick: onDelete },
+        ]}
+      />
     </div>
   )
 }
@@ -355,7 +368,7 @@ function CategoryModal({
           </h2>
           <button type="button" onClick={onCancel} className="btn btn-ghost">
             <Icon name="x" />
-            Cancelar (Esc)
+            Cancelar<span className="hidden md:inline"> (Esc)</span>
           </button>
         </div>
 

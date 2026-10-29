@@ -134,7 +134,7 @@ export function PurchasesPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="text-title">Compras</h1>
+      <h1 className="hidden text-title md:block">Compras</h1>
 
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">
@@ -191,8 +191,9 @@ export function PurchasesPage() {
 
         {rows.length > 0 && (
           <div className="overflow-x-auto rounded-md border border-line">
-            <table className="w-full border-collapse text-left">
-              <thead>
+            {/* En el celular cada renglón se acomoda en dos líneas. */}
+            <table className="w-full border-collapse text-left max-md:block">
+              <thead className="max-md:hidden">
                 <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                   <th className="h-control-md px-3 font-medium">Producto</th>
                   <th className="h-control-md px-3 text-right font-medium">Cantidad</th>
@@ -201,19 +202,20 @@ export function PurchasesPage() {
                   <th className="h-control-md w-12 px-2" />
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="max-md:block">
                 {rows.map((r) => (
-                  <tr key={r.key} className="border-t border-line">
-                    <td className="px-3 py-2">
+                  <tr key={r.key} className="border-t border-line max-md:grid max-md:grid-cols-[1fr_auto_auto] max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
+                    <td className="px-3 py-2 max-md:col-span-2 max-md:p-0">
                       <div className="flex items-center gap-3">
                         <ProductImage path={r.imagePath} alt="" className="size-10 shrink-0 rounded-xs" />
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{r.name}</p>
-                          <p className="truncate font-mono text-caption text-ink-subtle">{r.barcode}</p>
+                          <p className="font-medium md:truncate">{r.name}</p>
+                          <p className="font-mono text-caption break-all text-ink-subtle md:truncate">{r.barcode}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2 text-right max-md:row-start-2 max-md:p-0 max-md:text-left">
+                      <span className="block text-caption text-ink-muted md:hidden">Cantidad</span>
                       <input
                         value={r.qtyText}
                         onChange={(e) => patch(r.key, { qtyText: e.target.value })}
@@ -221,10 +223,11 @@ export function PurchasesPage() {
                         autoComplete="off"
                         aria-label={`Cantidad de ${r.name}`}
                         aria-invalid={Number.isNaN(r.qty)}
-                        className={`field h-9 w-20 text-right tabular-nums ${Number.isNaN(r.qty) ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                        className={`field h-9 w-20 text-right tabular-nums max-md:w-14 ${Number.isNaN(r.qty) ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
                       />
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2 text-right max-md:row-start-2 max-md:p-0 max-md:text-left">
+                      <span className="block text-caption text-ink-muted md:hidden">Costo unitario</span>
                       <input
                         value={r.costText}
                         onChange={(e) => patch(r.key, { costText: e.target.value })}
@@ -233,11 +236,14 @@ export function PurchasesPage() {
                         placeholder="0.00"
                         aria-label={`Costo unitario de ${r.name}`}
                         aria-invalid={Number.isNaN(r.cost)}
-                        className={`field h-9 w-28 text-right tabular-nums ${Number.isNaN(r.cost) && r.costText.trim() !== '' ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                        className={`field h-9 w-28 text-right tabular-nums max-md:w-22 ${Number.isNaN(r.cost) && r.costText.trim() !== '' ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
                       />
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{r.invalid ? '—' : formatMoney(r.qty * r.cost)}</td>
-                    <td className="px-2 py-2">
+                    <td className="px-3 py-2 text-right tabular-nums max-md:row-start-2 max-md:min-w-22 max-md:p-0">
+                      <span className="block text-caption text-ink-muted md:hidden">Importe</span>
+                      {r.invalid ? '—' : formatMoney(r.qty * r.cost)}
+                    </td>
+                    <td className="px-2 py-2 max-md:col-start-3 max-md:row-start-1 max-md:justify-self-end max-md:p-0">
                       <button
                         type="button"
                         onClick={() => setLines((ls) => ls.filter((l) => l.key !== r.key))}
@@ -250,10 +256,10 @@ export function PurchasesPage() {
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr className="border-t border-line bg-subtle">
+              <tfoot className="max-md:block">
+                <tr className="border-t border-line bg-subtle max-md:flex max-md:items-center max-md:gap-3">
                   <td className="px-3 py-2 font-medium">Total</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatInt(pieces)} pzas</td>
+                  <td className="px-3 py-2 text-right tabular-nums max-md:mr-auto max-md:text-ink-muted">{formatInt(pieces)} pzas</td>
                   <td />
                   <td className="px-3 py-2 text-right text-heading tabular-nums">{formatMoney(total)}</td>
                   <td />

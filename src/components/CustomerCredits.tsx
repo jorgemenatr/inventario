@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getCreditBalance, listCreditHistory } from '../lib/credits'
 import { formatDateTime, formatMoney } from '../lib/format'
+import { ticketFolio } from '../lib/sales'
 import { isNetworkError } from '../lib/supabase'
 import type { CreditBalance, CreditMovementRow, Customer } from '../lib/types'
 import { CreditsModal } from './CreditsModal'
@@ -71,7 +72,33 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
 
       {history && (
         <div className="card overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          {/* Celular: un renglón por movimiento. */}
+          <ul className="divide-y divide-line md:hidden">
+            {history.map((m) => (
+              <li key={m.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p>
+                    {m.kind === 'sale' ? (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="badge badge-neutral">Compra</span>
+                        #{ticketFolio(m.ticket_name)}
+                      </span>
+                    ) : (
+                      m.note
+                    )}
+                  </p>
+                  <p className="text-caption text-ink-muted">
+                    {formatDateTime(m.created_at)} · {m.created_by_name || m.created_by_email || '—'}
+                  </p>
+                </div>
+                <span className={`shrink-0 font-medium tabular-nums ${m.amount > 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
+                  {m.amount > 0 ? '+' : '−'}
+                  {formatMoney(Math.abs(m.amount))}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full border-collapse text-left md:table">
             <thead>
               <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
                 <th className="h-control-md px-4 font-medium">Fecha</th>
@@ -88,7 +115,7 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
                     {m.kind === 'sale' ? (
                       <span className="flex items-center gap-2">
                         <span className="badge badge-neutral">Compra</span>
-                        {m.ticket_name}
+                        #{ticketFolio(m.ticket_name)}
                       </span>
                     ) : (
                       m.note
