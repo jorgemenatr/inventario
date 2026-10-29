@@ -159,7 +159,7 @@ export function InventoryPage() {
     setExportError(null)
     try {
       const rows = await buildInventoryRows(scope)
-      const name = `${exportName('kanan')}-${scope === 'store' ? 'tienda' : scope === 'warehouse' ? 'bodega' : 'total'}`
+      const name = exportName(scope === 'store' ? 'tienda' : scope === 'warehouse' ? 'bodega' : 'total')
       if (kind === 'csv') exportCsv(rows, name)
       else await exportXlsx(rows, name, 'Inventario')
     } catch (e) {

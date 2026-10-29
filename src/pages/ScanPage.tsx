@@ -216,8 +216,8 @@ export function ScanPage() {
     setExporting(true)
     try {
       const rows = await buildInventoryRows()
-      if (kind === 'csv') exportCsv(rows, exportName('kanan'))
-      else await exportXlsx(rows, exportName('kanan'), 'Inventario')
+      if (kind === 'csv') exportCsv(rows, exportName('total'))
+      else await exportXlsx(rows, exportName('total'), 'Inventario')
     } catch (e) {
       sounds.error()
       setFeedback({
