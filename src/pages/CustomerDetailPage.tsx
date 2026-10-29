@@ -63,7 +63,7 @@ export function CustomerDetailPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <Link to="/clientes" className="inline-flex w-fit items-center gap-1 text-label text-ink-muted hover:text-ink">
+      <Link to="/clientes" className="inline-flex w-fit items-center gap-1 text-label text-jade uppercase hover:underline">
         <Icon name="chevron-down" className="rotate-90" />
         Clientes
       </Link>
@@ -81,13 +81,13 @@ export function CustomerDetailPage() {
         <>
           <div className="flex flex-wrap items-center gap-3">
             <span
-              className="grid size-12 shrink-0 place-items-center rounded-pill bg-brand-soft text-title text-brand-ink uppercase"
+              className="grid size-12 shrink-0 place-items-center bg-brand text-title text-on-brand uppercase"
               aria-hidden
             >
               {customer.name.charAt(0)}
             </span>
             <div className="mr-auto min-w-0">
-              <h1 className="truncate text-title">{customer.name}</h1>
+              <h1 className="truncate text-title-lg uppercase">{customer.name}</h1>
               <p className="text-caption text-ink-subtle">Cliente desde {formatDateTime(customer.created_at)}</p>
             </div>
             <button type="button" onClick={openEditor} className="btn btn-secondary">
@@ -98,11 +98,11 @@ export function CustomerDetailPage() {
           <section className="card grid gap-4 p-5 sm:grid-cols-2">
             <div>
               <p className="field-label">Teléfono</p>
-              <p>{customer.phone ? <a href={`tel:${customer.phone}`} className="hover:underline">{customer.phone}</a> : '—'}</p>
+              <p>{customer.phone ? <a href={`tel:${customer.phone}`} className="text-jade hover:underline">{customer.phone}</a> : '—'}</p>
             </div>
             <div>
               <p className="field-label">Correo</p>
-              <p className="break-all">{customer.email ? <a href={`mailto:${customer.email}`} className="hover:underline">{customer.email}</a> : '—'}</p>
+              <p className="break-all">{customer.email ? <a href={`mailto:${customer.email}`} className="text-jade hover:underline">{customer.email}</a> : '—'}</p>
             </div>
             <div className="sm:col-span-2">
               <p className="field-label">Juegos que juega</p>
@@ -116,7 +116,7 @@ export function CustomerDetailPage() {
 
           <section className="flex flex-col gap-3">
             <div className="flex flex-wrap items-baseline gap-3">
-              <h2 className="mr-auto text-heading">Compras previas</h2>
+              <h2 className="mr-auto text-title">Compras previas</h2>
               {salesTotal && salesTotal.count > 0 && (
                 <span className="text-ink-muted">
                   {formatInt(salesTotal.count)} compra(s) · <span className="font-medium text-ink tabular-nums">{formatMoney(salesTotal.total)}</span> en total

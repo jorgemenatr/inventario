@@ -64,9 +64,9 @@ export function LotPicker({ productId, productName, location, remove, purpose, o
   }
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="lp-title">
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="lp-title">
       <div
-        className="max-h-full w-full max-w-2xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-2xl overflow-auto dialog"
         onKeyDown={(e) => {
           // Puede abrirse dentro de otro formulario: Enter y Esc no deben llegar a él.
           if (e.key === 'Escape') {
@@ -109,7 +109,7 @@ export function LotPicker({ productId, productName, location, remove, purpose, o
             <div className="overflow-x-auto rounded-md border border-line">
               <table className="w-full border-collapse text-left max-md:block">
                 <thead className="max-md:hidden">
-                  <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+                  <tr className="thead-row">
                     <th className="h-control-md px-3 font-medium">Lote</th>
                     <th className="h-control-md px-3 font-medium">Proveedor</th>
                     <th className="h-control-md px-3 text-right font-medium">Costo</th>
@@ -147,7 +147,7 @@ export function LotPicker({ productId, productName, location, remove, purpose, o
                           aria-label={`Piezas a sacar del lote ${lot.number}`}
                           aria-invalid={invalid}
                           placeholder="0"
-                          className={`field h-9 w-20 text-right tabular-nums ${invalid ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                          className={`field h-control-sm w-20 text-right tabular-nums ${invalid ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
                         />
                       </td>
                     </tr>

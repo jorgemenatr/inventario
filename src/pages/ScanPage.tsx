@@ -238,15 +238,7 @@ export function ScanPage() {
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
       {/* Título y acciones de página */}
       <div className="flex flex-wrap items-center gap-3 max-md:justify-end">
-        <h1 className="hidden mr-auto text-title md:block">Agregar</h1>
-        <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-          <Icon name="download" />
-          Exportar CSV
-        </button>
-        <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-          <Icon name="download" />
-          {exporting ? 'Exportando…' : 'Exportar Excel'}
-        </button>
+        <h1 className="hidden mr-auto text-title-lg uppercase md:block">Agregar</h1>
         <button
           type="button"
           onClick={() => {
@@ -262,7 +254,6 @@ export function ScanPage() {
         </button>
         {online && !exporting && (
           <MoreMenu
-            className="md:hidden"
             items={[
               { label: 'Exportar CSV', icon: 'download', onClick: () => void doExport('csv') },
               { label: 'Exportar Excel', icon: 'download', onClick: () => void doExport('xlsx') },
@@ -308,7 +299,7 @@ export function ScanPage() {
                 autoComplete="off"
                 placeholder="El último"
                 aria-invalid={!costValid}
-                className={`field h-10 w-32 tabular-nums ${costValid ? '' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
+                className={`field w-32 tabular-nums ${costValid ? '' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
               />
             </div>
             <p className="basis-full text-caption text-ink-muted">
@@ -365,7 +356,7 @@ export function ScanPage() {
                   className={`h-11 w-28 rounded-md border bg-surface px-3 text-center text-title tabular-nums ${qtyValid ? 'border-control text-ink' : 'border-danger-fg bg-danger-bg text-danger-fg'}`}
                 />
               </div>
-              <div className="flex h-11 gap-0.5 rounded-md border border-control bg-surface p-0.5" role="group" aria-label="Modo">
+              <div className="seg h-12" role="group" aria-label="Modo">
                 {(
                   [
                     ['add', 'Sumar'],
@@ -377,7 +368,7 @@ export function ScanPage() {
                     type="button"
                     aria-pressed={mode === m}
                     onClick={() => setMode(m)}
-                    className={`cursor-pointer rounded-[6px] px-4 text-heading ${mode === m ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
+                    className="seg-option px-4 text-[15px]"
                   >
                     {text}
                   </button>
@@ -441,7 +432,7 @@ export function ScanPage() {
           </div>
 
           <div>
-            <button type="button" onClick={() => void undo()} className="btn btn-secondary btn-lg">
+            <button type="button" onClick={() => void undo()} className="btn btn-secondary max-md:w-full">
               <Icon name="undo" size={20} />
               Deshacer último escaneo
             </button>
@@ -461,7 +452,7 @@ export function ScanPage() {
             </div>
           </div>
           <div className="card flex min-h-80 flex-1 flex-col overflow-hidden lg:min-h-0">
-            <h2 className="border-b border-line px-5 py-4 text-heading">Últimos escaneos de esta sesión</h2>
+            <h2 className="border-b border-line px-5 py-4 text-label tracking-wider text-ink-muted uppercase">Últimos escaneos de esta sesión</h2>
             {recent.length === 0 && <p className="px-5 py-10 text-center text-ink-subtle">Aún no hay escaneos.</p>}
             <ul className="min-h-0 flex-1 divide-y divide-line overflow-auto">
               {recent.map((r) => (

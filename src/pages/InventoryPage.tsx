@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { FiltersButton } from '../components/FiltersButton'
 import { Icon } from '../components/Icon'
@@ -185,7 +184,7 @@ export function InventoryPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title md:block">Inventario</h1>
+        <h1 className="hidden mr-auto text-title-lg uppercase md:block">Inventario</h1>
         <FiltersButton open={showFilters} active={mobileFiltersActive} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
         <div className={`max-md:order-last max-md:w-full ${filtersClass}`}>
           <Segmented
@@ -199,23 +198,7 @@ export function InventoryPage() {
           ]}
           />
         </div>
-        {isAdmin && (
-          <>
-            <Link to="/movimiento-bodega" className="btn btn-secondary hidden md:inline-flex">
-              <Icon name="swap" />
-              Movimiento de bodega
-            </Link>
-            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-              <Icon name="download" />
-              CSV
-            </button>
-            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-              <Icon name="download" />
-              {exporting ? 'Exportando…' : 'Excel'}
-            </button>
-          </>
-        )}
-        <div className="flex h-control-md gap-0.5 rounded-md border border-control bg-surface p-0.5" role="group" aria-label="Vista">
+        <div className="seg" role="group" aria-label="Vista">
           {(
             [
               ['grid', 'grid', 'Cuadrícula'],
@@ -227,7 +210,7 @@ export function InventoryPage() {
               type="button"
               aria-pressed={view === v}
               onClick={() => setView(v)}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 text-label ${view === v ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'}`}
+              className="seg-option"
             >
               <Icon name={icon} />
               <span className="max-md:sr-only">{text}</span>
@@ -236,7 +219,6 @@ export function InventoryPage() {
         </div>
         {isAdmin && (
           <MoreMenu
-            className="md:hidden"
             items={[
               { label: 'Movimiento de bodega', icon: 'swap', to: '/movimiento-bodega' },
               ...(online && !exporting
@@ -260,24 +242,24 @@ export function InventoryPage() {
       {/* Resumen: solo en pantallas grandes. */}
       <div className="hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Productos</p>
+          <p className="stat-label text-ink-muted">Productos</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.products)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Piezas {SCOPE_LABELS[scope]}</p>
+          <p className="stat-label text-ink-muted">Piezas {SCOPE_LABELS[scope]}</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Valor a precio de venta ({SCOPE_LABELS[scope]})</p>
+          <p className="stat-label text-ink-muted">Valor a precio de venta ({SCOPE_LABELS[scope]})</p>
           <p className="text-kpi tabular-nums">{formatMoney(totals.value)}</p>
         </div>
         <button
           type="button"
           onClick={() => setStock((s) => (s === 'alert' ? 'all' : 'alert'))}
           aria-pressed={stock === 'alert'}
-          className={`card cursor-pointer p-4 text-left hover:bg-subtle ${stock === 'alert' ? 'outline-2 outline-brand' : ''}`}
+          className={`card cursor-pointer p-4 text-left hover:bg-subtle ${stock === 'alert' ? 'border-2 border-brand' : ''}`}
         >
-          <p className="text-label text-ink-muted">Alertas de tienda</p>
+          <p className="stat-label text-ink-muted">Alertas de tienda</p>
           <p className="text-kpi tabular-nums">
             <span className={totals.out ? 'text-danger-fg' : ''}>{formatInt(totals.out)}</span>
             <span className="text-heading text-ink-muted"> sin stock · </span>
@@ -331,7 +313,7 @@ export function InventoryPage() {
 
       {/* Filtros */}
       <div className={`flex flex-wrap items-center gap-3 ${filtersClass}`}>
-        <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+        <label className="search-field w-full max-w-sm">
           <Icon name="search" />
           <input
             type="search"
@@ -444,11 +426,7 @@ function Chip({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-pill border px-3 ${small ? 'h-control-sm text-caption' : 'h-control-md text-label'} ${
-        active
-          ? 'border-transparent bg-brand-soft font-medium text-brand-ink'
-          : `border-control bg-surface hover:bg-subtle ${subtle ? 'text-ink-subtle' : 'text-ink-muted'}`
-      }`}
+      className={`choice ${small ? 'choice-sm' : 'h-control-md'} ${subtle && !active ? 'text-ink-subtle' : ''}`}
     >
       {children}
       {count != null && <span className="tabular-nums opacity-70">{formatInt(count)}</span>}
@@ -467,7 +445,7 @@ function EditButton({ product, onEdit }: { product: CachedProduct; onEdit?: (id:
       onClick={() => onEdit(product.id)}
       title="Editar producto"
       aria-label={`Editar ${product.name}`}
-      className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink"
+      className="grid size-9 shrink-0 cursor-pointer place-items-center text-ink-muted hover:bg-subtle hover:text-ink"
     >
       <Icon name="pencil" />
     </button>
@@ -517,7 +495,7 @@ function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; s
             </div>
             {p.category && <p className="truncate text-caption text-ink-subtle">{p.category}</p>}
             <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
-              <span className="text-heading tabular-nums">{formatMoney(p.price)}</span>
+              <span className="font-display text-heading font-extrabold tabular-nums">{formatMoney(p.price)}</span>
               <StockBadge product={p} scope={scope} />
             </div>
             <StoreNote product={p} scope={scope} />
@@ -590,7 +568,7 @@ function ProductTable({
       </ul>
       <table className="hidden w-full border-collapse text-left md:table">
         <thead>
-          <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+          <tr className="thead-row">
             <th className="h-control-md w-14 px-4 font-medium">
               <span className="sr-only">Imagen</span>
             </th>

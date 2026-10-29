@@ -31,8 +31,8 @@ export function CustomerLeaguePoints({ customer }: { customer: Customer }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="mr-auto text-heading">Puntos de liga</h2>
-        <button type="button" onClick={() => setAdding(true)} className="btn btn-primary">
+        <h2 className="mr-auto text-title">Puntos de liga</h2>
+        <button type="button" onClick={() => setAdding(true)} className="btn btn-secondary">
           <Icon name="plus" />
           Agregar puntos
         </button>
@@ -51,13 +51,11 @@ export function CustomerLeaguePoints({ customer }: { customer: Customer }) {
         </p>
       )}
 
-      <div className="card flex items-center gap-3 p-4">
-        <span className="grid size-10 place-items-center rounded-pill bg-brand-soft text-brand-ink">
-          <Icon name="trophy" size={20} />
-        </span>
+      <div className="kn-block kn-gold kn-deep flex items-center gap-4 self-start p-4 pr-8" role="group" aria-label="Total de puntos de liga">
+        <Icon name="trophy" size={32} />
         <div>
-          <p className="text-label text-ink-muted">Total</p>
-          <p className="text-kpi text-brand-ink tabular-nums">{total == null ? '…' : `${total.toLocaleString('es-MX')} pts`}</p>
+          <p className="stat-label">Total</p>
+          <p className="stat-value">{total == null ? '…' : `${total.toLocaleString('es-MX')} pts`}</p>
         </div>
       </div>
 
@@ -81,7 +79,7 @@ export function CustomerLeaguePoints({ customer }: { customer: Customer }) {
           </ul>
           <table className="hidden w-full border-collapse text-left md:table">
             <thead>
-              <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+              <tr className="thead-row">
                 <th className="h-control-md px-4 font-medium">Fecha</th>
                 <th className="h-control-md px-4 text-right font-medium">Puntos</th>
                 <th className="h-control-md px-4 font-medium">Comentario</th>

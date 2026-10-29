@@ -81,7 +81,7 @@ export function SupplierSelect({
             placeholder="Nombre del proveedor nuevo"
             autoFocus
             autoComplete="off"
-            className="field h-10 min-w-0 flex-1"
+            className="field min-w-0 flex-1"
           />
           <button type="button" onClick={() => void add()} disabled={busy || !name.trim()} className="btn btn-primary">
             {busy ? 'Guardando…' : 'Agregar'}
@@ -106,7 +106,7 @@ export function SupplierSelect({
           const s = suppliers?.find((x) => x.id === e.target.value) ?? null
           onChange(s?.id ?? null, s)
         }}
-        className="field h-10 w-full cursor-pointer"
+        className="field w-full cursor-pointer"
       >
         {suppliers === null && <option value="">Cargando proveedores…</option>}
         {suppliers !== null && (noneLabel ? <option value="">{noneLabel}</option> : <option value="" disabled>Elige el proveedor</option>)}

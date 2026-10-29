@@ -117,12 +117,12 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
     }
   }
 
-  const input = 'field h-10'
+  const input = 'field'
   const label = 'field-label'
   const currentImage = image === undefined ? product?.image_url : null
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="pe-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="pe-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -132,7 +132,7 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
             onCancel()
           }
         }}
-        className="max-h-full w-full max-w-2xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-2xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <div className="min-w-0">
@@ -389,7 +389,7 @@ function CorrectionSection({
                   placeholder={placeholder}
                   autoFocus
                   autoComplete="off"
-                  className="field h-10 tabular-nums"
+                  className="field tabular-nums"
                 />
               </div>
             )}
@@ -402,7 +402,7 @@ function CorrectionSection({
                 placeholder={reasonPlaceholder}
                 autoFocus={!valueLabel}
                 autoComplete="off"
-                className="field h-10"
+                className="field"
               />
             </div>
           </div>
@@ -578,7 +578,7 @@ function StockSection({ product, onAdjusted }: { product: Product; onAdjusted: (
                 placeholder="Ej. 3"
                 autoFocus
                 autoComplete="off"
-                className="field h-10 tabular-nums"
+                className="field tabular-nums"
               />
             </div>
             <div>
@@ -589,7 +589,7 @@ function StockSection({ product, onAdjusted }: { product: Product; onAdjusted: (
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Ej. Merma / producto dañado / se encontraron piezas"
                 autoComplete="off"
-                className="field h-10"
+                className="field"
               />
             </div>
           </div>
@@ -608,7 +608,7 @@ function StockSection({ product, onAdjusted }: { product: Product; onAdjusted: (
                   inputMode="decimal"
                   autoComplete="off"
                   placeholder="0"
-                  className="field h-10 tabular-nums"
+                  className="field tabular-nums"
                 />
               </div>
             </div>

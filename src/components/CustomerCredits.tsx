@@ -35,8 +35,8 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="mr-auto text-heading">Créditos de tienda</h2>
-        <button type="button" onClick={() => setAdding(true)} className="btn btn-primary">
+        <h2 className="mr-auto text-title">Créditos de tienda</h2>
+        <button type="button" onClick={() => setAdding(true)} className="btn btn-secondary">
           <Icon name="plus" />
           Agregar crédito
         </button>
@@ -55,18 +55,19 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card p-4">
-          <p className="text-label text-ink-muted">Disponible</p>
-          <p className="text-kpi text-brand-ink tabular-nums">{balance ? formatMoney(balance.balance) : '…'}</p>
+      <div className="grid grid-cols-3 items-start gap-3 max-sm:grid-cols-2">
+        {/* StatBlock dorado: el saldo es dinero a favor del cliente. */}
+        <div className="kn-block kn-gold kn-deep flex flex-col gap-1 p-4 max-sm:col-span-2" role="group" aria-label="Créditos disponibles">
+          <p className="stat-label">Disponible</p>
+          <p className="stat-value">{balance ? formatMoney(balance.balance) : '…'}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Ganados (histórico)</p>
-          <p className="text-heading text-success-fg tabular-nums">{balance ? formatMoney(balance.earned) : '…'}</p>
+          <p className="stat-label text-ink-muted">Ganados (histórico)</p>
+          <p className="font-display text-heading font-extrabold text-success-fg tabular-nums">{balance ? formatMoney(balance.earned) : '…'}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Usados (histórico)</p>
-          <p className="text-heading tabular-nums">{balance ? formatMoney(balance.used) : '…'}</p>
+          <p className="stat-label text-ink-muted">Usados (histórico)</p>
+          <p className="font-display text-heading font-extrabold tabular-nums">{balance ? formatMoney(balance.used) : '…'}</p>
         </div>
       </div>
 
@@ -100,7 +101,7 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
           </ul>
           <table className="hidden w-full border-collapse text-left md:table">
             <thead>
-              <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+              <tr className="thead-row">
                 <th className="h-control-md px-4 font-medium">Fecha</th>
                 <th className="h-control-md px-4 font-medium">Concepto</th>
                 <th className="h-control-md px-4 text-right font-medium">Créditos</th>

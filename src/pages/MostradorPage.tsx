@@ -95,7 +95,7 @@ export function MostradorPage() {
 
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
-      <h1 className="hidden text-title md:block">Mostrador</h1>
+      <h1 className="hidden text-title-lg uppercase md:block">Mostrador</h1>
 
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">
@@ -105,7 +105,10 @@ export function MostradorPage() {
       )}
 
       {lastSale && (
-        <div className={`flex flex-wrap items-center gap-4 rounded-lg border-2 p-5 ${lastSale.pending ? 'border-warning-solid bg-warning-bg text-warning-fg' : 'border-success-solid bg-success-bg text-success-fg'}`} aria-live="polite">
+        <div
+          className={`flex flex-wrap items-center gap-4 p-5 ${lastSale.pending ? 'rounded-lg border-2 border-warning-solid bg-warning-bg text-warning-fg' : 'kn-block kn-mint kn-deep'}`}
+          aria-live="polite"
+        >
           <Icon name="check" size={32} />
           <div className="mr-auto">
             <p className="text-title">
@@ -122,8 +125,8 @@ export function MostradorPage() {
           </div>
           {lastSale.change !== null && lastSale.change > 0 && (
             <div className="text-right">
-              <p className="text-label">Cambio</p>
-              <p className="text-display tabular-nums">{formatMoney(lastSale.change)}</p>
+              <p className="stat-label">Cambio</p>
+              <p className="stat-value">{formatMoney(lastSale.change)}</p>
             </div>
           )}
         </div>
@@ -132,7 +135,7 @@ export function MostradorPage() {
       <div className="grid flex-1 items-start gap-4 lg:grid-cols-[260px_1fr]">
         {/* Tickets abiertos */}
         <aside className="card flex flex-col">
-          <h2 className="border-b border-line px-4 py-3 text-heading">Tickets abiertos</h2>
+          <h2 className="border-b border-line px-4 py-3 text-label uppercase tracking-wider text-ink-muted">Tickets abiertos</h2>
           {tickets.length === 0 && <p className="px-4 py-6 text-center text-ink-subtle">No hay tickets abiertos.</p>}
           <ul className="divide-y divide-line">
             {tickets.map((t) => (
@@ -144,17 +147,17 @@ export function MostradorPage() {
                     setLastSale(null)
                   }}
                   aria-current={t.id === activeId}
-                  className={`flex w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left ${t.id === activeId ? 'bg-brand-soft' : 'hover:bg-subtle'}`}
+                  className={`flex w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left ${t.id === activeId ? 'bg-brand text-on-brand' : 'hover:bg-subtle'}`}
                 >
                   <span className="flex items-baseline justify-between gap-2">
                     <span
-                      className={`truncate text-label ${t.id === activeId ? 'text-brand-ink' : t.customer ? 'text-ink' : 'text-ink-muted'}`}
+                      className={`truncate text-label ${t.id === activeId ? '' : t.customer ? 'text-ink' : 'text-ink-muted'}`}
                     >
                       {ticketLabel(t)}
                     </span>
-                    <span className="shrink-0 text-caption text-ink-subtle">{ticketOpenedTime(t)}</span>
+                    <span className={`shrink-0 text-caption ${t.id === activeId ? '' : 'text-ink-subtle'}`}>{ticketOpenedTime(t)}</span>
                   </span>
-                  <span className="flex justify-between text-caption text-ink-subtle">
+                  <span className={`flex justify-between text-caption ${t.id === activeId ? '' : 'text-ink-subtle'}`}>
                     <span>{formatInt(ticketPieces(t))} pzas</span>
                     <span className="tabular-nums">{formatMoney(ticketTotal(t))}</span>
                   </span>
@@ -163,7 +166,7 @@ export function MostradorPage() {
             ))}
           </ul>
           <div className="border-t border-line p-3">
-            <button type="button" onClick={createTicket} className="btn btn-primary w-full">
+            <button type="button" onClick={createTicket} className="btn btn-primary btn-block">
               <Icon name="plus" />
               Nuevo ticket
             </button>
@@ -174,9 +177,9 @@ export function MostradorPage() {
         {!active ? (
           <section className="card flex min-h-80 flex-col items-center justify-center gap-3 p-8 text-center">
             <Icon name="receipt" size={40} className="text-ink-subtle" />
-            <p className="text-title-lg text-ink-muted">Abre un ticket para empezar a vender</p>
+            <p className="text-title text-ink">Abre un ticket para empezar a vender</p>
             <p className="text-ink-subtle">Al cobrarlo recibe su folio (1, 2, 3…).</p>
-            <button type="button" onClick={createTicket} className="btn btn-primary btn-lg mt-2">
+            <button type="button" onClick={createTicket} className="btn btn-primary btn-lg mt-3">
               <Icon name="plus" size={20} />
               Nuevo ticket
             </button>
@@ -190,7 +193,7 @@ export function MostradorPage() {
                 <span className="field-label">Cliente</span>
                 {active.customer ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-pill bg-brand-soft px-3 py-1.5 text-label text-brand-ink">
+                    <span className="inline-flex h-control-sm items-center gap-2 rounded-md border-2 border-jade bg-brand-soft px-3 text-label text-brand-ink">
                       <Icon name="users" />
                       {active.customer.name}
                     </span>
@@ -285,19 +288,19 @@ function TicketLines({
   onChanged: () => void
 }) {
   if (ticket.lines.length === 0) {
-    return <p className="rounded-md border border-dashed border-line px-4 py-10 text-center text-ink-subtle">El ticket está vacío.</p>
+    return <p className="rounded-md border-2 border-dashed border-line px-4 py-10 text-center text-ink-subtle">El ticket está vacío. Escanea un producto para empezar.</p>
   }
   return (
-    <div className="overflow-x-auto rounded-md border border-line">
+    <div className="overflow-x-auto">
       {/* En el celular cada renglón se acomoda en dos líneas (ver LineRow). */}
       <table className="w-full border-collapse text-left max-md:block">
         <thead className="max-md:hidden">
-          <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
-            <th className="h-control-md px-3 font-medium">Producto</th>
-            <th className="h-control-md px-3 text-right font-medium">Precio</th>
-            <th className="h-control-md px-3 text-center font-medium">Cantidad</th>
-            <th className="h-control-md px-3 text-right font-medium">Importe</th>
-            <th className="h-control-md w-10 px-3">
+          <tr className="border-b-2 border-ink text-caption tracking-wider whitespace-nowrap text-ink-muted uppercase">
+            <th className="h-9 pr-3 font-semibold">Producto</th>
+            <th className="h-9 px-3 text-right font-semibold">Precio</th>
+            <th className="h-9 px-3 text-center font-semibold">Cantidad</th>
+            <th className="h-9 px-3 text-right font-semibold">Importe</th>
+            <th className="h-9 w-11 pl-3">
               <span className="sr-only">Quitar</span>
             </th>
           </tr>
@@ -334,27 +337,27 @@ function LineRow({
   }
 
   return (
-    <tr className="border-t border-line max-md:grid max-md:grid-cols-[1fr_auto_auto] max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
-      <td className="px-3 py-2 max-md:col-span-2 max-md:p-0">
+    <tr className="border-b border-line max-md:grid max-md:grid-cols-[1fr_auto_auto] max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
+      <td className="py-3 pr-3 max-md:col-span-2 max-md:p-0">
         <div className="flex items-center gap-3">
           <ProductImage path={line.imagePath} alt="" className="size-10 shrink-0 rounded-xs" />
           <div className="min-w-40">
-            <p className="text-label text-ink">{line.name}</p>
+            <p className="font-semibold text-ink">{line.name}</p>
             <p className="font-mono text-caption text-ink-subtle">{line.barcode}</p>
             <p className="text-caption text-ink-muted tabular-nums md:hidden">{formatMoney(line.unitPrice)} c/u</p>
             {!product && <p className="text-caption text-danger-fg">Este producto ya no está en el inventario.</p>}
           </div>
         </div>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums max-md:hidden">{formatMoney(line.unitPrice)}</td>
-      <td className="px-3 py-2 max-md:row-start-2 max-md:p-0">
+      <td className="px-3 py-3 text-right text-ink-muted tabular-nums max-md:hidden">{formatMoney(line.unitPrice)}</td>
+      <td className="px-3 py-3 max-md:row-start-2 max-md:p-0">
         <div className="mx-auto flex w-fit max-md:mx-0 items-center gap-1">
           <button
             type="button"
             aria-label={`Quitar una pieza de ${line.name}`}
             disabled={line.quantity <= 1}
             onClick={() => commit(line.quantity - 1)}
-            className="btn btn-secondary btn-sm w-8 px-0"
+            className="icon-btn"
           >
             −
           </button>
@@ -371,7 +374,7 @@ function LineRow({
             }}
             inputMode="numeric"
             aria-label={`Cantidad de ${line.name}`}
-            className="field h-control-sm w-14 px-1 text-center tabular-nums"
+            className="field h-control-sm w-14 px-1 text-center font-semibold tabular-nums"
           />
           <button
             type="button"
@@ -379,14 +382,14 @@ function LineRow({
             disabled={!product || line.quantity >= max}
             title={product && line.quantity >= max ? 'No hay más stock disponible' : undefined}
             onClick={() => commit(line.quantity + 1)}
-            className="btn btn-secondary btn-sm w-8 px-0"
+            className="icon-btn"
           >
             +
           </button>
         </div>
       </td>
-      <td className="px-3 py-2 text-right font-medium tabular-nums max-md:col-span-2 max-md:row-start-2 max-md:p-0">{formatMoney(line.quantity * line.unitPrice)}</td>
-      <td className="px-3 py-2 max-md:col-start-3 max-md:row-start-1 max-md:justify-self-end max-md:p-0">
+      <td className="px-3 py-3 text-right font-display text-lg font-extrabold tabular-nums max-md:col-span-2 max-md:row-start-2 max-md:p-0">{formatMoney(line.quantity * line.unitPrice)}</td>
+      <td className="py-3 pl-3 max-md:col-start-3 max-md:row-start-1 max-md:justify-self-end max-md:p-0">
         <button
           type="button"
           onClick={() => {
@@ -394,7 +397,7 @@ function LineRow({
             onChanged()
           }}
           aria-label={`Quitar ${line.name} del ticket`}
-          className="grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-danger-bg hover:text-danger-fg"
+          className="grid size-11 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-danger-bg hover:text-danger-fg"
         >
           <Icon name="x" />
         </button>

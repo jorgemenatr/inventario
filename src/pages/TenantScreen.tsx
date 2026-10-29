@@ -1,4 +1,5 @@
 import { Icon } from '../components/Icon'
+import { KananLogo } from '../components/KananMark'
 import { baseDomain, type TenantResolution } from '../lib/tenant'
 
 /** Lo que se muestra cuando este sitio no corresponde a un cliente activo. */
@@ -25,10 +26,9 @@ export function TenantScreen({ resolution }: { resolution: Exclude<TenantResolut
   return (
     <div className="grid min-h-full place-items-center bg-app p-4">
       <div className="card w-full max-w-sm p-8">
-        <span className="mb-5 grid size-10 place-items-center rounded-md bg-brand text-on-brand">
-          <Icon name={resolution.kind === 'landing' ? 'box' : 'alert'} size={20} />
-        </span>
-        <h1 className="text-title-lg">{title}</h1>
+        <KananLogo height={36} className="mb-6" />
+        {resolution.kind !== 'landing' && <Icon name="alert" size={24} className="mb-2 text-warning-fg" />}
+        <h1 className="text-title">{title}</h1>
         <p className="mt-2 text-ink-muted">{body}</p>
       </div>
     </div>

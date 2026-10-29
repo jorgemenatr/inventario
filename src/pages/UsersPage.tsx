@@ -32,7 +32,7 @@ export function UsersPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title md:block">Usuarios</h1>
+        <h1 className="hidden mr-auto text-title-lg uppercase md:block">Usuarios</h1>
         <button
           type="button"
           onClick={() => {
@@ -103,7 +103,7 @@ export function UsersPage() {
           </ul>
           <table className="hidden w-full border-collapse text-left md:table">
             <thead>
-              <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+              <tr className="thead-row">
                 <th className="h-control-md px-4 font-medium">Nombre</th>
                 <th className="h-control-md px-4 font-medium">Correo</th>
                 <th className="h-control-md px-4 font-medium">Rol</th>
@@ -202,7 +202,7 @@ function UserFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="uf-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="uf-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -212,7 +212,7 @@ function UserFormModal({
             onCancel()
           }
         }}
-        className="max-h-full w-full max-w-xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <h2 id="uf-title" className="text-title">
@@ -227,14 +227,14 @@ function UserFormModal({
         <div className="space-y-4 px-6 py-5">
           <div>
             <label className="field-label" htmlFor="uf-name">Nombre *</label>
-            <input id="uf-name" className="field h-10" value={name} onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
+            <input id="uf-name" className="field" value={name} onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
           </div>
           <div>
             <label className="field-label" htmlFor="uf-email">Correo *</label>
             <input
               id="uf-email"
               type="email"
-              className="field h-10"
+              className="field"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={!!user}
@@ -265,7 +265,7 @@ function UserFormModal({
               <input
                 id="uf-password"
                 type="text"
-                className="field h-10 font-mono"
+                className="field font-mono"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"

@@ -145,7 +145,7 @@ export function TransfersPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="hidden text-title md:block">Movimiento de bodega</h1>
+      <h1 className="hidden text-title-lg uppercase md:block">Movimiento de bodega</h1>
 
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">
@@ -194,7 +194,7 @@ export function TransfersPage() {
             {/* En el celular cada renglón se acomoda en dos líneas. */}
             <table className="w-full border-collapse text-left max-md:block">
               <thead className="max-md:hidden">
-                <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
+                <tr className="thead-row">
                   <th className="h-control-md px-3 font-medium">Producto</th>
                   <th className="h-control-md px-3 text-right font-medium">En {LOCATION_LABELS[from].toLowerCase()}</th>
                   <th className="h-control-md px-3 text-right font-medium">Mover</th>
@@ -226,7 +226,7 @@ export function TransfersPage() {
                         autoComplete="off"
                         aria-label={`Piezas a mover de ${r.name}`}
                         aria-invalid={r.invalid || r.short}
-                        className={`field h-9 w-20 text-right tabular-nums ${r.invalid || r.short ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
+                        className={`field h-control-sm w-20 text-right tabular-nums ${r.invalid || r.short ? 'border-danger-fg bg-danger-bg text-danger-fg' : ''}`}
                       />
                       {r.short && (
                         <p className="mt-1 text-caption text-danger-fg">
@@ -265,7 +265,7 @@ export function TransfersPage() {
             }}
             placeholder="Ej. Reabasto para el torneo del sábado"
             autoComplete="off"
-            className="field h-10"
+            className="field"
           />
         </div>
 
@@ -314,7 +314,7 @@ export function TransfersPage() {
       </section>
 
       <section className="card overflow-hidden">
-        <h2 className="border-b border-line px-5 py-4 text-heading">Historial de movimientos</h2>
+        <h2 className="border-b border-line px-5 py-4 text-label tracking-wider text-ink-muted uppercase">Historial de movimientos</h2>
         {historyError && <p className="px-5 py-4 text-danger-fg">{historyError}</p>}
         {history && history.length === 0 && <p className="px-5 py-8 text-center text-ink-subtle">Aún no hay movimientos de bodega.</p>}
         {history && history.length > 0 && (

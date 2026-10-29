@@ -26,7 +26,7 @@ export function ProductImage({ path, alt, className = '' }: Props) {
   if (!url || failed) {
     return (
       <div className={`grid place-items-center border border-line bg-subtle text-ink-subtle ${className}`} role="img" aria-label="Sin imagen">
-        <Icon name="image" size={24} className="h-2/5 w-2/5" />
+        <Icon name="image" size={24} className="h-1/3 w-1/3 opacity-40" />
       </div>
     )
   }

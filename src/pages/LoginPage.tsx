@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate, type Location } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { Icon } from '../components/Icon'
+import { KananLogo } from '../components/KananMark'
 import { appTitle, useSettings } from '../lib/settings'
 
 const LAST_EMAIL_KEY = 'hachiko.lastEmail'
@@ -64,10 +65,8 @@ export function LoginPage() {
   return (
     <div className="grid min-h-full place-items-center bg-app p-4">
       <form onSubmit={onSubmit} className="card w-full max-w-sm p-8">
-        <span className="mb-5 grid size-10 place-items-center rounded-md bg-brand text-on-brand">
-          <Icon name="box" size={20} />
-        </span>
-        <h1 className="text-title-lg">{appTitle(settings)}</h1>
+        <KananLogo height={36} className="mb-6" />
+        <h1 className="text-title">{appTitle(settings)}</h1>
         <p className="mt-1 mb-6 text-ink-muted">Inicia sesión para continuar.</p>
 
 
@@ -79,7 +78,7 @@ export function LoginPage() {
           autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="field h-10"
+          className="field"
         />
 
         <label htmlFor="password" className="field-label mt-4">Contraseña</label>
@@ -90,7 +89,7 @@ export function LoginPage() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="field h-10"
+          className="field"
         />
 
         {error && (
@@ -100,7 +99,7 @@ export function LoginPage() {
           </p>
         )}
 
-        <button type="submit" disabled={submitting} className="btn btn-primary mt-6 h-10 w-full">
+        <button type="submit" disabled={submitting} className="btn btn-primary mt-6 w-full">
           {submitting ? 'Entrando…' : 'Iniciar sesión'}
         </button>
         <p className="mt-4 text-caption text-ink-subtle">

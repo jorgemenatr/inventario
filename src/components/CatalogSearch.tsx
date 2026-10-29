@@ -106,7 +106,7 @@ export function CatalogSearch({ inputRef, onSelect }: Props) {
             onKeyDown={onKeyDown}
             autoComplete="off"
             placeholder='Ej. "delta reign etb", "caja 151", "micas negras mate dragon"'
-            className="field h-10 pl-9"
+            className="field pl-9"
           />
         </div>
       )}

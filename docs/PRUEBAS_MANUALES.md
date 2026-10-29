@@ -162,7 +162,7 @@ productos de prueba con poco stock (p. ej. 3 piezas).
 - [ ] Paga: aparece "Venta registrada · Ticket N" con el cambio. En Supabase hay un ticket
       nuevo con su folio, el stock bajó y en Historial hay movimientos "Venta: Ticket N".
       El siguiente cobro recibe el folio siguiente (N + 1).
-- [ ] Apaga el Wi-Fi: se puede abrir un ticket y agregar productos, pero Pagar está
+- [ ] Apaga el Wi-Fi: se puede abrir un ticket y agregar productos, pero Cobrar está
       desactivado ("Sin conexión: cobra cuando vuelva el internet").
 - [ ] Prende el Wi-Fi y cobra ese ticket: se registra con su folio, una sola vez.
 - [ ] En Ventas, filtra por forma de pago y por fechas; haz clic en una venta para ver sus

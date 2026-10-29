@@ -19,7 +19,7 @@ interface Props<T extends string> {
 export function Segmented<T extends string>({ value, options, onChange, label, size = 'md', disabled }: Props<T>) {
   return (
     <div
-      className={`flex gap-0.5 rounded-md border border-control bg-surface p-0.5 ${size === 'lg' ? 'h-11' : 'h-control-md'}`}
+      className={`seg ${size === 'lg' ? 'h-12' : ''}`}
       role="group"
       aria-label={label}
     >
@@ -30,9 +30,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
           aria-pressed={value === o.value}
           disabled={disabled}
           onClick={() => onChange(o.value)}
-          className={`flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 disabled:cursor-not-allowed disabled:opacity-60 ${size === 'lg' ? 'text-heading' : 'text-label'} ${
-            value === o.value ? 'bg-brand-soft text-brand-ink' : 'text-ink-muted hover:bg-subtle'
-          }`}
+          className={`seg-option ${size === 'lg' ? 'px-4 text-[15px]' : ''}`}
         >
           {o.icon && <Icon name={o.icon} />}
           {o.label}

@@ -8,7 +8,7 @@ interface Props {
 }
 
 /** Categoría del producto: las del negocio (Configuración → Categorías), con sus subcategorías. */
-export function CategorySelect({ id, value, onChange, className = 'field h-10 cursor-pointer' }: Props) {
+export function CategorySelect({ id, value, onChange, className = 'field cursor-pointer' }: Props) {
   const { tree, values } = useCategories()
   // Productos viejos pueden traer una categoría que ya no existe: se conserva hasta que se cambie.
   const legacy = value && !values.has(value) ? value : null

@@ -88,20 +88,12 @@ export function HistoryPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3 max-md:hidden">
-        <h1 className="mr-auto text-title">Historial de movimientos</h1>
-        <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
-          <Icon name="download" />
-          Exportar CSV
-        </button>
-        <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary">
-          <Icon name="download" />
-          {exporting ? 'Exportando…' : 'Exportar Excel'}
-        </button>
+        <h1 className="mr-auto text-title uppercase md:text-title-lg">Historial de movimientos</h1>
       </div>
 
       {(queue.length > 0 || failed.length > 0) && (
         <section className="card p-5">
-          <h2 className="text-heading">Operaciones locales</h2>
+          <h2 className="text-title">Operaciones locales</h2>
           {queue.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <span className="badge badge-warning">
@@ -141,7 +133,7 @@ export function HistoryPage() {
       )}
 
       <div className="flex items-center gap-3">
-        <label className="flex h-control-md w-full max-w-sm min-w-0 items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+        <label className="search-field w-full max-w-sm min-w-0">
           <Icon name="search" />
           <input
             type="search"
@@ -154,7 +146,6 @@ export function HistoryPage() {
         </label>
         {online && !exporting && (
           <MoreMenu
-            className="md:hidden"
             items={[
               { label: 'Exportar CSV', icon: 'download', onClick: () => void doExport('csv') },
               { label: 'Exportar Excel', icon: 'download', onClick: () => void doExport('xlsx') },
@@ -229,20 +220,20 @@ export function HistoryPage() {
             </li>
           ))}
         </ul>
-        <table className="hidden w-full border-collapse text-left md:table">
+        <table className="hidden w-full border-collapse text-left text-[14px] leading-5 md:table">
           <thead>
-            <tr className="bg-subtle text-label whitespace-nowrap text-ink-muted">
-              <th className="h-control-md px-4 font-medium">Fecha</th>
-              <th className="h-control-md px-4 font-medium">Código</th>
-              <th className="h-control-md px-4 font-medium">Producto</th>
-              <th className="h-control-md px-4 font-medium">Tipo</th>
-              <th className="h-control-md px-4 font-medium">Ubicación</th>
-              <th className="h-control-md px-4 text-right font-medium">Cambio</th>
-              <th className="h-control-md px-4 text-right font-medium">Queda ahí</th>
-              <th className="h-control-md px-4 font-medium">Usuario</th>
-              <th className="h-control-md px-4 font-medium">Nota</th>
+            <tr className="thead-row">
+              <th className="h-control-md px-3 font-medium">Fecha</th>
+              <th className="h-control-md px-3 font-medium">Código</th>
+              <th className="h-control-md px-3 font-medium">Producto</th>
+              <th className="h-control-md px-3 font-medium">Tipo</th>
+              <th className="h-control-md px-3 font-medium">Ubicación</th>
+              <th className="h-control-md px-3 text-right font-medium">Cambio</th>
+              <th className="h-control-md px-3 text-right font-medium">Queda ahí</th>
+              <th className="h-control-md px-3 font-medium">Usuario</th>
+              <th className="h-control-md px-3 font-medium">Nota</th>
               {isAdmin && (
-                <th className="h-control-md px-4 font-medium">
+                <th className="h-control-md px-3 font-medium">
                   <span className="sr-only">Acciones</span>
                 </th>
               )}
@@ -251,10 +242,10 @@ export function HistoryPage() {
           <tbody>
             {rows.map((m) => (
               <tr key={m.id} className={`border-t border-line hover:bg-subtle ${m.cancelled_by_movement_id ? 'text-ink-subtle' : ''}`}>
-                <td className="h-row px-4 whitespace-nowrap text-ink-muted">{formatDateTime(m.created_at)}</td>
-                <td className="h-row px-4 font-mono text-[13px] text-ink-muted">{m.barcode}</td>
-                <td className="h-row px-4 font-medium">{m.product_name}</td>
-                <td className="h-row px-4 whitespace-nowrap">
+                <td className="h-row px-3 whitespace-nowrap text-ink-muted">{formatDateTime(m.created_at)}</td>
+                <td className="h-row px-3 font-mono text-[13px] text-ink-muted">{m.barcode}</td>
+                <td className="h-row min-w-56 px-3 font-medium">{m.product_name}</td>
+                <td className="h-row px-3 whitespace-nowrap">
                   <span className="flex flex-col items-start gap-1 py-1">
                     {MOVEMENT_LABELS[m.type] ?? m.type}
                     {m.lot_numbers && <span className="text-caption text-ink-subtle">Lote {m.lot_numbers}</span>}
@@ -269,16 +260,16 @@ export function HistoryPage() {
                     )}
                   </span>
                 </td>
-                <td className="h-row px-4 whitespace-nowrap">
+                <td className="h-row px-3 whitespace-nowrap">
                   {m.location === 'warehouse' ? <span className="badge badge-warning">Bodega</span> : <span className="text-ink-muted">{LOCATION_LABELS.store}</span>}
                 </td>
-                <td className={`h-row px-4 text-right font-medium tabular-nums ${deltaClass(m)}`}>
+                <td className={`h-row px-3 text-right font-medium tabular-nums ${deltaClass(m)}`}>
                   {m.delta > 0 ? '+' : ''}
                   {formatInt(m.delta)}
                 </td>
-                <td className="h-row px-4 text-right tabular-nums">{formatInt(m.quantity_after)}</td>
-                <td className="h-row px-4">{m.created_by_name || m.created_by_email || '—'}</td>
-                <td className="h-row px-4 text-ink-muted">
+                <td className="h-row px-3 text-right tabular-nums">{formatInt(m.quantity_after)}</td>
+                <td className="h-row px-3">{m.created_by_name || m.created_by_email || '—'}</td>
+                <td className="h-row min-w-44 px-3 text-ink-muted">
                   {m.note}
                   {m.cancelled_by_movement_id && (
                     <span className="block text-caption text-danger-fg">
@@ -288,7 +279,7 @@ export function HistoryPage() {
                   )}
                 </td>
                 {isAdmin && (
-                  <td className="h-row px-4 text-right">
+                  <td className="h-row px-3 text-right">
                     {cancellable(m) && (
                       <button
                         type="button"
@@ -380,7 +371,7 @@ function CancelMovementModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cm-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="cm-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -390,7 +381,7 @@ function CancelMovementModal({
             onCancel()
           }
         }}
-        className="w-full max-w-lg rounded-lg border border-line bg-surface shadow-popover"
+        className="w-full max-w-lg dialog"
       >
         <div className="border-b border-line px-6 py-5">
           <h2 id="cm-title" className="text-title">Cancelar movimiento</h2>
@@ -419,7 +410,7 @@ function CancelMovementModal({
               placeholder="Ej. Se escaneó dos veces la misma caja"
               autoFocus
               autoComplete="off"
-              className="field h-10"
+              className="field"
             />
           </div>
           {error && (

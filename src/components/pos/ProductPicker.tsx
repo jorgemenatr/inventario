@@ -110,7 +110,7 @@ export function ProductPicker({
       </div>
       {results.length > 0 && (
         <ul
-          className="absolute z-20 mt-1 max-h-96 w-full divide-y divide-line overflow-auto rounded-md border border-line bg-surface shadow-popover"
+          className="absolute z-20 mt-1 max-h-96 w-full divide-y divide-line overflow-auto border-2 border-line-side bg-surface shadow-popover"
           role="listbox"
         >
           {results.map((p, i) => {

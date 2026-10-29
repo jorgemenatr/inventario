@@ -44,7 +44,7 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -54,7 +54,7 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
             onCancel()
           }
         }}
-        className="max-h-full w-full max-w-xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <h2 id="cf-title" className="text-title">
@@ -69,16 +69,16 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
         <div className="space-y-4 px-6 py-5">
           <div>
             <label className="field-label" htmlFor="cf-name">Nombre *</label>
-            <input id="cf-name" ref={nameRef} className="field h-10" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+            <input id="cf-name" ref={nameRef} className="field" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="field-label" htmlFor="cf-email">Correo</label>
-              <input id="cf-email" type="email" className="field h-10" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
+              <input id="cf-email" type="email" className="field" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
             </div>
             <div>
               <label className="field-label" htmlFor="cf-phone">Teléfono</label>
-              <input id="cf-phone" type="tel" className="field h-10" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
+              <input id="cf-phone" type="tel" className="field" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
             </div>
           </div>
           <div>

@@ -7,6 +7,7 @@ import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { ConnectionBadge } from './ConnectionBadge'
 import { Icon, type IconName } from './Icon'
+import { KananMark } from './KananMark'
 import { ScannerSimulator, useSimulatorEnabled } from './ScannerSimulator'
 
 interface NavItem {
@@ -102,9 +103,10 @@ export function Layout() {
         >
           <Icon name="menu" size={22} />
         </button>
-        <span className="min-w-0 flex-1 truncate text-heading">{sectionLabel(pathname) || appTitle(settings)}</span>
+        <KananMark size={26} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate font-display text-heading font-extrabold uppercase">{sectionLabel(pathname) || appTitle(settings)}</span>
         <span
-          className={`mr-3 size-2.5 shrink-0 rounded-pill ${!online ? 'bg-danger-solid' : queue.length > 0 ? 'bg-warning-solid' : 'bg-success-solid'}`}
+          className={`mr-3 size-2.5 shrink-0 ${!online ? 'bg-danger-solid' : queue.length > 0 ? 'bg-warning-solid' : 'bg-success-solid'}`}
           title={!online ? 'Sin conexión' : queue.length > 0 ? 'Pendiente por sincronizar' : 'En línea'}
           role="img"
           aria-label={!online ? 'Sin conexión' : queue.length > 0 ? 'Pendiente por sincronizar' : 'En línea'}
@@ -112,7 +114,7 @@ export function Layout() {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 md:hidden print:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
+        <div className="fixed inset-0 z-40 bg-scrim md:hidden print:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
       )}
 
       <nav
@@ -123,10 +125,8 @@ export function Layout() {
         }`}
       >
         <div className="flex items-center gap-2 px-2 pt-1 pb-2">
-          <span className="grid size-7 place-items-center rounded-md bg-nav-avatar-bg text-nav-active-ink">
-            <Icon name="box" />
-          </span>
-          <span className="min-w-0 flex-1 text-heading">{appTitle(settings)}</span>
+          <KananMark size={32} className="shrink-0" />
+          <span className="min-w-0 flex-1 font-display text-heading leading-tight font-extrabold">{appTitle(settings)}</span>
           <button
             type="button"
             onClick={() => setMenuOpen(false)}
@@ -165,7 +165,7 @@ export function Layout() {
           <ConnectionBadge />
           <div className="flex items-center gap-3 border-t border-nav-border px-2 pt-3">
             <span
-              className="grid size-8 shrink-0 place-items-center rounded-pill bg-nav-avatar-bg text-label text-nav-ink uppercase"
+              className="grid size-8 shrink-0 place-items-center rounded-md bg-nav-avatar-bg text-label text-on-brand uppercase"
               aria-hidden
             >
               {displayName.charAt(0) || '?'}

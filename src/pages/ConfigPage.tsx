@@ -70,7 +70,7 @@ export function ConfigPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="hidden text-title md:block">Configuración</h1>
+      <h1 className="hidden text-title-lg uppercase md:block">Configuración</h1>
 
       <BusinessCard />
 
@@ -90,7 +90,7 @@ export function ConfigPage() {
       <section className="card flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="mr-auto">
-            <h2 className="text-heading">Categorías</h2>
+            <h2 className="text-title">Categorías</h2>
             <p className="text-caption text-ink-muted">
               Las que aparecen al dar de alta un producto y en los filtros del inventario. Cada una puede tener
               subcategorías (p. ej. TCG → Pokémon, Magic).
@@ -192,11 +192,11 @@ function BusinessCard() {
 
   return (
     <section className="card flex flex-col gap-3 p-4">
-      <h2 className="text-heading">Negocio</h2>
+      <h2 className="text-title">Negocio</h2>
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
         <div className="w-full max-w-sm">
           <label className="field-label" htmlFor="cfg-name">Nombre</label>
-          <input id="cfg-name" className="field h-10" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+          <input id="cfg-name" className="field" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
         </div>
         <button
           type="submit"
@@ -244,9 +244,8 @@ function CategoryRow({
   onAddChild?: () => void
 }) {
   const iconBtn =
-    'grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink disabled:cursor-default disabled:opacity-40 max-md:size-control-md'
-  // En md+ las acciones van todas a la vista; en el celular, subir/bajar y el resto en el menú ⋯.
-  const desktopOnly = 'hidden md:inline-flex'
+    'grid size-control-md cursor-pointer place-items-center text-ink-muted hover:bg-subtle hover:text-ink disabled:cursor-default disabled:opacity-40'
+  // Subir y bajar a la vista; el resto en el menú ⋯.
   return (
     <div className="flex items-center gap-1 md:flex-wrap md:gap-2">
       <div className="min-w-0 flex-1">
@@ -266,20 +265,7 @@ function CategoryRow({
       <button type="button" className={iconBtn} disabled={busy || last} onClick={() => onMove(1)} title="Bajar" aria-label={`Bajar ${category.name}`}>
         <Icon name="arrow-down" />
       </button>
-      {onAddChild && (
-        <button type="button" className={`btn btn-ghost btn-sm ${desktopOnly}`} disabled={busy} onClick={onAddChild}>
-          <Icon name="plus" />
-          Subcategoría
-        </button>
-      )}
-      <button type="button" className={`${iconBtn} max-md:hidden`} disabled={busy} onClick={onEdit} title="Editar" aria-label={`Editar ${category.name}`}>
-        <Icon name="pencil" />
-      </button>
-      <button type="button" className={`${iconBtn} max-md:hidden`} disabled={busy} onClick={onDelete} title="Borrar" aria-label={`Borrar ${category.name}`}>
-        <Icon name="trash" />
-      </button>
       <MoreMenu
-        className="md:hidden"
         variant="ghost"
         disabled={busy}
         items={[
@@ -350,7 +336,7 @@ function CategoryModal({
   const renamed = current && current.name !== name.trim()
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -360,7 +346,7 @@ function CategoryModal({
             onCancel()
           }
         }}
-        className="max-h-full w-full max-w-xl overflow-auto rounded-lg border border-line bg-surface shadow-popover"
+        className="max-h-full w-full max-w-xl overflow-auto dialog"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <h2 id="cf-title" className="text-title">
@@ -377,7 +363,7 @@ function CategoryModal({
             <label className="field-label" htmlFor="cf-name">Nombre *</label>
             <input
               id="cf-name"
-              className="field h-10"
+              className="field"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={60}
@@ -394,7 +380,7 @@ function CategoryModal({
               <label className="field-label" htmlFor="cf-parent">Dentro de</label>
               <select
                 id="cf-parent"
-                className="field h-10 cursor-pointer"
+                className="field cursor-pointer"
                 value={parentId ?? ''}
                 onChange={(e) => setParentId(e.target.value || null)}
               >
@@ -471,7 +457,7 @@ function CatalogCard({ linked }: { linked: string[] }) {
 
   return (
     <section className="card flex flex-col gap-2 p-4">
-      <h2 className="text-heading">Catálogo TCGplayer</h2>
+      <h2 className="text-title">Catálogo TCGplayer</h2>
       {linked.length ? (
         <p>
           Se cargan: <span className="text-ink">{linked.map(catalogSourceLabel).join(', ')}</span>.
