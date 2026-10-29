@@ -12,7 +12,13 @@ export const supabaseConfigured = Boolean(url && anonKey)
 // request, la cola offline necesita enterarse para encolar la operación.
 const REQUEST_TIMEOUT_MS = 12_000
 
+// Modo demo (npm run dev:demo): las peticiones las contesta un simulador
+// local en vez de Supabase. Fuera de ese modo, Vite elimina este import.
+const DEMO = import.meta.env.VITE_DEMO === '1'
+const demoFetch = DEMO ? import('./demo/demoApi').then((m) => m.demoFetch) : null
+
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  if (demoFetch) return demoFetch.then((f) => f(input, init))
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout
   return fetch(input, { ...init, signal })
@@ -65,7 +71,7 @@ export async function probeConnection(): Promise<boolean> {
   if (!supabaseConfigured) return false
   if (!navigator.onLine) return false
   try {
-    const res = await fetch(`${url}/auth/v1/health`, {
+    const res = await fetchWithTimeout(`${url}/auth/v1/health`, {
       headers: { apikey: anonKey! },
       signal: AbortSignal.timeout(5_000),
       cache: 'no-store',

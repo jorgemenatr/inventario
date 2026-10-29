@@ -129,6 +129,23 @@ npm run dev          # http://localhost:5173
 npm run build        # verifica tipos y genera dist/
 ```
 
+#### Modo demo (sin Supabase)
+
+Para revisar la interfaz (p. ej. en el celular) con datos inventados, sin tocar ninguna base:
+
+```bash
+npm run dev:demo     # http://localhost:5173 y la IP de la red local
+```
+
+- Entra con cualquier correo y contraseña. Si el correo contiene `mostrador` entras con ese
+  rol; si no, como administrador.
+- Para abrirlo en el celular, conéctalo a la misma red WiFi y abre la dirección `Network:`
+  que imprime Vite (p. ej. `http://192.168.1.20:5173`).
+- Las altas, cambios y cobros se guardan solo en memoria y se pierden al recargar. Lo que el
+  simulador no cubre (subir fotos, compras, ajustes, etc.) muestra "no está disponible en modo demo".
+- Los datos están en `src/lib/demo/demoApi.ts` y su configuración en `.env.demo`. Ese código
+  solo se incluye con `--mode demo`; no va en el build de producción.
+
 ### 7. Publicar en Netlify
 
 1. En Netlify: **Add new site → Import an existing project** y conecta este repositorio.
