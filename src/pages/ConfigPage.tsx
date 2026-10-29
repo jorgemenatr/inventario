@@ -244,9 +244,8 @@ function CategoryRow({
   onAddChild?: () => void
 }) {
   const iconBtn =
-    'grid size-8 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink disabled:cursor-default disabled:opacity-40 max-md:size-control-md'
-  // En md+ las acciones van todas a la vista; en el celular, subir/bajar y el resto en el menú ⋯.
-  const desktopOnly = 'hidden md:inline-flex'
+    'grid size-control-md cursor-pointer place-items-center text-ink-muted hover:bg-subtle hover:text-ink disabled:cursor-default disabled:opacity-40'
+  // Subir y bajar a la vista; el resto en el menú ⋯.
   return (
     <div className="flex items-center gap-1 md:flex-wrap md:gap-2">
       <div className="min-w-0 flex-1">
@@ -266,20 +265,7 @@ function CategoryRow({
       <button type="button" className={iconBtn} disabled={busy || last} onClick={() => onMove(1)} title="Bajar" aria-label={`Bajar ${category.name}`}>
         <Icon name="arrow-down" />
       </button>
-      {onAddChild && (
-        <button type="button" className={`btn btn-ghost btn-sm ${desktopOnly}`} disabled={busy} onClick={onAddChild}>
-          <Icon name="plus" />
-          Subcategoría
-        </button>
-      )}
-      <button type="button" className={`${iconBtn} max-md:hidden`} disabled={busy} onClick={onEdit} title="Editar" aria-label={`Editar ${category.name}`}>
-        <Icon name="pencil" />
-      </button>
-      <button type="button" className={`${iconBtn} max-md:hidden`} disabled={busy} onClick={onDelete} title="Borrar" aria-label={`Borrar ${category.name}`}>
-        <Icon name="trash" />
-      </button>
       <MoreMenu
-        className="md:hidden"
         variant="ghost"
         disabled={busy}
         items={[

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { FiltersButton } from '../components/FiltersButton'
 import { Icon } from '../components/Icon'
@@ -199,22 +198,6 @@ export function InventoryPage() {
           ]}
           />
         </div>
-        {isAdmin && (
-          <>
-            <Link to="/movimiento-bodega" className="btn btn-secondary hidden md:inline-flex">
-              <Icon name="swap" />
-              Movimiento de bodega
-            </Link>
-            <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-              <Icon name="download" />
-              CSV
-            </button>
-            <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-              <Icon name="download" />
-              {exporting ? 'Exportando…' : 'Excel'}
-            </button>
-          </>
-        )}
         <div className="seg" role="group" aria-label="Vista">
           {(
             [
@@ -236,7 +219,6 @@ export function InventoryPage() {
         </div>
         {isAdmin && (
           <MoreMenu
-            className="md:hidden"
             items={[
               { label: 'Movimiento de bodega', icon: 'swap', to: '/movimiento-bodega' },
               ...(online && !exporting

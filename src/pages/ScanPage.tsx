@@ -239,14 +239,6 @@ export function ScanPage() {
       {/* Título y acciones de página */}
       <div className="flex flex-wrap items-center gap-3 max-md:justify-end">
         <h1 className="hidden mr-auto text-title-lg uppercase md:block">Agregar</h1>
-        <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-          <Icon name="download" />
-          Exportar CSV
-        </button>
-        <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary hidden md:inline-flex">
-          <Icon name="download" />
-          {exporting ? 'Exportando…' : 'Exportar Excel'}
-        </button>
         <button
           type="button"
           onClick={() => {
@@ -262,7 +254,6 @@ export function ScanPage() {
         </button>
         {online && !exporting && (
           <MoreMenu
-            className="md:hidden"
             items={[
               { label: 'Exportar CSV', icon: 'download', onClick: () => void doExport('csv') },
               { label: 'Exportar Excel', icon: 'download', onClick: () => void doExport('xlsx') },

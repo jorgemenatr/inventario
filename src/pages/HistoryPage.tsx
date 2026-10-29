@@ -89,14 +89,6 @@ export function HistoryPage() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3 max-md:hidden">
         <h1 className="mr-auto text-title uppercase md:text-title-lg">Historial de movimientos</h1>
-        <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
-          <Icon name="download" />
-          Exportar CSV
-        </button>
-        <button type="button" onClick={() => void doExport('xlsx')} disabled={exporting || !online} className="btn btn-secondary">
-          <Icon name="download" />
-          {exporting ? 'Exportando…' : 'Exportar Excel'}
-        </button>
       </div>
 
       {(queue.length > 0 || failed.length > 0) && (
@@ -154,7 +146,6 @@ export function HistoryPage() {
         </label>
         {online && !exporting && (
           <MoreMenu
-            className="md:hidden"
             items={[
               { label: 'Exportar CSV', icon: 'download', onClick: () => void doExport('csv') },
               { label: 'Exportar Excel', icon: 'download', onClick: () => void doExport('xlsx') },

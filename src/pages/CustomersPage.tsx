@@ -73,21 +73,12 @@ export function CustomersPage() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="hidden mr-auto text-title-lg uppercase md:block">Clientes</h1>
         <FiltersButton open={showFilters} active={!!search.trim() || !!game} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
-        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-gold hidden md:inline-flex">
-          <Icon name="trophy" />
-          Agregar puntos de liga
-        </button>
-        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-gold hidden md:inline-flex">
-          <Icon name="plus" />
-          Agregar créditos
-        </button>
         <button type="button" onClick={() => setCreating(true)} className="btn btn-primary">
           <Icon name="plus" />
           Nuevo cliente
         </button>
         {!!customers?.length && (
           <MoreMenu
-            className="md:hidden"
             items={[
               { label: 'Agregar puntos de liga', icon: 'trophy', onClick: () => setPointsFor('many') },
               { label: 'Agregar créditos', icon: 'plus', onClick: () => setGranting(true) },

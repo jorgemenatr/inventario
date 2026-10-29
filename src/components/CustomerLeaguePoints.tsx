@@ -32,7 +32,7 @@ export function CustomerLeaguePoints({ customer }: { customer: Customer }) {
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="mr-auto text-title">Puntos de liga</h2>
-        <button type="button" onClick={() => setAdding(true)} className="btn btn-gold">
+        <button type="button" onClick={() => setAdding(true)} className="btn btn-secondary">
           <Icon name="plus" />
           Agregar puntos
         </button>
