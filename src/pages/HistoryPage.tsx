@@ -88,7 +88,7 @@ export function HistoryPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3 max-md:hidden">
-        <h1 className="mr-auto text-title">Historial de movimientos</h1>
+        <h1 className="mr-auto text-title uppercase md:text-title-lg">Historial de movimientos</h1>
         <button type="button" onClick={() => void doExport('csv')} disabled={exporting || !online} className="btn btn-secondary">
           <Icon name="download" />
           Exportar CSV
@@ -141,7 +141,7 @@ export function HistoryPage() {
       )}
 
       <div className="flex items-center gap-3">
-        <label className="flex h-control-md w-full max-w-sm min-w-0 items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+        <label className="search-field w-full max-w-sm min-w-0">
           <Icon name="search" />
           <input
             type="search"

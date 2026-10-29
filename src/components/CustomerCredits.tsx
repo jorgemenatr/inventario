@@ -62,12 +62,12 @@ export function CustomerCredits({ customer }: { customer: Customer }) {
           <p className="stat-value">{balance ? formatMoney(balance.balance) : '…'}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Ganados (histórico)</p>
-          <p className="text-heading text-success-fg tabular-nums">{balance ? formatMoney(balance.earned) : '…'}</p>
+          <p className="stat-label text-ink-muted">Ganados (histórico)</p>
+          <p className="font-display text-heading font-extrabold text-success-fg tabular-nums">{balance ? formatMoney(balance.earned) : '…'}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Usados (histórico)</p>
-          <p className="text-heading tabular-nums">{balance ? formatMoney(balance.used) : '…'}</p>
+          <p className="stat-label text-ink-muted">Usados (histórico)</p>
+          <p className="font-display text-heading font-extrabold tabular-nums">{balance ? formatMoney(balance.used) : '…'}</p>
         </div>
       </div>
 

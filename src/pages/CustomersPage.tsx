@@ -71,13 +71,13 @@ export function CustomersPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title md:block">Clientes</h1>
+        <h1 className="hidden mr-auto text-title-lg uppercase md:block">Clientes</h1>
         <FiltersButton open={showFilters} active={!!search.trim() || !!game} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
-        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-secondary hidden md:inline-flex">
+        <button type="button" onClick={() => setPointsFor('many')} disabled={!customers?.length} className="btn btn-gold hidden md:inline-flex">
           <Icon name="trophy" />
           Agregar puntos de liga
         </button>
-        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-secondary hidden md:inline-flex">
+        <button type="button" onClick={() => setGranting(true)} disabled={!customers?.length} className="btn btn-gold hidden md:inline-flex">
           <Icon name="plus" />
           Agregar créditos
         </button>
@@ -97,7 +97,7 @@ export function CustomersPage() {
       </div>
 
       <div className={`flex flex-wrap items-center gap-3 ${showFilters ? '' : 'max-md:hidden'}`}>
-        <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+        <label className="search-field w-full max-w-sm">
           <Icon name="search" />
           <input
             type="search"
@@ -152,11 +152,11 @@ export function CustomersPage() {
                   <p className="flex flex-wrap gap-x-3 text-caption text-ink-muted tabular-nums">
                     <span>
                       Puntos:{' '}
-                      <span className="font-medium text-ink">{!league ? '…' : (league.get(c.id) ?? 0).toLocaleString('es-MX')}</span>
+                      <span className="font-semibold text-gold-ink">{!league ? '…' : (league.get(c.id) ?? 0).toLocaleString('es-MX')}</span>
                     </span>
                     <span>
                       Créditos:{' '}
-                      <span className="font-medium text-brand-ink">{!balances ? '…' : formatMoney(balances.get(c.id)?.balance ?? 0)}</span>
+                      <span className="font-semibold text-gold-ink">{!balances ? '…' : formatMoney(balances.get(c.id)?.balance ?? 0)}</span>
                     </span>
                   </p>
                 </Link>
@@ -165,7 +165,7 @@ export function CustomersPage() {
                   onClick={() => setPointsFor(c)}
                   title="Agregar puntos de liga"
                   aria-label={`Agregar puntos de liga a ${c.name}`}
-                  className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-brand-soft hover:text-brand-ink"
+                  className="grid size-11 shrink-0 cursor-pointer place-items-center text-gold-ink hover:bg-gold-soft"
                 >
                   <Icon name="trophy" />
                 </button>
@@ -199,7 +199,7 @@ export function CustomersPage() {
                   <td className="h-row px-4 text-right whitespace-nowrap tabular-nums">
                     <span className="inline-flex items-center gap-1">
                       {!league ? '…' : (league.get(c.id) ?? 0) !== 0 ? (
-                        <span className="font-medium">{(league.get(c.id) ?? 0).toLocaleString('es-MX')}</span>
+                        <span className="font-display font-extrabold text-gold-ink">{(league.get(c.id) ?? 0).toLocaleString('es-MX')}</span>
                       ) : (
                         <span className="text-ink-subtle">—</span>
                       )}
@@ -211,7 +211,7 @@ export function CustomersPage() {
                         }}
                         title="Agregar puntos de liga"
                         aria-label={`Agregar puntos de liga a ${c.name}`}
-                        className="grid size-7 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-brand-soft hover:text-brand-ink"
+                        className="grid size-9 cursor-pointer place-items-center text-ink-muted hover:bg-gold-soft hover:text-gold-ink"
                       >
                         <Icon name="plus" />
                       </button>
@@ -219,7 +219,7 @@ export function CustomersPage() {
                   </td>
                   <td className="h-row px-4 text-right whitespace-nowrap tabular-nums">
                     {!balances ? '…' : (balances.get(c.id)?.balance ?? 0) > 0 ? (
-                      <span className="font-medium text-brand-ink">{formatMoney(balances.get(c.id)!.balance)}</span>
+                      <span className="font-display font-extrabold text-gold-ink">{formatMoney(balances.get(c.id)!.balance)}</span>
                     ) : (
                       <span className="text-ink-subtle">—</span>
                     )}

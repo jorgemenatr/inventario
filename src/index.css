@@ -48,6 +48,8 @@
   --color-mint: #7fc8b8;
   --color-gold: #e0a43a;
   --color-gold-soft: #fbefd8;
+  /* Cifras de créditos y puntos sobre fondos claros (4.5:1). */
+  --color-gold-ink: #85570a;
   /* Texto sobre gold y mint en ambos temas. */
   --color-on-gold: #12201f;
   /* Lados extruidos de los bloques. */
@@ -159,6 +161,7 @@
       --color-mint: #5fa596;
       --color-gold: #d39a37;
       --color-gold-soft: #2b2414;
+      --color-gold-ink: #e9b85f;
       --color-brand-side: #0b2a27;
       --color-gold-side: #6b4a12;
       --color-line-side: #64716e;
@@ -206,6 +209,7 @@
     --color-mint: #5fa596;
     --color-gold: #d39a37;
     --color-gold-soft: #2b2414;
+    --color-gold-ink: #e9b85f;
     --color-brand-side: #0b2a27;
     --color-gold-side: #6b4a12;
     --color-line-side: #64716e;
@@ -448,6 +452,11 @@
     @apply h-control-md w-full rounded-md border-2 border-control bg-surface px-3 text-body text-ink;
   }
   .field:focus { outline: none; border-color: var(--color-jade); box-shadow: 0 0 0 3px var(--color-mint); }
+  /* Campo con ícono (buscadores): mismo borde y foco que .field. */
+  .search-field {
+    @apply flex h-control-md items-center gap-2 rounded-md border-2 border-control bg-surface px-3 text-ink-muted;
+  }
+  .search-field:focus-within { border-color: var(--color-jade); box-shadow: 0 0 0 3px var(--color-mint); }
   .field-label { @apply mb-1.5 block text-label text-ink; }
 
   /*

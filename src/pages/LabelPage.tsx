@@ -38,7 +38,7 @@ export function LabelPage() {
         }
       `}</style>
       <div className="mb-6 flex flex-wrap items-center gap-3 print:hidden">
-        <h1 className="mr-auto text-title">Etiqueta</h1>
+        <h1 className="mr-auto text-title uppercase md:text-title-lg">Etiqueta</h1>
         <button type="button" onClick={() => window.close()} className="btn btn-secondary">
           Cerrar
         </button>

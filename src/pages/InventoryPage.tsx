@@ -185,7 +185,7 @@ export function InventoryPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="hidden mr-auto text-title md:block">Inventario</h1>
+        <h1 className="hidden mr-auto text-title-lg uppercase md:block">Inventario</h1>
         <FiltersButton open={showFilters} active={mobileFiltersActive} onToggle={() => setShowFilters((v) => !v)} className="mr-auto" />
         <div className={`max-md:order-last max-md:w-full ${filtersClass}`}>
           <Segmented
@@ -331,7 +331,7 @@ export function InventoryPage() {
 
       {/* Filtros */}
       <div className={`flex flex-wrap items-center gap-3 ${filtersClass}`}>
-        <label className="flex h-control-md w-full max-w-sm items-center gap-2 rounded-md border border-control bg-surface px-3 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
+        <label className="search-field w-full max-w-sm">
           <Icon name="search" />
           <input
             type="search"

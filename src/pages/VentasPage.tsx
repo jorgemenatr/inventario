@@ -61,7 +61,7 @@ export function VentasPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <h1 className="hidden text-title md:block">Ventas</h1>
+      <h1 className="hidden text-title-lg uppercase md:block">Ventas</h1>
 
       <FiltersButton
         open={showFilters}
@@ -94,7 +94,7 @@ export function VentasPage() {
           <button type="button" className="btn btn-secondary max-md:flex-1" onClick={() => set({ from: today(), to: today() })}>
             Hoy
           </button>
-          <button type="button" className="btn btn-ghost max-md:flex-1 max-md:border-control max-md:bg-surface" onClick={() => set({ from: undefined, to: undefined })}>
+          <button type="button" className="btn btn-ghost max-md:flex-1 max-md:bg-surface max-md:shadow-[inset_0_0_0_2px_var(--color-control)]" onClick={() => set({ from: undefined, to: undefined })}>
             Todas las fechas
           </button>
         </div>
@@ -102,28 +102,30 @@ export function VentasPage() {
 
       {summary && (
         // Resumen tipo tablero: solo en pantallas grandes.
-        <div className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-6">
-          <div className="card col-span-1 p-4">
-            <p className="text-label text-ink-muted">Ventas</p>
-            <p className="text-kpi tabular-nums">{formatInt(summary.count)}</p>
+        <div className="hidden items-start gap-3 md:grid md:grid-cols-[auto_minmax(0,1fr)]">
+          {/* StatBlock: el total del periodo es la cifra que destaca. */}
+          <div className="kn-block kn-deep flex min-w-64 flex-col gap-1 px-5 pt-4 pb-5" role="group" aria-label="Total">
+            <span className="stat-label">Total</span>
+            <span className="stat-value">{formatMoney(summary.total)}</span>
+            <span className="text-caption">
+              {formatInt(summary.count)} {summary.count === 1 ? 'venta' : 'ventas'}
+            </span>
           </div>
-          <div className="card col-span-1 p-4">
-            <p className="text-label text-ink-muted">Total</p>
-            <p className="text-kpi tabular-nums">{formatMoney(summary.total)}</p>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {PAYMENT_METHODS.map((m) => (
+              <div key={m} className={`card p-4 ${m === 'credit' ? 'border-2 border-gold bg-gold-soft' : ''}`}>
+                <p className="stat-label text-ink-muted">{PAYMENT_LABELS[m]}</p>
+                <p className="font-display text-heading font-extrabold tabular-nums">{formatMoney(summary.byMethod[m] ?? 0)}</p>
+              </div>
+            ))}
           </div>
-          {PAYMENT_METHODS.map((m) => (
-            <div key={m} className="card p-4">
-              <p className="text-label text-ink-muted">{PAYMENT_LABELS[m]}</p>
-              <p className="text-heading tabular-nums">{formatMoney(summary.byMethod[m] ?? 0)}</p>
-            </div>
-          ))}
         </div>
       )}
 
       {pendingSales.length > 0 && (
         <section className="card p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="mr-auto text-heading">Ventas por sincronizar</h2>
+            <h2 className="mr-auto text-title">Ventas por sincronizar</h2>
             <span className="badge badge-warning">
               {pendingSales.length} pendiente(s){online ? '' : ' · sin conexión'}
             </span>
