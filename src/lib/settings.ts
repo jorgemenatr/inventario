@@ -42,7 +42,7 @@ function applyTitle() {
 }
 
 export function appTitle(s: AppSettings = current) {
-  return s.businessName ? `Inventario ${s.businessName}` : 'Kanan POS'
+  return s.businessName ? `${s.businessName} · Kanan POS` : 'Kanan POS'
 }
 
 export const getSettings = () => current

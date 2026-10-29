@@ -171,7 +171,7 @@ Lo que cambia entre clientes dentro de su base vive en la tabla `app_settings`:
 
 | Campo | Para qué |
 | --- | --- |
-| `business_name` | Nombre que muestra la app ("Inventario *Nombre*"), el título de la pestaña y los archivos exportados |
+| `business_name` | Nombre que muestra la app ("*Nombre* · Kanan POS"), el título de la pestaña y los archivos exportados |
 | `internal_code_prefix` | Prefijo de los códigos internos (`DRG-000001`). 2 a 5 letras. Ya no se puede cambiar en cuanto existe un producto con código interno (las etiquetas impresas lo llevan) |
 
 Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
