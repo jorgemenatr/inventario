@@ -260,24 +260,24 @@ export function InventoryPage() {
       {/* Resumen: solo en pantallas grandes. */}
       <div className="hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Productos</p>
+          <p className="stat-label text-ink-muted">Productos</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.products)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Piezas {SCOPE_LABELS[scope]}</p>
+          <p className="stat-label text-ink-muted">Piezas {SCOPE_LABELS[scope]}</p>
           <p className="text-kpi tabular-nums">{formatInt(totals.pieces)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-label text-ink-muted">Valor a precio de venta ({SCOPE_LABELS[scope]})</p>
+          <p className="stat-label text-ink-muted">Valor a precio de venta ({SCOPE_LABELS[scope]})</p>
           <p className="text-kpi tabular-nums">{formatMoney(totals.value)}</p>
         </div>
         <button
           type="button"
           onClick={() => setStock((s) => (s === 'alert' ? 'all' : 'alert'))}
           aria-pressed={stock === 'alert'}
-          className={`card cursor-pointer p-4 text-left hover:bg-subtle ${stock === 'alert' ? 'outline-2 outline-brand' : ''}`}
+          className={`card cursor-pointer p-4 text-left hover:bg-subtle ${stock === 'alert' ? 'border-2 border-brand' : ''}`}
         >
-          <p className="text-label text-ink-muted">Alertas de tienda</p>
+          <p className="stat-label text-ink-muted">Alertas de tienda</p>
           <p className="text-kpi tabular-nums">
             <span className={totals.out ? 'text-danger-fg' : ''}>{formatInt(totals.out)}</span>
             <span className="text-heading text-ink-muted"> sin stock · </span>
@@ -444,11 +444,7 @@ function Chip({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-pill border px-3 ${small ? 'h-control-sm text-caption' : 'h-control-md text-label'} ${
-        active
-          ? 'border-transparent bg-brand-soft font-medium text-brand-ink'
-          : `border-control bg-surface hover:bg-subtle ${subtle ? 'text-ink-subtle' : 'text-ink-muted'}`
-      }`}
+      className={`choice ${small ? 'choice-sm' : 'h-control-md'} ${subtle && !active ? 'text-ink-subtle' : ''}`}
     >
       {children}
       {count != null && <span className="tabular-nums opacity-70">{formatInt(count)}</span>}
@@ -467,7 +463,7 @@ function EditButton({ product, onEdit }: { product: CachedProduct; onEdit?: (id:
       onClick={() => onEdit(product.id)}
       title="Editar producto"
       aria-label={`Editar ${product.name}`}
-      className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-subtle hover:text-ink"
+      className="grid size-9 shrink-0 cursor-pointer place-items-center text-ink-muted hover:bg-subtle hover:text-ink"
     >
       <Icon name="pencil" />
     </button>
@@ -517,7 +513,7 @@ function ProductGrid({ products, scope, onEdit }: { products: CachedProduct[]; s
             </div>
             {p.category && <p className="truncate text-caption text-ink-subtle">{p.category}</p>}
             <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
-              <span className="text-heading tabular-nums">{formatMoney(p.price)}</span>
+              <span className="font-display text-heading font-extrabold tabular-nums">{formatMoney(p.price)}</span>
               <StockBadge product={p} scope={scope} />
             </div>
             <StoreNote product={p} scope={scope} />

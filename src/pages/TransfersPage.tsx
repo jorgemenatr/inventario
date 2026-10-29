@@ -314,7 +314,7 @@ export function TransfersPage() {
       </section>
 
       <section className="card overflow-hidden">
-        <h2 className="border-b border-line px-5 py-4 text-heading">Historial de movimientos</h2>
+        <h2 className="border-b border-line px-5 py-4 text-label tracking-wider text-ink-muted uppercase">Historial de movimientos</h2>
         {historyError && <p className="px-5 py-4 text-danger-fg">{historyError}</p>}
         {history && history.length === 0 && <p className="px-5 py-8 text-center text-ink-subtle">Aún no hay movimientos de bodega.</p>}
         {history && history.length > 0 && (

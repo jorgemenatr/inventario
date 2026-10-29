@@ -114,7 +114,7 @@ export function Layout() {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-brand-side/60 md:hidden print:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
+        <div className="fixed inset-0 z-40 bg-scrim md:hidden print:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
       )}
 
       <nav

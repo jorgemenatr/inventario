@@ -122,7 +122,7 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
   const currentImage = image === undefined ? product?.image_url : null
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="pe-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="pe-title">
       <form
         noValidate
         onSubmit={onSubmit}

@@ -441,7 +441,7 @@ export function ScanPage() {
           </div>
 
           <div>
-            <button type="button" onClick={() => void undo()} className="btn btn-secondary btn-lg">
+            <button type="button" onClick={() => void undo()} className="btn btn-secondary max-md:w-full">
               <Icon name="undo" size={20} />
               Deshacer último escaneo
             </button>
@@ -461,7 +461,7 @@ export function ScanPage() {
             </div>
           </div>
           <div className="card flex min-h-80 flex-1 flex-col overflow-hidden lg:min-h-0">
-            <h2 className="border-b border-line px-5 py-4 text-heading">Últimos escaneos de esta sesión</h2>
+            <h2 className="border-b border-line px-5 py-4 text-label tracking-wider text-ink-muted uppercase">Últimos escaneos de esta sesión</h2>
             {recent.length === 0 && <p className="px-5 py-10 text-center text-ink-subtle">Aún no hay escaneos.</p>}
             <ul className="min-h-0 flex-1 divide-y divide-line overflow-auto">
               {recent.map((r) => (

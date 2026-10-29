@@ -52,6 +52,8 @@
   --color-gold-ink: #85570a;
   /* Texto sobre gold y mint en ambos temas. */
   --color-on-gold: #12201f;
+  /* Fondo detrás de modales y del menú del celular. */
+  --color-scrim: rgb(18 32 31 / 0.55);
   /* Lados extruidos de los bloques. */
   --color-brand-side: #12201f;
   --color-gold-side: #12201f;
@@ -162,6 +164,8 @@
       --color-gold: #d39a37;
       --color-gold-soft: #2b2414;
       --color-gold-ink: #e9b85f;
+    --color-scrim: rgb(0 0 0 / 0.7);
+      --color-scrim: rgb(0 0 0 / 0.7);
       --color-brand-side: #0b2a27;
       --color-gold-side: #6b4a12;
       --color-line-side: #64716e;
@@ -393,7 +397,7 @@
    * verde cenote. Mayúsculas como el resto de los botones.
    */
   .seg {
-    @apply flex h-control-md gap-0.5 border-2 border-control bg-surface p-0.5;
+    @apply flex h-control-md w-fit gap-0.5 border-2 border-control bg-surface p-0.5;
   }
   .seg-option {
     @apply flex cursor-pointer items-center justify-center gap-1.5 px-3 text-ink-muted uppercase hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-60;

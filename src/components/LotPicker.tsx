@@ -64,7 +64,7 @@ export function LotPicker({ productId, productName, location, remove, purpose, o
   }
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="lp-title">
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="lp-title">
       <div
         className="max-h-full w-full max-w-2xl overflow-auto dialog"
         onKeyDown={(e) => {

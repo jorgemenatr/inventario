@@ -150,7 +150,7 @@ export function PurchasesPage() {
       )}
 
       <section className="card flex flex-col gap-4 p-5">
-        <h2 className="text-heading">Nueva compra</h2>
+        <h2 className="text-title">Nueva compra</h2>
         <div className="grid gap-4 md:grid-cols-[1fr_12rem]">
           <div>
             <label className="field-label" htmlFor="pu-supplier">Proveedor *</label>
@@ -285,7 +285,7 @@ export function PurchasesPage() {
       </section>
 
       <section className="card overflow-hidden">
-        <h2 className="border-b border-line px-5 py-4 text-heading">Compras registradas</h2>
+        <h2 className="border-b border-line px-5 py-4 text-label tracking-wider text-ink-muted uppercase">Compras registradas</h2>
         {historyError && <p className="px-5 py-4 text-danger-fg">{historyError}</p>}
         {history && history.length === 0 && <p className="px-5 py-8 text-center text-ink-subtle">Aún no hay compras.</p>}
         {history && history.length > 0 && (

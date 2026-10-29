@@ -90,7 +90,7 @@ export function ConfigPage() {
       <section className="card flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="mr-auto">
-            <h2 className="text-heading">Categorías</h2>
+            <h2 className="text-title">Categorías</h2>
             <p className="text-caption text-ink-muted">
               Las que aparecen al dar de alta un producto y en los filtros del inventario. Cada una puede tener
               subcategorías (p. ej. TCG → Pokémon, Magic).
@@ -192,7 +192,7 @@ function BusinessCard() {
 
   return (
     <section className="card flex flex-col gap-3 p-4">
-      <h2 className="text-heading">Negocio</h2>
+      <h2 className="text-title">Negocio</h2>
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
         <div className="w-full max-w-sm">
           <label className="field-label" htmlFor="cfg-name">Nombre</label>
@@ -350,7 +350,7 @@ function CategoryModal({
   const renamed = current && current.name !== name.trim()
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="cf-title">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -471,7 +471,7 @@ function CatalogCard({ linked }: { linked: string[] }) {
 
   return (
     <section className="card flex flex-col gap-2 p-4">
-      <h2 className="text-heading">Catálogo TCGplayer</h2>
+      <h2 className="text-title">Catálogo TCGplayer</h2>
       {linked.length ? (
         <p>
           Se cargan: <span className="text-ink">{linked.map(catalogSourceLabel).join(', ')}</span>.

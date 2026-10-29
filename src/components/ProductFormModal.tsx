@@ -238,7 +238,7 @@ export function ProductFormModal({ barcode, defaultQuantity, defaultLocation = '
   const label = 'field-label'
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-side/60 p-4" role="dialog" aria-modal="true" aria-labelledby="pf-title">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4" role="dialog" aria-modal="true" aria-labelledby="pf-title">
       <form
         onSubmit={onSubmit}
         onKeyDownCapture={onKeyDownCapture}
