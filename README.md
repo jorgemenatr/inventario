@@ -16,7 +16,7 @@ y sigue capturando sin internet.
 ### 1. Crear el proyecto en Supabase
 
 1. Entra a <https://supabase.com/dashboard> → **New project**.
-2. Elige nombre (p. ej. `hachiko`), contraseña de la base de datos y la región más cercana
+2. Elige nombre (`kananpos-<subdominio>`, p. ej. `kananpos-hachiko`), contraseña de la base de datos y la región más cercana
    (p. ej. *East US* o *West US*).
 3. Espera a que termine de aprovisionarse.
 
@@ -185,8 +185,10 @@ Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la
 
 ### Dar de alta un cliente
 
-1. En Supabase: **New project** (nombre del cliente, contraseña y región). Espera a que
-   esté listo. El ID del proyecto es el de la URL del dashboard.
+1. En Supabase: **New project** con el nombre `kananpos-<subdominio>` (p. ej.
+   `kananpos-dragon-rojo`, así todos los clientes quedan juntos y en orden en el
+   dashboard), contraseña y región. Espera a que esté listo. El ID del proyecto es el de
+   la URL del dashboard.
 2. Corre:
 
    ```bash
