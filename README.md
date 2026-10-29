@@ -1,8 +1,10 @@
-# Inventario Hachiko · Fase 1 (captura de inventario)
+# Kanan POS
 
-App web para hacer el levantamiento inicial del inventario de Hachiko con un lector
-de código de barras USB conectado a una laptop. La base de datos queda lista para
-construir después el punto de venta (POS) sobre ella.
+Punto de venta e inventario para tiendas (TCG, accesorios y más), en
+[kananpos.com](https://kananpos.com). Cada cliente entra por su subdominio
+(`hachiko.kananpos.com`) y tiene su propio proyecto de Supabase (ver
+[Varios clientes](#varios-clientes-saas)). Funciona con lector de código de barras USB
+y sigue capturando sin internet.
 
 **Stack:** Vite + React + TypeScript · Tailwind CSS · Supabase (Postgres, Auth, Storage)
 · React Router · SheetJS · JsBarcode · Netlify.
@@ -169,7 +171,7 @@ Lo que cambia entre clientes dentro de su base vive en la tabla `app_settings`:
 
 | Campo | Para qué |
 | --- | --- |
-| `business_name` | Nombre que muestra la app ("Inventario *Nombre*"), el título de la pestaña y los archivos exportados |
+| `business_name` | Nombre que muestra la app ("*Nombre* · Kanan POS"), el título de la pestaña y los archivos exportados |
 | `internal_code_prefix` | Prefijo de los códigos internos (`DRG-000001`). 2 a 5 letras. Ya no se puede cambiar en cuanto existe un producto con código interno (las etiquetas impresas lo llevan) |
 
 Todo se administra con `npm run clientes` (`scripts/clientes.mjs`), que usa la

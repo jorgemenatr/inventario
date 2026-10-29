@@ -42,7 +42,7 @@ function applyTitle() {
 }
 
 export function appTitle(s: AppSettings = current) {
-  return s.businessName ? `Inventario ${s.businessName}` : 'Inventario'
+  return s.businessName ? `${s.businessName} · Kanan POS` : 'Kanan POS'
 }
 
 export const getSettings = () => current
@@ -94,5 +94,5 @@ export function fileSlug(text: string) {
     .replace(/^-|-$/g, '')
 }
 
-/** Nombre de archivo de exportación: "inventario" → "inventario-dragon-rojo". */
+/** Nombre de archivo de exportación: "tienda" → "tienda-dragon-rojo". */
 export const exportName = (base: string) => fileSlug(`${base} ${current.businessName}`)
