@@ -723,7 +723,7 @@ class InventoryStore {
    * Cobra un ticket con pay_ticket: valida el stock de la tienda y registra
    * todo en una transacción. Solo con conexión (los tickets se pueden abrir y
    * armar sin internet, pero no cobrar). Si la red se cae a medio cobro, se
-   * puede volver a presionar Pagar: el id del ticket evita cobrar dos veces.
+   * puede volver a presionar Cobrar: el id del ticket evita cobrar dos veces.
    */
   paySale(sale: SaleInput): Promise<SaleOutcome> {
     return this.run(async () => {
@@ -752,7 +752,7 @@ class InventoryStore {
         if (isNetworkError(e)) this.markOffline()
         return {
           type: 'error',
-          message: 'Se perdió la conexión al cobrar. Cuando vuelva el internet presiona Pagar otra vez (no se cobra doble).',
+          message: 'Se perdió la conexión al cobrar. Cuando vuelva el internet presiona Cobrar otra vez (no se cobra doble).',
         }
       }
     })

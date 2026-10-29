@@ -544,7 +544,7 @@ En **Clientes** (`/clientes`) se da de alta y se consulta a los clientes de la t
    un clic cubre todo el total. Para **pagar con varios**, elige también el segundo: aparece el
    monto de cada uno y, con dos métodos, al cambiar uno el otro se ajusta para completar el
    total. En efectivo, si escribes lo recibido, calcula el cambio.
-5. **Pagar** registra la venta, descuenta el inventario y crea un movimiento "Venta" por
+5. **Cobrar** registra la venta, descuenta el inventario y crea un movimiento "Venta" por
    producto (se ve en Historial). El ticket se cierra.
 
 Reglas:
@@ -560,9 +560,9 @@ Reglas:
 ### Sin conexión
 
 Sin internet se pueden abrir tickets, agregar productos (con el stock de tienda de la copia
-local) y asignar clientes ya descargados, pero **no se puede cobrar**: el botón Pagar se
+local) y asignar clientes ya descargados, pero **no se puede cobrar**: el botón Cobrar se
 desactiva hasta que vuelva la red. Si la red se cae a medio cobro, se puede volver a
-presionar Pagar: el id del ticket evita cobrar dos veces. Dar de alta clientes también
+presionar Cobrar: el id del ticket evita cobrar dos veces. Dar de alta clientes también
 necesita conexión.
 
 ### Ventas (`/ventas`)

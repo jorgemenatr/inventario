@@ -28,7 +28,7 @@ const value = (text: string) => {
 
 /**
  * Cobro del ticket: uno o varios métodos de pago que deben sumar el total.
- * - Un método: cubre el total solo (un clic y "Pagar").
+ * - Un método: cubre el total solo (un clic y "Cobrar").
  * - Varios: cada uno con su monto; el nuevo toma lo que falta.
  * - Créditos: necesita cliente y conexión; se muestra y se respeta su saldo.
  * - Efectivo: "Recibido" calcula el cambio.
@@ -164,17 +164,13 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
 
   return (
     <div className="card flex flex-col gap-4 p-5 2xl:sticky 2xl:top-4">
-      <div className="flex justify-between text-ink-muted">
-        <span>Artículos</span>
-        <span className="tabular-nums">{formatInt(pieces)}</span>
-      </div>
-      <div className="flex justify-between text-ink-muted">
-        <span>Subtotal</span>
-        <span className="tabular-nums">{formatMoney(total)}</span>
-      </div>
-      <div className="flex items-baseline justify-between border-t border-line pt-3">
-        <span className="text-heading">Total</span>
-        <span className="text-display tabular-nums">{formatMoney(total)}</span>
+      {/* StatBlock: el total de la venta es la pieza extruida de la pantalla. */}
+      <div className="kn-block kn-deep flex flex-col gap-1 px-5 pt-4 pb-5" role="group" aria-label="Total">
+        <span className="stat-label">Total</span>
+        <span className="stat-value">{formatMoney(total)}</span>
+        <span className="text-caption">
+          {formatInt(pieces)} {pieces === 1 ? 'artículo' : 'artículos'}
+        </span>
       </div>
 
       <div>
@@ -188,7 +184,7 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
                 type="button"
                 aria-pressed={on}
                 onClick={() => toggle(m)}
-                className={`h-11 cursor-pointer rounded-md border text-label ${on ? 'border-brand bg-brand-soft text-brand-ink' : 'border-control bg-surface text-ink hover:bg-subtle'}`}
+                className={`h-11 cursor-pointer rounded-md border-2 text-label ${on ? (m === 'credit' ? 'border-gold-side bg-gold text-on-gold' : 'border-brand bg-brand text-on-brand') : 'border-control bg-surface text-ink hover:bg-subtle'}`}
               >
                 {PAYMENT_LABELS[m]}
               </button>
@@ -230,10 +226,10 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
       )}
 
       {creditIdx >= 0 && (
-        <div className="rounded-md border border-line bg-subtle p-3">
+        <div className="rounded-md border-2 border-gold bg-gold-soft p-3">
           <p className="flex items-center justify-between gap-2 text-label">
             <span>Créditos de {customer?.name ?? '—'}</span>
-            <span className="tabular-nums">{creditBalance === null ? (customer && online && !credit?.error ? 'Consultando…' : '—') : formatMoney(creditBalance)}</span>
+            <span className="font-display text-heading font-extrabold tabular-nums">{creditBalance === null ? (customer && online && !credit?.error ? 'Consultando…' : '—') : formatMoney(creditBalance)}</span>
           </p>
           {parts.length > 1 && creditBalance !== null && creditBalance > 0 && (
             <button type="button" onClick={useAllCredit} className="btn btn-ghost btn-sm mt-1 px-0">
@@ -260,7 +256,7 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
             onChange={(e) => setReceived(e.target.value)}
             inputMode="decimal"
             autoComplete="off"
-            className="field h-10 tabular-nums"
+            className="field tabular-nums"
           />
           {change !== null && (
             <p className={`mt-2 flex justify-between text-heading ${cashShort ? 'text-danger-fg' : ''}`}>
@@ -271,9 +267,15 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
         </div>
       )}
 
-      <button type="button" onClick={pay} disabled={!canPay} className="btn btn-primary btn-lg w-full">
+      {/* Pagar todo con créditos es dinero de la tienda: botón dorado. */}
+      <button
+        type="button"
+        onClick={pay}
+        disabled={!canPay}
+        className={`btn btn-lg btn-block mt-1 ${parts.length === 1 && parts[0].method === 'credit' ? 'btn-gold' : 'btn-primary'}`}
+      >
         <Icon name="check" size={20} />
-        {paying ? 'Cobrando…' : `Pagar ${formatMoney(total)}`}
+        {paying ? 'Cobrando…' : `Cobrar ${formatMoney(total)}`}
       </button>
       {parts.length === 0 && hasLines && <p className="-mt-2 text-center text-caption text-ink-subtle">Elige la forma de pago.</p>}
       {!online && hasLines && <p className="-mt-2 text-center text-caption text-warning-fg">Sin conexión: cobra cuando vuelva el internet.</p>}
