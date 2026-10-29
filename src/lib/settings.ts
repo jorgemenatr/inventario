@@ -94,5 +94,5 @@ export function fileSlug(text: string) {
     .replace(/^-|-$/g, '')
 }
 
-/** Nombre de archivo de exportación: "inventario" → "inventario-dragon-rojo". */
+/** Nombre de archivo de exportación: "kanan" → "kanan-dragon-rojo". */
 export const exportName = (base: string) => fileSlug(`${base} ${current.businessName}`)
