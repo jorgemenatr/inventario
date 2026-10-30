@@ -90,6 +90,8 @@ const customers: Row[] = CUSTOMER_NAMES.map((name, i) => ({
   name,
   email: i % 2 ? null : `${name.split(' ')[0].toLowerCase()}@correo.com`,
   phone: i % 3 ? '55 1234 5678' : null,
+  // Con correo y teléfono: tiene código de cliente.
+  code: i % 2 === 0 && i % 3 ? String(10000001 + i) : null,
   games: GAMES[i],
   created_at: ago(5000 * (i + 1)),
   updated_at: ago(100),

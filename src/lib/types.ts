@@ -244,6 +244,8 @@ export interface Customer {
   name: string
   email: string | null
   phone: string | null
+  /** Código de cliente (tarjeta con código de barras): 8 dígitos, empieza con 1. Opcional. */
+  code: string | null
   /** Juegos que juega (tags). */
   games: string[]
   created_at: string
