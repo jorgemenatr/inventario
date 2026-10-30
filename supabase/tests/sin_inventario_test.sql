@@ -42,6 +42,10 @@ end $$;
 -- ---------- 2. El mostrador no puede cambiar track_stock ----------
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d2"}', false);
 
+-- La app lee el catálogo con estas columnas (inventoryStore.refreshProducts).
+select id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock
+from public.products \g /dev/null
+
 do $$
 begin
   begin
