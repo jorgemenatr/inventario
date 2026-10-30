@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAuth } from '../auth/useAuth'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { Icon } from '../components/Icon'
 import { ProductImage } from '../components/ProductImage'
@@ -6,7 +7,7 @@ import { CustomerPicker } from '../components/pos/CustomerPicker'
 import { PaymentPanel } from '../components/pos/PaymentPanel'
 import { ProductPicker } from '../components/pos/ProductPicker'
 import { gameSuggestions } from '../lib/customers'
-import { formatInt, formatMoney } from '../lib/format'
+import { formatInt, formatMoney, parseMoney } from '../lib/format'
 import { ticketFolio } from '../lib/sales'
 import { sounds } from '../lib/sounds'
 import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
@@ -329,6 +330,8 @@ function LineRow({
   const [text, setText] = useState(String(line.quantity))
   useEffect(() => setText(String(line.quantity)), [line.quantity])
   const max = product ? posStore.maxFor(ticket.id, product) : line.quantity
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
 
   function commit(value: number) {
     if (!product) return
@@ -344,12 +347,20 @@ function LineRow({
           <div className="min-w-40">
             <p className="font-semibold text-ink">{line.name}</p>
             <p className="font-mono text-caption text-ink-subtle">{line.barcode}</p>
-            <p className="text-caption text-ink-muted tabular-nums md:hidden">{formatMoney(line.unitPrice)} c/u</p>
+            {isAdmin ? (
+              <div className="mt-1 md:hidden">
+                <LinePrice ticket={ticket} line={line} product={product} onChanged={onChanged} />
+              </div>
+            ) : (
+              <p className="text-caption text-ink-muted tabular-nums md:hidden">{formatMoney(line.unitPrice)} c/u</p>
+            )}
             {!product && <p className="text-caption text-danger-fg">Este producto ya no está en el inventario.</p>}
           </div>
         </div>
       </td>
-      <td className="px-3 py-3 text-right text-ink-muted tabular-nums max-md:hidden">{formatMoney(line.unitPrice)}</td>
+      <td className="px-3 py-3 text-right text-ink-muted tabular-nums max-md:hidden">
+        {isAdmin ? <LinePrice ticket={ticket} line={line} product={product} onChanged={onChanged} /> : formatMoney(line.unitPrice)}
+      </td>
       <td className="px-3 py-3 max-md:row-start-2 max-md:p-0">
         <div className="mx-auto flex w-fit max-md:mx-0 items-center gap-1">
           <button
@@ -403,5 +414,68 @@ function LineRow({
         </button>
       </td>
     </tr>
+  )
+}
+
+/**
+ * Precio editable del renglón (solo admin). Cambia el precio en este ticket
+ * nada más: el del producto en el inventario y en otros tickets sigue igual.
+ */
+function LinePrice({
+  ticket,
+  line,
+  product,
+  onChanged,
+}: {
+  ticket: OpenTicket
+  line: PosLine
+  product: CachedProduct | undefined
+  onChanged: () => void
+}) {
+  const [text, setText] = useState(String(line.unitPrice))
+  useEffect(() => setText(String(line.unitPrice)), [line.unitPrice])
+  const changed = product != null && line.unitPrice !== product.price
+
+  function commit() {
+    const price = parseMoney(text)
+    if (price === null || Number.isNaN(price)) return setText(String(line.unitPrice))
+    posStore.setPrice(ticket.id, line.barcode, price)
+    setText(String(price))
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-0.5 max-md:items-start">
+      <div className="flex items-center gap-1">
+        <span aria-hidden="true">$</span>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commit()
+              onChanged()
+            }
+          }}
+          inputMode="decimal"
+          aria-label={`Precio de ${line.name} en este ticket`}
+          title="Precio solo para este ticket"
+          className={`field h-control-sm w-24 px-2 text-right tabular-nums ${changed ? 'font-semibold text-ink' : ''}`}
+        />
+      </div>
+      {changed && (
+        <button
+          type="button"
+          onClick={() => {
+            posStore.setPrice(ticket.id, line.barcode, product.price)
+            onChanged()
+          }}
+          className="cursor-pointer text-caption text-ink-muted underline hover:text-ink"
+        >
+          Normal: {formatMoney(product.price)}
+        </button>
+      )}
+    </div>
   )
 }

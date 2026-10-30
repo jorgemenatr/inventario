@@ -20,6 +20,7 @@ import { tracksStock, type CachedProduct } from './inventoryStore'
 export interface PosLine {
   barcode: string
   name: string
+  /** Precio de venta en ESTE ticket (un admin lo puede cambiar sin tocar el del producto). */
   unitPrice: number
   quantity: number
   imagePath: string | null
@@ -201,6 +202,14 @@ class PosStore {
       lines: t.lines.map((l) => (l.barcode === product.barcode ? { ...l, quantity: q } : l)),
     }))
     return q
+  }
+
+  /** Precio de venta de un renglón solo en este ticket (el del producto no cambia). */
+  setPrice(ticketId: string, barcode: string, unitPrice: number) {
+    this.updateTicket(ticketId, (t) => ({
+      ...t,
+      lines: t.lines.map((l) => (l.barcode === barcode ? { ...l, unitPrice } : l)),
+    }))
   }
 
   removeLine(ticketId: string, barcode: string) {
