@@ -44,6 +44,8 @@ export interface CachedProduct {
   warehouse_quantity: number
   image_url: string | null
   is_internal_code: boolean
+  /** false = sin control de inventario (comida, torneos). La caché anterior no lo trae: sí lleva. */
+  track_stock?: boolean
   /** Alta que aún está en la cola (no existe en el servidor todavía). */
   pending?: boolean
 }
@@ -216,8 +218,12 @@ function toCached(p: Product): CachedProduct {
     warehouse_quantity: p.warehouse_quantity ?? 0,
     image_url: p.image_url,
     is_internal_code: p.is_internal_code,
+    track_stock: p.track_stock,
   }
 }
+
+/** Lleva inventario (se revisa y descuenta su stock al vender). */
+export const tracksStock = (p: { track_stock?: boolean }) => p.track_stock !== false
 
 function errorMessage(e: unknown) {
   if (e instanceof Error) return e.message
@@ -342,7 +348,7 @@ class InventoryStore {
         for (let from = 0; ; from += PAGE) {
           const { data, error } = await supabase
             .from('products')
-            .select('id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code')
+            .select('id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock')
             .order('created_at', { ascending: true })
             .range(from, from + PAGE - 1)
           if (error) throw error

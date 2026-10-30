@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { internalCodeLabel } from '../lib/barcode'
 import { listCustomers } from '../lib/customers'
 import type { Customer } from '../lib/types'
-import type { CachedProduct } from './inventoryStore'
+import { tracksStock, type CachedProduct } from './inventoryStore'
 
 /*
  * Estado del mostrador (punto de venta).
@@ -13,12 +13,14 @@ import type { CachedProduct } from './inventoryStore'
  * ticket se cierra aquí.
  *
  * Stock "apartado": lo que ya está en algún ticket abierto. Un producto solo
- * se puede agregar si stock − apartado > 0.
+ * se puede agregar si stock − apartado > 0. Los productos sin inventario
+ * (comida, torneos) no tienen límite.
  */
 
 export interface PosLine {
   barcode: string
   name: string
+  /** Precio de venta en ESTE ticket (un admin lo puede cambiar sin tocar el del producto). */
   unitPrice: number
   quantity: number
   imagePath: string | null
@@ -146,11 +148,13 @@ class PosStore {
 
   /** Máximo que puede llevar este ticket de un producto. */
   maxFor(ticketId: string, product: CachedProduct) {
+    if (!tracksStock(product)) return Infinity
     return Math.max(0, product.quantity - this.reserved(product.barcode, ticketId))
   }
 
   /** Disponible para agregar en cualquier ticket: stock − todo lo apartado. */
   available(product: CachedProduct) {
+    if (!tracksStock(product)) return Infinity
     return product.quantity - this.reserved(product.barcode)
   }
 
@@ -198,6 +202,14 @@ class PosStore {
       lines: t.lines.map((l) => (l.barcode === product.barcode ? { ...l, quantity: q } : l)),
     }))
     return q
+  }
+
+  /** Precio de venta de un renglón solo en este ticket (el del producto no cambia). */
+  setPrice(ticketId: string, barcode: string, unitPrice: number) {
+    this.updateTicket(ticketId, (t) => ({
+      ...t,
+      lines: t.lines.map((l) => (l.barcode === barcode ? { ...l, unitPrice } : l)),
+    }))
   }
 
   removeLine(ticketId: string, barcode: string) {

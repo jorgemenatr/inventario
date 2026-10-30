@@ -9,11 +9,12 @@ export interface ProductPatch {
   category: string | null
   supplier: string | null
   description: string | null
+  trackStock: boolean
 }
 
 // Sin cost: esa columna solo la lee un admin, con la vista product_costs.
 const COLUMNS =
-  'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, description, catalog_product_id, created_by, created_at, updated_at'
+  'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, description, catalog_product_id, created_by, created_at, updated_at'
 
 const num = (p: Product): Product => ({ ...p, price: Number(p.price), cost: p.cost == null ? null : Number(p.cost) })
 
@@ -46,6 +47,7 @@ export async function updateProduct(id: string, patch: ProductPatch, image?: Blo
     category: patch.category?.trim() || null,
     supplier: patch.supplier?.trim() || null,
     description: patch.description?.trim() || null,
+    track_stock: patch.trackStock,
   }
   if (image === null) row.image_url = null
   else if (image) row.image_url = await uploadProductImage(image)
@@ -64,6 +66,17 @@ export async function unlinkProduct(id: string, reason: string): Promise<Product
   const { data, error } = await supabase.rpc('unlink_product', {
     p_product_id: id,
     p_reason: reason.trim(),
+    p_client_op_id: crypto.randomUUID(),
+  })
+  if (error) throw error
+  return rpcProduct(data)
+}
+
+/** Asigna su código de barras real a un producto con código interno (HCH-). */
+export async function assignBarcode(id: string, barcode: string): Promise<Product> {
+  const { data, error } = await supabase.rpc('assign_barcode', {
+    p_product_id: id,
+    p_barcode: barcode,
     p_client_op_id: crypto.randomUUID(),
   })
   if (error) throw error

@@ -10,7 +10,7 @@ import { mainCategory, matchesCategory, useCategories } from '../lib/categories'
 import { buildInventoryRows, exportCsv, exportXlsx, type StockScope } from '../lib/export'
 import { formatInt, formatMoney } from '../lib/format'
 import { exportName } from '../lib/settings'
-import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { inventoryStore, tracksStock, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
 /*
@@ -20,7 +20,8 @@ import { useInventory } from '../store/useInventory'
  *
  * Tienda | Bodega | Total escoge qué existencias se muestran, suman y
  * exportan. "Sin stock" y "stock bajo" se calculan SIEMPRE con la tienda
- * (es lo que se puede vender), sin importar el filtro.
+ * (es lo que se puede vender), sin importar el filtro. Los productos sin
+ * inventario (comida, torneos) nunca cuentan como sin stock.
  */
 
 type View = 'grid' | 'list'
@@ -31,7 +32,8 @@ type StockFilter = 'all' | 'in' | 'out' | 'alert'
 const LOW_STOCK = 2
 
 type StoreStatus = 'out' | 'low' | 'ok'
-const storeStatus = (p: CachedProduct): StoreStatus => (p.quantity <= 0 ? 'out' : p.quantity <= LOW_STOCK ? 'low' : 'ok')
+const storeStatus = (p: CachedProduct): StoreStatus =>
+  !tracksStock(p) ? 'ok' : p.quantity <= 0 ? 'out' : p.quantity <= LOW_STOCK ? 'low' : 'ok'
 
 const scopeQty = (p: CachedProduct, scope: StockScope) =>
   scope === 'store' ? p.quantity : scope === 'warehouse' ? (p.warehouse_quantity ?? 0) : p.quantity + (p.warehouse_quantity ?? 0)
@@ -115,7 +117,7 @@ export function InventoryPage() {
     const list = all.filter((p) => {
       if (!matchesCategory(p.category, category)) return false
       if (stock === 'in' && scopeQty(p, scope) <= 0) return false
-      if (stock === 'out' && scopeQty(p, scope) > 0) return false
+      if (stock === 'out' && (scopeQty(p, scope) > 0 || !tracksStock(p))) return false
       if (stock === 'alert' && storeStatus(p) === 'ok') return false
       if (!words.length) return true
       const text = normalize(`${p.name} ${p.barcode} ${p.category ?? ''} ${p.supplier ?? ''}`)
@@ -454,6 +456,7 @@ function EditButton({ product, onEdit }: { product: CachedProduct; onEdit?: (id:
 
 /** Piezas del filtro elegido; el color sale SIEMPRE del stock de tienda. */
 function StockBadge({ product, scope }: { product: CachedProduct; scope: StockScope }) {
+  if (!tracksStock(product)) return <span className="badge badge-neutral">Sin inventario</span>
   const st = storeStatus(product)
   const q = scopeQty(product, scope)
   const cls = st === 'out' ? 'badge-danger' : st === 'low' ? 'badge-warning' : 'badge-neutral'
@@ -557,7 +560,7 @@ function ProductTable({
                     storeStatus(p) === 'out' ? 'font-medium text-danger-fg' : storeStatus(p) === 'low' ? 'font-medium text-warning-fg' : 'text-ink-muted'
                   }`}
                 >
-                  {formatInt(scopeQty(p, scope))} pzas
+                  {tracksStock(p) ? `${formatInt(scopeQty(p, scope))} pzas` : 'Sin inventario'}
                   <StoreNote product={p} scope={scope} />
                 </div>
               </div>
@@ -605,7 +608,7 @@ function ProductTable({
                   storeStatus(p) === 'out' ? 'font-medium text-danger-fg' : storeStatus(p) === 'low' ? 'font-medium text-warning-fg' : ''
                 }`}
               >
-                {formatInt(scopeQty(p, scope))}
+                {tracksStock(p) ? formatInt(scopeQty(p, scope)) : 'Sin inventario'}
                 <StoreNote product={p} scope={scope} />
               </td>
               <td className="h-row px-4 text-right tabular-nums">{formatMoney(p.price)}</td>
