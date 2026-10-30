@@ -737,10 +737,11 @@ class InventoryStore {
       const total = sale.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0)
 
       // Revisión local de stock de la tienda (la definitiva la hace el servidor).
+      // Los productos sin inventario (comida, torneos) no la llevan.
       for (const item of sale.items) {
         const p = this.state.products[item.barcode]
         if (!p) return { type: 'error', message: `El producto ${item.name} ya no está en el inventario` }
-        if (item.quantity > p.quantity) {
+        if (tracksStock(p) && item.quantity > p.quantity) {
           return { type: 'error', message: `Stock insuficiente: ${item.name} (pide ${item.quantity}, hay ${p.quantity} en tienda${warehouseHint(p)})` }
         }
       }
