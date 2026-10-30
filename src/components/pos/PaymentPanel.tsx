@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getCreditBalance } from '../../lib/credits'
 import { formatInt, formatMoney, parseMoney } from '../../lib/format'
 import { PAYMENT_LABELS, PAYMENT_METHODS, type PaymentMethod, type PaymentPart } from '../../lib/types'
@@ -12,6 +12,19 @@ interface Props {
   online: boolean
   paying: boolean
   onPay: (payments: PaymentPart[], change: number | null) => void
+  /**
+   * Pago parcial (preventa): se cobra un monto entre min y max en lugar del
+   * total. El monto empieza en `initial`.
+   */
+  partial?: { min: number; max: number; initial: number; label: string }
+  /** Se ofrece pagar con créditos (las preventas lo pueden tener apagado). */
+  allowCredit?: boolean
+  /** Texto del botón (recibe el monto a cobrar). */
+  actionLabel?: (amount: number) => string
+  /** Se muestra arriba del botón (p. ej. "Entregar al liquidar"). */
+  footer?: ReactNode
+  /** Título del recuadro del total ("Total", "Saldo"). */
+  title?: string
 }
 
 interface Part {
@@ -33,7 +46,34 @@ const value = (text: string) => {
  * - Créditos: necesita cliente y conexión; se muestra y se respeta su saldo.
  * - Efectivo: "Recibido" calcula el cambio.
  */
-export function PaymentPanel({ total, pieces, hasLines, customer, online, paying, onPay }: Props) {
+export function PaymentPanel({
+  total: ticketTotal,
+  pieces,
+  hasLines,
+  customer,
+  online,
+  paying,
+  onPay,
+  partial,
+  allowCredit = true,
+  actionLabel,
+  footer,
+  title = 'Total',
+}: Props) {
+  const [chargeText, setChargeText] = useState(() => (partial ? toText(partial.initial) : ''))
+  const chargeValue = partial ? value(chargeText) : ticketTotal
+  // Lo que se cobra ahora: el total del ticket o el abono.
+  const total = partial ? Math.max(0, chargeValue) : ticketTotal
+  const chargeProblem = !partial
+    ? null
+    : cents(chargeValue) <= 0
+      ? 'Escribe el monto.'
+      : cents(chargeValue) < cents(partial.min)
+        ? `El mínimo es ${formatMoney(partial.min)}.`
+        : cents(chargeValue) > cents(partial.max)
+          ? `El máximo es ${formatMoney(partial.max)}.`
+          : null
+  const methods = allowCredit ? PAYMENT_METHODS : PAYMENT_METHODS.filter((m) => m !== 'credit')
   const [parts, setParts] = useState<Part[]>([])
   const [received, setReceived] = useState('')
   const [credit, setCredit] = useState<{ customerId: string; balance: number | null; error: string | null } | null>(null)
@@ -152,7 +192,8 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
     !invalidAmount &&
     !creditProblem &&
     (creditIdx < 0 || creditBalance !== null) &&
-    !cashShort
+    !cashShort &&
+    !chargeProblem
 
   function pay() {
     if (!canPay) return
@@ -165,18 +206,48 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
   return (
     <div className="card flex flex-col gap-4 p-5 2xl:sticky 2xl:top-4">
       {/* StatBlock: el total de la venta es la pieza extruida de la pantalla. */}
-      <div className="kn-block kn-deep flex flex-col gap-1 px-5 pt-4 pb-5" role="group" aria-label="Total">
-        <span className="stat-label">Total</span>
-        <span className="stat-value">{formatMoney(total)}</span>
+      <div className="kn-block kn-deep flex flex-col gap-1 px-5 pt-4 pb-5" role="group" aria-label={title}>
+        <span className="stat-label">{title}</span>
+        <span className="stat-value">{formatMoney(ticketTotal)}</span>
         <span className="text-caption">
           {formatInt(pieces)} {pieces === 1 ? 'artículo' : 'artículos'}
         </span>
       </div>
 
+      {partial && (
+        <div>
+          <label htmlFor="pos-charge" className="field-label">
+            {partial.label}
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-ink-muted">$</span>
+            <input
+              id="pos-charge"
+              value={chargeText}
+              onChange={(e) => {
+                setChargeText(e.target.value)
+                // Con un solo método, su monto sigue al abono; con varios se reparten de nuevo.
+                if (parts.length > 1) setParts((ps) => ps.slice(0, 1))
+              }}
+              onFocus={(e) => e.target.select()}
+              inputMode="decimal"
+              autoComplete="off"
+              className="field text-right tabular-nums"
+            />
+          </div>
+          <p className={`mt-1 text-caption ${chargeProblem ? 'text-danger-fg' : 'text-ink-subtle'}`}>
+            {chargeProblem ??
+              (partial.min < partial.max
+                ? `Mínimo ${formatMoney(partial.min)} · máximo ${formatMoney(partial.max)}`
+                : `Monto: ${formatMoney(partial.max)}`)}
+          </p>
+        </div>
+      )}
+
       <div>
         <span className="field-label">Forma de pago {parts.length > 1 && '(mixto)'}</span>
         <div className="grid grid-cols-2 gap-2" role="group" aria-label="Forma de pago">
-          {PAYMENT_METHODS.map((m) => {
+          {methods.map((m) => {
             const on = parts.some((p) => p.method === m)
             return (
               <button
@@ -267,6 +338,8 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
         </div>
       )}
 
+      {footer}
+
       {/* Pagar todo con créditos es dinero de la tienda: botón dorado. */}
       <button
         type="button"
@@ -275,7 +348,7 @@ export function PaymentPanel({ total, pieces, hasLines, customer, online, paying
         className={`btn btn-lg btn-block mt-1 ${parts.length === 1 && parts[0].method === 'credit' ? 'btn-gold' : 'btn-primary'}`}
       >
         <Icon name="check" size={20} />
-        {paying ? 'Cobrando…' : `Cobrar ${formatMoney(total)}`}
+        {paying ? 'Cobrando…' : actionLabel ? actionLabel(total) : `Cobrar ${formatMoney(total)}`}
       </button>
       {parts.length === 0 && hasLines && <p className="-mt-2 text-center text-caption text-ink-subtle">Elige la forma de pago.</p>}
       {!online && hasLines && <p className="-mt-2 text-center text-caption text-warning-fg">Sin conexión: cobra cuando vuelva el internet.</p>}

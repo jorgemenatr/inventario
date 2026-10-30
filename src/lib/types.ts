@@ -50,6 +50,13 @@ export interface Product {
   is_internal_code: boolean
   /** false = comida, torneos y servicios: se venden sin revisar ni descontar stock. */
   track_stock: boolean
+  /** Preventa: se vende con anticipo y sus piezas quedan comprometidas hasta entregarse. */
+  is_preorder: boolean
+  /** Anticipo mínimo: 'percent' (del precio) o 'amount' (pesos por pieza). */
+  preorder_deposit_type: PreorderDepositType
+  preorder_deposit_value: number
+  /** Piezas comprometidas en preventas sin entregar (columna calculada). */
+  preorder_reserved?: number
   description: string | null
   /** productId de TCGplayer (fila de catalog_products) con el que se vinculó. */
   catalog_product_id: number | null
@@ -57,6 +64,8 @@ export interface Product {
   created_at: string
   updated_at: string
 }
+
+export type PreorderDepositType = 'percent' | 'amount'
 
 /** Fila de search_catalog (catálogo de producto sellado importado de TCGplayer). */
 export interface CatalogItem {
@@ -248,6 +257,8 @@ export interface Customer {
   code: string | null
   /** Juegos que juega (tags). */
   games: string[]
+  /** Apodos (la búsqueda también los encuentra). */
+  nicknames: string[]
   created_at: string
   updated_at: string
 }
@@ -276,7 +287,12 @@ export interface TicketPaymentRow {
   id: string
   ticket_id: string
   method: PaymentMethod
+  /** Negativo en las devoluciones. */
   amount: number
+  /** Cuándo se recibió (cada abono cuenta ese día). */
+  paid_at: string
+  kind: 'payment' | 'refund'
+  created_by: string | null
 }
 
 /** Saldo de créditos de un cliente (vista customer_credit_balances). */
@@ -291,7 +307,7 @@ export interface CreditBalance {
 export interface CreditMovementRow {
   id: string
   customer_id: string
-  kind: 'grant' | 'sale'
+  kind: 'grant' | 'sale' | 'refund'
   amount: number
   note: string | null
   ticket_id: string | null
@@ -303,11 +319,20 @@ export interface CreditMovementRow {
   created_by_name: string | null
 }
 
-/** Ticket cobrado (tabla tickets). */
+/** paid: venta cobrada · preorder: preventa sin entregar · cancelled: cancelada. */
+export type TicketStatus = 'paid' | 'preorder' | 'cancelled'
+
+export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  paid: 'Pagada',
+  preorder: 'Preventa',
+  cancelled: 'Cancelada',
+}
+
+/** Ticket registrado (tabla tickets). */
 export interface Ticket {
   id: string
   name: string
-  status: 'open' | 'paid'
+  status: TicketStatus
   customer_id: string | null
   payment_method: TicketPaymentMethod
   item_count: number
@@ -316,15 +341,31 @@ export interface Ticket {
   paid_offline: boolean
   note: string | null
   opened_at: string | null
-  paid_at: string
+  /** Día de la venta. Nulo en una preventa que aún no se entrega. */
+  paid_at: string | null
+  /** Notas del usuario. */
+  notes: string | null
+  created_at: string
 }
 
 /** Fila de la vista sales_history. */
 export interface SaleRow extends Ticket {
+  /** Folio (el nombre del ticket es este número). */
+  number: number
+  /** Cliente, o el nombre libre escrito en el ticket. */
   customer_name: string | null
+  customer_is_free_name: boolean
   created_by: string | null
   created_by_email: string | null
   created_by_name: string | null
+  /** Suma de abonos (sin devoluciones). */
+  paid_amount: number
+  /** Lo que falta por pagar (0 en canceladas). */
+  balance: number
+  cancelled_at: string | null
+  cancel_reason: string | null
+  cancelled_by_name: string | null
+  cancelled_by_email: string | null
 }
 
 export interface TicketItemRow {
@@ -337,6 +378,19 @@ export interface TicketItemRow {
   unit_price: number
   line_total: number
   position: number
+  /** Pieza de preventa (comprometida hasta entregar). */
+  preorder: boolean
+  /** Refresco de un combo: apunta al renglón del combo. */
+  parent_item_id: string | null
+}
+
+/** Resultado de checkout_ticket / add_ticket_payment / cancel_ticket. */
+export interface TicketRpcResult {
+  status: 'ok' | 'duplicate' | 'already_cancelled'
+  ticket: Ticket
+  products: Product[]
+  /** Saldo pendiente después de la operación. */
+  balance?: number
 }
 
 export interface PayTicketResult {

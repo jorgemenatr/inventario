@@ -7,7 +7,7 @@ import { GameTags } from '../components/GamesInput'
 import { Icon } from '../components/Icon'
 import { LeaguePointsModal } from '../components/LeaguePointsModal'
 import { MoreMenu } from '../components/MoreMenu'
-import { gameSuggestions, listCustomers } from '../lib/customers'
+import { customerSearchText, gameSuggestions, listCustomers } from '../lib/customers'
 import { listCreditBalances } from '../lib/credits'
 import { formatInt, formatMoney } from '../lib/format'
 import { formatPoints, listLeagueTotals } from '../lib/league'
@@ -63,7 +63,7 @@ export function CustomersPage() {
     const words = normalize(search.trim()).split(/\s+/).filter(Boolean)
     return (customers ?? []).filter((c) => {
       if (game && !c.games.includes(game)) return false
-      const text = normalize(`${c.name} ${c.email ?? ''} ${c.phone ?? ''} ${c.code ?? ''}`)
+      const text = normalize(customerSearchText(c))
       return words.every((w) => text.includes(w))
     })
   }, [customers, search, game])
@@ -137,6 +137,7 @@ export function CustomersPage() {
                 <Link to={`/clientes/${c.id}`} className="min-w-0 flex-1 space-y-1">
                   <p className="font-medium">
                     {c.name}
+                    {(c.nicknames ?? []).length > 0 && <span className="ml-2 text-caption text-ink-muted">“{c.nicknames.join('”, “')}”</span>}
                     {c.code && <span className="ml-2 font-mono text-caption text-ink-subtle">{c.code}</span>}
                   </p>
                   {(c.phone || c.email) && (
@@ -185,6 +186,7 @@ export function CustomersPage() {
                     <Link to={`/clientes/${c.id}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
                       {c.name}
                     </Link>
+                    {(c.nicknames ?? []).length > 0 && <span className="ml-2 text-caption font-normal text-ink-muted">“{c.nicknames.join('”, “')}”</span>}
                   </td>
                   <td className="h-row px-4 font-mono whitespace-nowrap text-ink-muted">{c.code ?? '—'}</td>
                   <td className="h-row px-4 whitespace-nowrap text-ink-muted">{c.phone ?? '—'}</td>

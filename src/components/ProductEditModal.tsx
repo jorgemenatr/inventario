@@ -3,13 +3,25 @@ import { internalCodeLabel, normalizeBarcode } from '../lib/barcode'
 import { compressImage } from '../lib/images'
 import { formatDateTime, formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
 import { getProductLots } from '../lib/lots'
-import { adjustStock, assignBarcode, getCatalogName, getProduct, unlinkProduct, updateProduct } from '../lib/products'
+import { adjustStock, assignBarcode, getCatalogName, getComboOptions, getProduct, setComboOptions, unlinkProduct, updateProduct } from '../lib/products'
 import { isNetworkError } from '../lib/supabase'
-import { LOCATION_LABELS, LOCATIONS, LOT_ORIGIN_LABELS, type LotPick, type Product, type ProductLot, type StockLocation } from '../lib/types'
+import {
+  LOCATION_LABELS,
+  LOCATIONS,
+  LOT_ORIGIN_LABELS,
+  type LotPick,
+  type PreorderDepositType,
+  type Product,
+  type ProductLot,
+  type StockLocation,
+} from '../lib/types'
+import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { useInventory } from '../store/useInventory'
 import { CategorySelect } from './CategorySelect'
 import { Icon } from './Icon'
 import { LocationSelect } from './LocationSelect'
 import { LotPicker } from './LotPicker'
+import { ProductPicker } from './pos/ProductPicker'
 import { ProductImage } from './ProductImage'
 import { SupplierSelect } from './SupplierSelect'
 import { WebcamCapture } from './WebcamCapture'
@@ -24,7 +36,18 @@ interface Props {
   onChanged: (product: Product, oldBarcode?: string) => void
 }
 
-type Fields = { name: string; price: string; cost: string; category: string; supplier: string; description: string; trackStock: boolean }
+type Fields = {
+  name: string
+  price: string
+  cost: string
+  category: string
+  supplier: string
+  description: string
+  trackStock: boolean
+  isPreorder: boolean
+  depositType: PreorderDepositType
+  depositValue: string
+}
 
 const moneyText = (n: number | null) => (n == null ? '' : String(n))
 
@@ -45,6 +68,12 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
   const nameRef = useRef<HTMLInputElement>(null)
   const [catalogName, setCatalogName] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
+  // Opciones del combo (ids de producto); null = aún no se cargan.
+  const [comboOptions, setComboOptionsState] = useState<string[] | null>(null)
+  const originalCombo = useRef<string[]>([])
+  const { products } = useInventory()
+  const comboRef = useRef<HTMLInputElement>(null)
+  const productsById = Object.fromEntries(Object.values(products).map((p) => [p.id, p]))
 
   useEffect(() => {
     getProduct(productId)
@@ -59,9 +88,18 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
           supplier: p.supplier ?? '',
           description: p.description ?? '',
           trackStock: p.track_stock,
+          isPreorder: p.is_preorder ?? false,
+          depositType: p.preorder_deposit_type ?? 'percent',
+          depositValue: moneyText(p.preorder_deposit_value ?? 0),
         })
         setTimeout(() => nameRef.current?.focus(), 0)
         if (p.catalog_product_id != null) void getCatalogName(p.catalog_product_id).then(setCatalogName)
+        void getComboOptions(p.id)
+          .then((ids) => {
+            originalCombo.current = ids
+            setComboOptionsState(ids)
+          })
+          .catch(() => setComboOptionsState([]))
       })
       .catch((e) => setError(isNetworkError(e) ? 'Sin conexión: editar un producto necesita internet.' : (e as Error).message))
   }, [productId])
@@ -104,13 +142,33 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
     if (!name) return setError('El nombre es obligatorio.')
     if (price === null || Number.isNaN(price)) return setError('El precio de venta es obligatorio y debe ser un número válido.')
     if (Number.isNaN(cost)) return setError('El costo debe ser un número válido.')
+    const depositValue = parseMoney(fields.depositValue) ?? 0
+    if (fields.isPreorder) {
+      if (Number.isNaN(depositValue) || depositValue < 0) return setError('El anticipo debe ser un número válido.')
+      if (fields.depositType === 'percent' && depositValue > 100) return setError('El anticipo en porcentaje no puede pasar de 100.')
+    }
     setSaving(true)
     try {
       const saved = await updateProduct(
         product.id,
-        { name, price, cost, category: fields.category, supplier: fields.supplier, description: fields.description, trackStock: fields.trackStock },
+        {
+          name,
+          price,
+          cost,
+          category: fields.category,
+          supplier: fields.supplier,
+          description: fields.description,
+          trackStock: fields.trackStock,
+          isPreorder: fields.isPreorder,
+          preorderDepositType: fields.depositType,
+          preorderDepositValue: Number.isNaN(depositValue) ? 0 : depositValue,
+        },
         image,
       )
+      if (comboOptions && comboOptions.join() !== originalCombo.current.join()) {
+        await setComboOptions(product.id, comboOptions)
+        inventoryStore.setComboOptions(product.id, comboOptions)
+      }
       onSaved(saved)
     } catch (err) {
       setError(isNetworkError(err) ? 'Sin conexión: no se guardaron los cambios.' : (err as Error).message)
@@ -195,7 +253,7 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                     className="mt-1"
                     checked={!fields.trackStock}
                     disabled={product?.track_stock !== false && ((product?.quantity ?? 0) !== 0 || (product?.warehouse_quantity ?? 0) !== 0)}
-                    onChange={(e) => setFields((f) => (f ? { ...f, trackStock: !e.target.checked } : f))}
+                    onChange={(e) => setFields((f) => (f ? { ...f, trackStock: !e.target.checked, isPreorder: e.target.checked ? false : f.isPreorder } : f))}
                   />
                   <span>
                     <span className="text-label text-ink">Sin control de inventario</span>
@@ -207,6 +265,97 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                     </span>
                   </span>
                 </label>
+              </div>
+              <div className="md:col-span-2 rounded-md border border-line p-4">
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={fields.isPreorder}
+                    disabled={!fields.trackStock}
+                    onChange={(e) => setFields((f) => (f ? { ...f, isPreorder: e.target.checked } : f))}
+                  />
+                  <span>
+                    <span className="text-label text-ink">Preventa</span>
+                    <span className="block text-caption text-ink-muted">
+                      Se vende con anticipo aunque aún no llegue: las piezas quedan comprometidas y se entregan cuando el cliente
+                      termina de pagar. Apágalo cuando ya no quieras prevender.
+                      {!fields.trackStock && ' Solo productos con control de inventario.'}
+                      {(product?.preorder_reserved ?? 0) > 0 && ` Hoy hay ${formatInt(product?.preorder_reserved ?? 0)} pieza(s) comprometidas.`}
+                    </span>
+                  </span>
+                </label>
+                {fields.isPreorder && (
+                  <div className="mt-3 flex flex-wrap items-end gap-3">
+                    <div>
+                      <label className={label} htmlFor="pe-deposit-type">Anticipo mínimo</label>
+                      <select
+                        id="pe-deposit-type"
+                        value={fields.depositType}
+                        onChange={(e) => setFields((f) => (f ? { ...f, depositType: e.target.value as PreorderDepositType } : f))}
+                        className="field cursor-pointer"
+                      >
+                        <option value="percent">Porcentaje del precio</option>
+                        <option value="amount">Monto por pieza</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={label} htmlFor="pe-deposit-value">{fields.depositType === 'percent' ? '%' : '$ por pieza'}</label>
+                      <input
+                        id="pe-deposit-value"
+                        className={`${input} w-32 tabular-nums`}
+                        value={fields.depositValue}
+                        onChange={set('depositValue')}
+                        inputMode="decimal"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="md:col-span-2 rounded-md border border-line p-4">
+                <span className="text-label text-ink">Combo: refresco a elegir</span>
+                <span className="block text-caption text-ink-muted">
+                  Al vender este producto se elige uno de estos. El refresco va incluido ($0) y descuenta su propio inventario.
+                </span>
+                {comboOptions === null ? (
+                  <p className="mt-2 text-caption text-ink-subtle">Cargando…</p>
+                ) : (
+                  <>
+                    {comboOptions.length > 0 && (
+                      <ul className="mt-2 flex flex-wrap gap-2">
+                        {comboOptions.map((id) => (
+                          <li key={id} className="inline-flex items-center gap-1 border border-line bg-surface py-1 pr-1 pl-2.5 text-label">
+                            {productsById[id]?.name ?? 'Producto'}
+                            <button
+                              type="button"
+                              aria-label={`Quitar ${productsById[id]?.name ?? 'opción'}`}
+                              onClick={() => setComboOptionsState((o) => (o ?? []).filter((x) => x !== id))}
+                              className="grid size-7 cursor-pointer place-items-center text-ink-muted hover:text-danger-fg"
+                            >
+                              <Icon name="x" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="mt-2">
+                      <ProductPicker
+                        id="pe-combo"
+                        label="Agregar opción (busca el refresco por nombre)"
+                        inputRef={comboRef}
+                        products={products}
+                        available={(p: CachedProduct) => (p.id === product?.id || comboOptions.includes(p.id) ? 0 : 1)}
+                        availableText={(p) => (p.track_stock === false ? 'Sin inventario' : `Tienda ${formatInt(p.quantity)}`)}
+                        unavailableText={(p) => (p.id === product?.id ? 'Es este producto' : 'Ya es opción')}
+                        onPick={(p) => {
+                          if (p.id === product?.id || comboOptions.includes(p.id)) return
+                          setComboOptionsState((o) => [...(o ?? []), p.id])
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="md:col-span-2">
                 <span className={label}>Imagen</span>
