@@ -74,6 +74,7 @@ const products: Product[] = Array.from({ length: 24 }, (_, i) => {
     warehouse_quantity: (i * 5) % 11,
     image_url: photo ? `demo/${photo}.jpg` : null,
     is_internal_code: internal,
+    track_stock: true,
     description: null,
     catalog_product_id: null,
     created_by: ADMIN_ID,

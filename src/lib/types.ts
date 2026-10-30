@@ -47,6 +47,8 @@ export interface Product {
   /** Ruta dentro del bucket privado `product-images`. */
   image_url: string | null
   is_internal_code: boolean
+  /** false = comida, torneos y servicios: se venden sin revisar ni descontar stock. */
+  track_stock: boolean
   description: string | null
   /** productId de TCGplayer (fila de catalog_products) con el que se vinculó. */
   catalog_product_id: number | null

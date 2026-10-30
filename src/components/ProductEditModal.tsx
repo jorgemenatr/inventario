@@ -24,7 +24,7 @@ interface Props {
   onChanged: (product: Product, oldBarcode?: string) => void
 }
 
-type Fields = { name: string; price: string; cost: string; category: string; supplier: string; description: string }
+type Fields = { name: string; price: string; cost: string; category: string; supplier: string; description: string; trackStock: boolean }
 
 const moneyText = (n: number | null) => (n == null ? '' : String(n))
 
@@ -58,6 +58,7 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
           category: p.category ?? '',
           supplier: p.supplier ?? '',
           description: p.description ?? '',
+          trackStock: p.track_stock,
         })
         setTimeout(() => nameRef.current?.focus(), 0)
         if (p.catalog_product_id != null) void getCatalogName(p.catalog_product_id).then(setCatalogName)
@@ -107,7 +108,7 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
     try {
       const saved = await updateProduct(
         product.id,
-        { name, price, cost, category: fields.category, supplier: fields.supplier, description: fields.description },
+        { name, price, cost, category: fields.category, supplier: fields.supplier, description: fields.description, trackStock: fields.trackStock },
         image,
       )
       onSaved(saved)
@@ -139,9 +140,15 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
             <h2 id="pe-title" className="text-title">Editar producto</h2>
             {product && (
               <p className="mt-1 text-ink-muted">
-                Código: <span className="font-mono text-ink">{product.barcode}</span> · Tienda:{' '}
-                <span className="text-ink tabular-nums">{formatInt(product.quantity)}</span> · Bodega:{' '}
-                <span className="text-ink tabular-nums">{formatInt(product.warehouse_quantity)}</span>
+                Código: <span className="font-mono text-ink">{product.barcode}</span> ·{' '}
+                {product.track_stock ? (
+                  <>
+                    Tienda: <span className="text-ink tabular-nums">{formatInt(product.quantity)}</span> · Bodega:{' '}
+                    <span className="text-ink tabular-nums">{formatInt(product.warehouse_quantity)}</span>
+                  </>
+                ) : (
+                  'Sin inventario'
+                )}
               </p>
             )}
           </div>
@@ -180,6 +187,26 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
               <div className="md:col-span-2">
                 <label className={label} htmlFor="pe-description">Descripción</label>
                 <textarea id="pe-description" rows={3} className="field h-auto py-2" value={fields.description} onChange={set('description')} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!fields.trackStock}
+                    disabled={product?.track_stock !== false && ((product?.quantity ?? 0) !== 0 || (product?.warehouse_quantity ?? 0) !== 0)}
+                    onChange={(e) => setFields((f) => (f ? { ...f, trackStock: !e.target.checked } : f))}
+                  />
+                  <span>
+                    <span className="text-label text-ink">Sin control de inventario</span>
+                    <span className="block text-caption text-ink-muted">
+                      Para comida, torneos y servicios: se venden sin revisar ni descontar existencias.
+                      {product?.track_stock !== false &&
+                        ((product?.quantity ?? 0) !== 0 || (product?.warehouse_quantity ?? 0) !== 0) &&
+                        ' Primero deja sus existencias de tienda y bodega en 0.'}
+                    </span>
+                  </span>
+                </label>
               </div>
               <div className="md:col-span-2">
                 <span className={label}>Imagen</span>
@@ -232,15 +259,17 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                   {done}
                 </p>
               )}
-              <StockSection
-                product={product}
-                onAdjusted={(p, location) =>
-                  applied(
-                    p,
-                    `Existencias de ${LOCATION_LABELS[location].toLowerCase()} ajustadas a ${formatInt(location === 'store' ? p.quantity : p.warehouse_quantity)}. Quedó en el historial.`,
-                  )
-                }
-              />
+              {product.track_stock && (
+                <StockSection
+                  product={product}
+                  onAdjusted={(p, location) =>
+                    applied(
+                      p,
+                      `Existencias de ${LOCATION_LABELS[location].toLowerCase()} ajustadas a ${formatInt(location === 'store' ? p.quantity : p.warehouse_quantity)}. Quedó en el historial.`,
+                    )
+                  }
+                />
+              )}
               <CorrectionSection
                 title="Código de barras y catálogo"
                 summary={

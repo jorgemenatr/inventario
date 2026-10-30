@@ -21,6 +21,12 @@ $P -d ${DB}_config -f supabase/tests/00_supabase_stub.sql
 for f in supabase/migrations/*.sql; do $P -d ${DB}_config -f "$f"; done
 $P -d ${DB}_config -f supabase/tests/configuracion_negocio_test.sql
 
+# Productos sin inventario (comida, torneos): en su propia base.
+$P -d postgres -c "drop database if exists ${DB}_sin" -c "create database ${DB}_sin"
+$P -d ${DB}_sin -f supabase/tests/00_supabase_stub.sql
+for f in supabase/migrations/*.sql; do $P -d ${DB}_sin -f "$f"; done
+$P -d ${DB}_sin -f supabase/tests/sin_inventario_test.sql
+
 # Categorías configurables: una base que ya estaba en uso (productos y
 # catálogo cargados) recibe la migración de categorías.
 CAT=20261020000200

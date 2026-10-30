@@ -9,11 +9,12 @@ export interface ProductPatch {
   category: string | null
   supplier: string | null
   description: string | null
+  trackStock: boolean
 }
 
 // Sin cost: esa columna solo la lee un admin, con la vista product_costs.
 const COLUMNS =
-  'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, description, catalog_product_id, created_by, created_at, updated_at'
+  'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, description, catalog_product_id, created_by, created_at, updated_at'
 
 const num = (p: Product): Product => ({ ...p, price: Number(p.price), cost: p.cost == null ? null : Number(p.cost) })
 
@@ -46,6 +47,7 @@ export async function updateProduct(id: string, patch: ProductPatch, image?: Blo
     category: patch.category?.trim() || null,
     supplier: patch.supplier?.trim() || null,
     description: patch.description?.trim() || null,
+    track_stock: patch.trackStock,
   }
   if (image === null) row.image_url = null
   else if (image) row.image_url = await uploadProductImage(image)
