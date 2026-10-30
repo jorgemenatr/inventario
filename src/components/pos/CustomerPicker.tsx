@@ -1,4 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
+import { findByCode } from '../../lib/customers'
 import type { Customer } from '../../lib/types'
 import { GameTags } from '../GamesInput'
 import { Icon } from '../Icon'
@@ -29,7 +30,7 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, 
     return customers
       .filter((c) => {
         if (exclude?.includes(c.id)) return false
-        const text = normalize(`${c.name} ${c.phone ?? ''} ${c.email ?? ''}`)
+        const text = normalize(`${c.name} ${c.phone ?? ''} ${c.email ?? ''} ${c.code ?? ''}`)
         return words.every((w) => text.includes(w))
       })
       .slice(0, 8)
@@ -48,7 +49,10 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, 
       if (results.length) setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : results.length - 1)) % results.length)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (results[active]) pick(results[active])
+      // Código de cliente exacto (lector): se asigna directo.
+      const byCode = findByCode(customers, query)
+      if (byCode && !exclude?.includes(byCode.id)) pick(byCode)
+      else if (results[active]) pick(results[active])
     } else if (e.key === 'Escape') {
       setOpen(false)
     }
@@ -68,7 +72,7 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, 
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
-          placeholder={placeholder ?? 'Asignar cliente (nombre o teléfono)…'}
+          placeholder={placeholder ?? 'Asignar cliente (nombre, teléfono o código)…'}
           aria-label={placeholder ?? 'Asignar cliente'}
           autoFocus={autoFocus}
           autoComplete="off"

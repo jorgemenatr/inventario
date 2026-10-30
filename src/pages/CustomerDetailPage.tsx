@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { CustomerCodeBarcode } from '../components/CustomerCodeBarcode'
 import { CustomerCredits } from '../components/CustomerCredits'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { CustomerLeaguePoints } from '../components/CustomerLeaguePoints'
@@ -103,6 +104,19 @@ export function CustomerDetailPage() {
             <div>
               <p className="field-label">Correo</p>
               <p className="break-all">{customer.email ? <a href={`mailto:${customer.email}`} className="text-jade hover:underline">{customer.email}</a> : '—'}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="field-label">Código de cliente</p>
+              {customer.code ? (
+                <CustomerCodeBarcode code={customer.code} />
+              ) : (
+                <p className="text-ink-muted">
+                  Sin código.{' '}
+                  {customer.email && customer.phone
+                    ? 'Usa "Editar" para vincular uno.'
+                    : 'Para vincular uno, primero llena correo y teléfono.'}
+                </p>
+              )}
             </div>
             <div className="sm:col-span-2">
               <p className="field-label">Juegos que juega</p>

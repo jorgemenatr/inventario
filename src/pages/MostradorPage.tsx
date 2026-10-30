@@ -6,7 +6,7 @@ import { ProductImage } from '../components/ProductImage'
 import { CustomerPicker } from '../components/pos/CustomerPicker'
 import { PaymentPanel } from '../components/pos/PaymentPanel'
 import { ProductPicker } from '../components/pos/ProductPicker'
-import { gameSuggestions } from '../lib/customers'
+import { findByCode, gameSuggestions } from '../lib/customers'
 import { formatInt, formatMoney, parseMoney } from '../lib/format'
 import { ticketFolio } from '../lib/sales'
 import { sounds } from '../lib/sounds'
@@ -66,6 +66,17 @@ export function MostradorPage() {
       setNotice({ kind: 'error', text: res.message })
     }
     focusProduct()
+  }
+
+  // Escanear la tarjeta del cliente en el campo de productos lo asigna al ticket.
+  function pickCustomerByCode(code: string) {
+    const c = active && findByCode(customers, code)
+    if (!c || !active) return false
+    posStore.setCustomer(active.id, { id: c.id, name: c.name })
+    sounds.success()
+    setNotice({ kind: 'info', text: `Cliente asignado: ${c.name}` })
+    focusProduct()
+    return true
   }
 
   async function pay(payments: PaymentPart[], change: number | null) {
@@ -215,7 +226,7 @@ export function MostradorPage() {
                 )}
               </div>
 
-              <ProductPicker inputRef={productRef} products={products} available={available} onPick={addProduct} />
+              <ProductPicker inputRef={productRef} products={products} available={available} onPick={addProduct} onOtherCode={pickCustomerByCode} />
 
               {notice && (
                 <p className={`notice ${notice.kind === 'error' ? 'bg-danger-bg text-danger-fg' : 'bg-info-bg text-info-fg'}`} role="alert">

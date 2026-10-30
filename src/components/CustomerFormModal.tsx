@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { createCustomer, updateCustomer, validateCustomer } from '../lib/customers'
+import { createCustomer, nextCustomerCode, updateCustomer, validateCustomer } from '../lib/customers'
 import { isNetworkError } from '../lib/supabase'
 import type { Customer } from '../lib/types'
 import { GamesInput } from './GamesInput'
@@ -20,6 +20,8 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
   const [name, setName] = useState(customer?.name ?? initialName)
   const [email, setEmail] = useState(customer?.email ?? '')
   const [phone, setPhone] = useState(customer?.phone ?? '')
+  const [code, setCode] = useState(customer?.code ?? '')
+  const [generating, setGenerating] = useState(false)
   const [games, setGames] = useState<string[]>(customer?.games ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,10 +29,25 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
 
   useEffect(() => nameRef.current?.focus(), [])
 
+  // El código solo se vincula si el cliente tiene correo y teléfono.
+  const canLinkCode = !!email.trim() && !!phone.trim()
+
+  async function generateCode() {
+    setGenerating(true)
+    setError(null)
+    try {
+      setCode(await nextCustomerCode())
+    } catch (err) {
+      setError(isNetworkError(err) ? 'Sin conexión: no se puede generar el código.' : (err as Error).message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (saving) return
-    const input = { name, email, phone, games }
+    const input = { name, email, phone, code, games }
     const invalid = validateCustomer(input)
     if (invalid) return setError(invalid)
     setSaving(true)
@@ -80,6 +97,41 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
               <label className="field-label" htmlFor="cf-phone">Teléfono</label>
               <input id="cf-phone" type="tel" className="field" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
             </div>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="cf-code">Código de cliente (opcional)</label>
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Icon name="barcode" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-subtle" />
+                <input
+                  id="cf-code"
+                  className="field pl-9 font-mono tabular-nums"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  // El lector manda Enter al final: que no guarde el formulario.
+                  onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+                  disabled={!canLinkCode && !code}
+                  inputMode="numeric"
+                  maxLength={8}
+                  placeholder="1xxxxxxx"
+                  aria-describedby="cf-code-help"
+                  autoComplete="off"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void generateCode()}
+                disabled={!canLinkCode || generating}
+                className="btn btn-secondary"
+              >
+                {generating ? 'Generando…' : 'Generar'}
+              </button>
+            </div>
+            <p id="cf-code-help" className="mt-1 text-caption text-ink-muted">
+              {canLinkCode
+                ? 'Escanea la tarjeta del cliente o genera uno: 8 dígitos que empiezan con 1.'
+                : 'Para vincular un código, llena correo y teléfono.'}
+            </p>
           </div>
           <div>
             <span className="field-label">Juegos que juega</span>

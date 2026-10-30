@@ -211,3 +211,19 @@ Antes: aplica la migración `…20261019000100_lotes_ubicaciones.sql`.
 - [ ] Con el usuario de mostrador no aparecen Compras ni Movimiento de bodega.
 - [ ] Compras: abre la compra y "Corregir" el costo mientras está intacta; después de moverla
       solo deja cambiar folio y notas, y "Cancelar compra" ya no aparece.
+
+## 14. Código de cliente
+Antes: aplica la migración `…20261030000400_codigo_clientes.sql`.
+- [ ] Cliente nuevo solo con nombre: el campo "Código de cliente" y "Generar" están
+      deshabilitados y dice "Para vincular un código, llena correo y teléfono". Se guarda sin código.
+- [ ] Llena correo y teléfono, presiona "Generar": aparece 10000001 (o el siguiente al mayor
+      asignado). Guarda: el perfil muestra el código de barras.
+- [ ] Edita otro cliente con correo y teléfono, escanea una tarjeta en el campo de código: no
+      guarda solo con el Enter del lector. Escribe `20000000` o `1234`: avisa que debe tener
+      8 dígitos y empezar con 1.
+- [ ] Usa un código que ya tiene otro cliente: "Ese código ya está vinculado a otro cliente."
+- [ ] Borra el correo de un cliente con código: no deja guardar hasta quitar el código o
+      volver a llenar el correo.
+- [ ] Clientes: la búsqueda encuentra por código y la tabla muestra la columna Código.
+- [ ] Mostrador: con un ticket abierto escanea la tarjeta en el campo de productos: el cliente
+      queda asignado ("Cliente asignado: …"). También funciona en el buscador de cliente.

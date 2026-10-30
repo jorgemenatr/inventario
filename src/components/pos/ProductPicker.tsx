@@ -11,6 +11,8 @@ interface Props {
   /** Piezas que todavía se pueden agregar (stock − apartado en tickets abiertos). */
   available: (p: CachedProduct) => number
   onPick: (p: CachedProduct) => void
+  /** Código escaneado que no es de ningún producto; true si se usó (p. ej. código de cliente). */
+  onOtherCode?: (code: string) => boolean
   disabled?: boolean
   /** Para usarlo fuera del mostrador (compras, movimiento de bodega). */
   id?: string
@@ -35,6 +37,7 @@ export function ProductPicker({
   products,
   available,
   onPick,
+  onOtherCode,
   disabled,
   id = 'pos-product',
   label = 'Agregar producto: escanea el código o busca por nombre',
@@ -81,6 +84,11 @@ export function ProductPicker({
     const code = normalizeBarcode(query)
     const exact = products[code]
     if (exact) return pick(exact)
+    if (onOtherCode?.(code)) {
+      setQuery('')
+      setActive(0)
+      return
+    }
     if (results[active]) return pick(results[active])
   }
 

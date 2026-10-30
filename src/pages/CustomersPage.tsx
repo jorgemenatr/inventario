@@ -63,7 +63,7 @@ export function CustomersPage() {
     const words = normalize(search.trim()).split(/\s+/).filter(Boolean)
     return (customers ?? []).filter((c) => {
       if (game && !c.games.includes(game)) return false
-      const text = normalize(`${c.name} ${c.email ?? ''} ${c.phone ?? ''}`)
+      const text = normalize(`${c.name} ${c.email ?? ''} ${c.phone ?? ''} ${c.code ?? ''}`)
       return words.every((w) => text.includes(w))
     })
   }, [customers, search, game])
@@ -94,8 +94,8 @@ export function CustomersPage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, correo o teléfono"
-            aria-label="Buscar por nombre, correo o teléfono"
+            placeholder="Buscar por nombre, correo, teléfono o código"
+            aria-label="Buscar por nombre, correo, teléfono o código"
             className="min-w-0 flex-1 bg-transparent text-ink outline-none focus-visible:outline-none"
           />
         </label>
@@ -135,7 +135,10 @@ export function CustomersPage() {
             {filtered.map((c) => (
               <li key={c.id} className="flex items-start gap-2 px-4 py-3">
                 <Link to={`/clientes/${c.id}`} className="min-w-0 flex-1 space-y-1">
-                  <p className="font-medium">{c.name}</p>
+                  <p className="font-medium">
+                    {c.name}
+                    {c.code && <span className="ml-2 font-mono text-caption text-ink-subtle">{c.code}</span>}
+                  </p>
                   {(c.phone || c.email) && (
                     <p className="text-caption break-all text-ink-muted">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>
                   )}
@@ -167,6 +170,7 @@ export function CustomersPage() {
             <thead>
               <tr className="thead-row">
                 <th className="h-control-md px-4 font-medium">Nombre</th>
+                <th className="h-control-md px-4 font-medium">Código</th>
                 <th className="h-control-md px-4 font-medium">Teléfono</th>
                 <th className="h-control-md px-4 font-medium">Correo</th>
                 <th className="h-control-md px-4 font-medium">Juegos que juega</th>
@@ -182,6 +186,7 @@ export function CustomersPage() {
                       {c.name}
                     </Link>
                   </td>
+                  <td className="h-row px-4 font-mono whitespace-nowrap text-ink-muted">{c.code ?? '—'}</td>
                   <td className="h-row px-4 whitespace-nowrap text-ink-muted">{c.phone ?? '—'}</td>
                   <td className="h-row px-4 text-ink-muted">{c.email ?? '—'}</td>
                   <td className="h-row px-4 py-2">
