@@ -9,6 +9,7 @@ export type MovementType =
   | 'adjustment'
   | 'sale'
   | 'barcode_unlink'
+  | 'barcode_assign'
   | 'purchase'
   | 'transfer'
 
@@ -107,7 +108,7 @@ export interface MovementHistoryRow {
   created_by: string | null
   created_by_email: string | null
   created_by_name: string | null
-  /** Código que tenía el producto (solo en 'barcode_unlink'). */
+  /** Código que tenía el producto (solo en 'barcode_unlink' y 'barcode_assign'). */
   old_barcode?: string | null
   /** Si se canceló: el movimiento que lo revirtió, cuándo, quién y la nota con el motivo. */
   cancelled_by_movement_id?: string | null
@@ -129,6 +130,7 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   adjustment: 'Ajuste',
   sale: 'Venta',
   barcode_unlink: 'Desvinculado',
+  barcode_assign: 'Código asignado',
   purchase: 'Compra',
   transfer: 'Movimiento de bodega',
 }

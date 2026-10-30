@@ -72,6 +72,17 @@ export async function unlinkProduct(id: string, reason: string): Promise<Product
   return rpcProduct(data)
 }
 
+/** Asigna su código de barras real a un producto con código interno (HCH-). */
+export async function assignBarcode(id: string, barcode: string): Promise<Product> {
+  const { data, error } = await supabase.rpc('assign_barcode', {
+    p_product_id: id,
+    p_barcode: barcode,
+    p_client_op_id: crypto.randomUUID(),
+  })
+  if (error) throw error
+  return rpcProduct(data)
+}
+
 export interface AdjustInput {
   location: StockLocation
   /** Si baja: de qué lotes salen las piezas (null = el único lote que hay). */

@@ -97,3 +97,76 @@ begin
 end $$;
 
 \echo 'OK: productos sin inventario'
+
+-- ---------- 4. Asignar código a un producto con código interno ----------
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d1"}', false);
+set role authenticated;
+
+do $$
+declare
+  v_id  uuid;
+  v_old text;
+  r     jsonb;
+begin
+  perform public.create_product(null, 'Torneo Fun', 50);
+  select id, barcode into v_id, v_old from public.products where name = 'Torneo Fun';
+
+  r := public.assign_barcode(v_id, ' 32000002 ');
+  if (select barcode from public.products where id = v_id) <> '32000002'
+     or (select is_internal_code from public.products where id = v_id) then
+    raise exception 'FALLA 4a: no asignó el código';
+  end if;
+  if (select old_barcode from public.inventory_movements where product_id = v_id and type = 'barcode_assign') <> v_old then
+    raise exception 'FALLA 4b: el historial no guarda el código anterior';
+  end if;
+
+  -- Ya tiene código real: no se reasigna.
+  begin
+    perform public.assign_barcode(v_id, '32000003');
+    raise exception 'FALLA 4c: reasignó un código real';
+  exception when others then
+    if sqlerrm not like '%desvincúlalo%' then raise; end if;
+  end;
+
+  -- Código ocupado por otro producto.
+  perform public.create_product(null, 'Torneo Advance', 100);
+  begin
+    perform public.assign_barcode((select id from public.products where name = 'Torneo Advance'), 'COMIDA1');
+    raise exception 'FALLA 4d: asignó un código ocupado';
+  exception when others then
+    if sqlerrm not like 'El código COMIDA1 ya es de%' then raise; end if;
+  end;
+
+  -- Prefijo interno reservado.
+  begin
+    perform public.assign_barcode((select id from public.products where name = 'Torneo Advance'), 'HCH-999999');
+    raise exception 'FALLA 4e: aceptó un código interno';
+  exception when others then
+    if sqlerrm not like '%reservado%' then raise; end if;
+  end;
+
+  -- No se cancela desde el historial.
+  begin
+    perform public.cancel_movement(
+      (select id from public.inventory_movements where product_id = v_id and type = 'barcode_assign'), 'Prueba');
+    raise exception 'FALLA 4f: canceló una asignación';
+  exception when others then
+    if sqlerrm not like 'Una asignación de código no se cancela%' then raise; end if;
+  end;
+end $$;
+
+-- El mostrador no puede asignar códigos.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d2"}', false);
+
+do $$
+begin
+  begin
+    perform public.assign_barcode((select id from public.products where name = 'Torneo Advance'), '32000003');
+    raise exception 'FALLA 4g: el mostrador asignó un código';
+  exception when others then
+    if sqlerrm not like 'Solo un administrador%' then raise; end if;
+  end;
+end $$;
+
+reset role;
+\echo 'OK: asignar código'

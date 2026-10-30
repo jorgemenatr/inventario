@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { internalCodeLabel } from '../lib/barcode'
+import { internalCodeLabel, normalizeBarcode } from '../lib/barcode'
 import { compressImage } from '../lib/images'
 import { formatDateTime, formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
 import { getProductLots } from '../lib/lots'
-import { adjustStock, getCatalogName, getProduct, unlinkProduct, updateProduct } from '../lib/products'
+import { adjustStock, assignBarcode, getCatalogName, getProduct, unlinkProduct, updateProduct } from '../lib/products'
 import { isNetworkError } from '../lib/supabase'
 import { LOCATION_LABELS, LOCATIONS, LOT_ORIGIN_LABELS, type LotPick, type Product, type ProductLot, type StockLocation } from '../lib/types'
 import { CategorySelect } from './CategorySelect'
@@ -270,6 +270,26 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                   }
                 />
               )}
+              {product.is_internal_code && (
+                <CorrectionSection
+                  title="Asignar código de barras"
+                  summary={
+                    <>
+                      Tiene el código interno <span className="font-mono text-ink">{product.barcode}</span>
+                    </>
+                  }
+                  help="Escanea o escribe el código de barras del producto. El código interno deja de funcionar: tira su etiqueta impresa."
+                  action="Asignar código"
+                  valueLabel="Código de barras"
+                  valueInputMode="text"
+                  valueMissing="Escribe o escanea el código de barras."
+                  confirm="Asignar"
+                  run={async (value) => {
+                    const p = await assignBarcode(product.id, normalizeBarcode(value))
+                    applied(p, `Código ${p.barcode} asignado. Ya puedes escanearlo para vender.`)
+                  }}
+                />
+              )}
               <CorrectionSection
                 title="Código de barras y catálogo"
                 summary={
@@ -329,8 +349,9 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
 }
 
 /**
- * Corrección que se aplica al momento y pide motivo (queda en el historial).
- * Con valueLabel pide además un valor (p. ej. la cantidad correcta).
+ * Corrección que se aplica al momento (queda en el historial). Con
+ * reasonPlaceholder pide motivo; con valueLabel pide un valor (p. ej. la
+ * cantidad correcta).
  */
 function CorrectionSection({
   title,
@@ -338,6 +359,8 @@ function CorrectionSection({
   help,
   action,
   valueLabel,
+  valueInputMode = 'numeric',
+  valueMissing,
   placeholder,
   reasonPlaceholder,
   confirm,
@@ -350,8 +373,12 @@ function CorrectionSection({
   help?: string
   action: string
   valueLabel?: string
+  valueInputMode?: 'numeric' | 'text'
+  /** Error si falta el valor (por defecto: "Escribe la <valueLabel>."). */
+  valueMissing?: string
   placeholder?: string
-  reasonPlaceholder: string
+  /** Sin él no se pide motivo. */
+  reasonPlaceholder?: string
   confirm: string
   danger?: boolean
   disabled?: boolean
@@ -366,8 +393,8 @@ function CorrectionSection({
   async function apply() {
     if (busy) return
     setError(null)
-    if (valueLabel && !value.trim()) return setError(`Escribe la ${valueLabel.toLowerCase()}.`)
-    if (!reason.trim()) return setError('El motivo es obligatorio.')
+    if (valueLabel && !value.trim()) return setError(valueMissing ?? `Escribe la ${valueLabel.toLowerCase()}.`)
+    if (reasonPlaceholder !== undefined && !reason.trim()) return setError('El motivo es obligatorio.')
     setBusy(true)
     try {
       await run(value, reason)
@@ -408,13 +435,13 @@ function CorrectionSection({
           {help && <p className="text-caption text-ink-muted">{help}</p>}
           <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
             {valueLabel && (
-              <div>
+              <div className={reasonPlaceholder !== undefined ? '' : 'sm:col-span-2'}>
                 <label className="field-label" htmlFor={`cs-${title}-value`}>{valueLabel} *</label>
                 <input
                   id={`cs-${title}-value`}
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
-                  inputMode="numeric"
+                  inputMode={valueInputMode}
                   placeholder={placeholder}
                   autoFocus
                   autoComplete="off"
@@ -422,18 +449,20 @@ function CorrectionSection({
                 />
               </div>
             )}
-            <div className={valueLabel ? '' : 'sm:col-span-2'}>
-              <label className="field-label" htmlFor={`cs-${title}-reason`}>Motivo *</label>
-              <input
-                id={`cs-${title}-reason`}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder={reasonPlaceholder}
-                autoFocus={!valueLabel}
-                autoComplete="off"
-                className="field"
-              />
-            </div>
+            {reasonPlaceholder !== undefined && (
+              <div className={valueLabel ? '' : 'sm:col-span-2'}>
+                <label className="field-label" htmlFor={`cs-${title}-reason`}>Motivo *</label>
+                <input
+                  id={`cs-${title}-reason`}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={reasonPlaceholder}
+                  autoFocus={!valueLabel}
+                  autoComplete="off"
+                  className="field"
+                />
+              </div>
+            )}
           </div>
           {error && (
             <p className="notice bg-danger-bg text-danger-fg">
