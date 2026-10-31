@@ -74,6 +74,10 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
   const { products } = useInventory()
   const comboRef = useRef<HTMLInputElement>(null)
   const productsById = Object.fromEntries(Object.values(products).map((p) => [p.id, p]))
+  // Productos de la subcategoría "Refrescos" (en cualquier categoría): se agregan al combo con un clic.
+  const refrescos = Object.values(products)
+    .filter((p) => /(^|· )refrescos$/i.test(p.category ?? '') && p.id !== productId)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es-MX'))
 
   useEffect(() => {
     getProduct(productId)
@@ -339,10 +343,41 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                         ))}
                       </ul>
                     )}
+                    {refrescos.length > 0 && (
+                      <div className="mt-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-caption text-ink-muted">Refrescos:</span>
+                          {refrescos.map((p) => {
+                            const on = comboOptions.includes(p.id)
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                aria-pressed={on}
+                                onClick={() => setComboOptionsState((o) => (on ? (o ?? []).filter((x) => x !== p.id) : [...(o ?? []), p.id]))}
+                                className="choice px-3 py-1 text-caption"
+                              >
+                                {p.name}
+                              </button>
+                            )
+                          })}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setComboOptionsState((o) => [...(o ?? []), ...refrescos.map((p) => p.id).filter((id) => !(o ?? []).includes(id))])
+                            }
+                            disabled={refrescos.every((p) => comboOptions.includes(p.id))}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            Agregar todos
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-2">
                       <ProductPicker
                         id="pe-combo"
-                        label="Agregar opción (busca el refresco por nombre)"
+                        label="Otra opción (busca por nombre)"
                         inputRef={comboRef}
                         products={products}
                         available={(p: CachedProduct) => (p.id === product?.id || comboOptions.includes(p.id) ? 0 : 1)}
