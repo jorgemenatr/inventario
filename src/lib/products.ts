@@ -18,7 +18,7 @@ export interface ProductPatch {
 // Sin cost: esa columna solo la lee un admin, con la vista product_costs.
 const COLUMNS =
   'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, ' +
-  'is_preorder, preorder_deposit_type, preorder_deposit_value, preorder_reserved, description, catalog_product_id, created_by, created_at, updated_at'
+  'is_preorder, preorder_deposit_type, preorder_deposit_value, description, catalog_product_id, created_by, created_at, updated_at'
 
 const num = (p: Product): Product => ({
   ...p,
@@ -28,6 +28,13 @@ const num = (p: Product): Product => ({
 })
 
 /** Último costo del producto (null si no tiene o si quien consulta no es admin). */
+/** Piezas comprometidas en preventas sin entregar (vista product_reservations). */
+async function getReserved(id: string): Promise<number> {
+  const { data, error } = await supabase.from('product_reservations').select('reserved').eq('product_id', id).maybeSingle()
+  if (error) throw error
+  return Number((data as { reserved: number } | null)?.reserved ?? 0)
+}
+
 async function getCost(id: string): Promise<number | null> {
   const { data, error } = await supabase.from('product_costs').select('cost').eq('product_id', id).maybeSingle()
   if (error) throw error
@@ -36,12 +43,13 @@ async function getCost(id: string): Promise<number | null> {
 }
 
 export async function getProduct(id: string): Promise<Product | null> {
-  const [{ data, error }, cost] = await Promise.all([
+  const [{ data, error }, cost, reserved] = await Promise.all([
     supabase.from('products').select(COLUMNS).eq('id', id).maybeSingle(),
     getCost(id),
+    getReserved(id),
   ])
   if (error) throw error
-  return data ? num({ ...(data as unknown as Omit<Product, 'cost'>), cost }) : null
+  return data ? num({ ...(data as unknown as Omit<Product, 'cost'>), cost, preorder_reserved: reserved }) : null
 }
 
 /** Opciones (refrescos) que se eligen al vender un combo, en orden. */
@@ -87,7 +95,8 @@ export async function updateProduct(id: string, patch: ProductPatch, image?: Blo
   else if (image) row.image_url = await uploadProductImage(image)
   const { data, error } = await supabase.from('products').update(row).eq('id', id).select(COLUMNS).single()
   if (error) throw error
-  return num({ ...(data as unknown as Omit<Product, 'cost'>), cost: await getCost(id) })
+  const [cost, reserved] = await Promise.all([getCost(id), getReserved(id)])
+  return num({ ...(data as unknown as Omit<Product, 'cost'>), cost, preorder_reserved: reserved })
 }
 
 const rpcProduct = (data: unknown) => num((data as MovementResult).product)
