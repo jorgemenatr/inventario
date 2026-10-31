@@ -13,12 +13,13 @@ export interface ProductPatch {
   isPreorder: boolean
   preorderDepositType: PreorderDepositType
   preorderDepositValue: number
+  isCombo: boolean
 }
 
 // Sin cost: esa columna solo la lee un admin, con la vista product_costs.
 const COLUMNS =
   'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, ' +
-  'is_preorder, preorder_deposit_type, preorder_deposit_value, description, catalog_product_id, created_by, created_at, updated_at'
+  'is_preorder, preorder_deposit_type, preorder_deposit_value, is_combo, description, catalog_product_id, created_by, created_at, updated_at'
 
 const num = (p: Product): Product => ({
   ...p,
@@ -52,28 +53,6 @@ export async function getProduct(id: string): Promise<Product | null> {
   return data ? num({ ...(data as unknown as Omit<Product, 'cost'>), cost, preorder_reserved: reserved }) : null
 }
 
-/** Opciones (refrescos) que se eligen al vender un combo, en orden. */
-export async function getComboOptions(comboId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('product_combo_options')
-    .select('option_product_id')
-    .eq('combo_product_id', comboId)
-    .order('position', { ascending: true })
-  if (error) throw error
-  return (data ?? []).map((r) => r.option_product_id as string)
-}
-
-/** Reemplaza las opciones de un combo (solo admin). */
-export async function setComboOptions(comboId: string, optionIds: string[]) {
-  const { error } = await supabase.from('product_combo_options').delete().eq('combo_product_id', comboId)
-  if (error) throw error
-  if (optionIds.length === 0) return
-  const { error: insertError } = await supabase
-    .from('product_combo_options')
-    .insert(optionIds.map((id, position) => ({ combo_product_id: comboId, option_product_id: id, position })))
-  if (insertError) throw insertError
-}
-
 /**
  * Edita los datos del producto (no la cantidad: esa cambia con movimientos).
  * image: Blob = foto nueva, null = quitar la foto, undefined = no tocarla.
@@ -90,6 +69,7 @@ export async function updateProduct(id: string, patch: ProductPatch, image?: Blo
     is_preorder: patch.isPreorder,
     preorder_deposit_type: patch.preorderDepositType,
     preorder_deposit_value: patch.preorderDepositValue,
+    is_combo: patch.isCombo,
   }
   if (image === null) row.image_url = null
   else if (image) row.image_url = await uploadProductImage(image)

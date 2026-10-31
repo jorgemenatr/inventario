@@ -225,6 +225,8 @@ function BusinessCard() {
 /** Día de operación (hora de corte) y preventas. */
 function OperationCard() {
   const settings = useSettings()
+  const { tree } = useCategories()
+  const categoryValues = tree.flatMap((c) => [c.value, ...c.children.map((s) => s.value)])
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -271,6 +273,36 @@ function OperationCard() {
             ? 'El día termina a medianoche.'
             : `Las ventas entre las 00:00 y las ${String(settings.dayCutoffHour - 1).padStart(2, '0')}:59 cuentan para el día anterior en ventas, cortes y filtros por fecha.`}{' '}
           Zona horaria: {settings.timezone}.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="field-label" htmlFor="cfg-combo-drinks">
+            Bebidas de los combos
+          </label>
+          <select
+            id="cfg-combo-drinks"
+            className="field cursor-pointer"
+            value={settings.comboDrinksCategory ?? ''}
+            disabled={saving}
+            onChange={(e) =>
+              void save(
+                { comboDrinksCategory: e.target.value || null },
+                e.target.value ? `Los combos ahora ofrecen las bebidas de ${e.target.value}.` : 'Los combos ya no ofrecen bebidas.',
+              )
+            }
+          >
+            <option value="">Sin grupo de bebidas</option>
+            {categoryValues.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="max-w-xl text-caption text-ink-muted">
+          Al vender un producto marcado como combo se elige una bebida de esta categoría. Va a $0 y descuenta su propio inventario. La
+          lista se cambia moviendo productos a esta categoría.
         </p>
       </div>
       <label className="flex cursor-pointer items-start gap-2">

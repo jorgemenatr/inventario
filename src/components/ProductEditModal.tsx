@@ -3,7 +3,8 @@ import { internalCodeLabel, normalizeBarcode } from '../lib/barcode'
 import { compressImage } from '../lib/images'
 import { formatDateTime, formatInt, formatMoney, parseCount, parseMoney } from '../lib/format'
 import { getProductLots } from '../lib/lots'
-import { adjustStock, assignBarcode, getCatalogName, getComboOptions, getProduct, setComboOptions, unlinkProduct, updateProduct } from '../lib/products'
+import { adjustStock, assignBarcode, getCatalogName, getProduct, unlinkProduct, updateProduct } from '../lib/products'
+import { useSettings } from '../lib/settings'
 import { isNetworkError } from '../lib/supabase'
 import {
   LOCATION_LABELS,
@@ -15,13 +16,12 @@ import {
   type ProductLot,
   type StockLocation,
 } from '../lib/types'
-import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { comboDrinks } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import { CategorySelect } from './CategorySelect'
 import { Icon } from './Icon'
 import { LocationSelect } from './LocationSelect'
 import { LotPicker } from './LotPicker'
-import { ProductPicker } from './pos/ProductPicker'
 import { ProductImage } from './ProductImage'
 import { SupplierSelect } from './SupplierSelect'
 import { WebcamCapture } from './WebcamCapture'
@@ -47,6 +47,7 @@ type Fields = {
   isPreorder: boolean
   depositType: PreorderDepositType
   depositValue: string
+  isCombo: boolean
 }
 
 const moneyText = (n: number | null) => (n == null ? '' : String(n))
@@ -68,16 +69,9 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
   const nameRef = useRef<HTMLInputElement>(null)
   const [catalogName, setCatalogName] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
-  // Opciones del combo (ids de producto); null = aún no se cargan.
-  const [comboOptions, setComboOptionsState] = useState<string[] | null>(null)
-  const originalCombo = useRef<string[]>([])
   const { products } = useInventory()
-  const comboRef = useRef<HTMLInputElement>(null)
-  const productsById = Object.fromEntries(Object.values(products).map((p) => [p.id, p]))
-  // Productos de la subcategoría "Refrescos" (en cualquier categoría): se agregan al combo con un clic.
-  const refrescos = Object.values(products)
-    .filter((p) => /(^|· )refrescos$/i.test(p.category ?? '') && p.id !== productId)
-    .sort((a, b) => a.name.localeCompare(b.name, 'es-MX'))
+  const settings = useSettings()
+  const drinks = comboDrinks(products, settings.comboDrinksCategory).filter((p) => p.id !== productId)
 
   useEffect(() => {
     getProduct(productId)
@@ -95,15 +89,10 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
           isPreorder: p.is_preorder ?? false,
           depositType: p.preorder_deposit_type ?? 'percent',
           depositValue: moneyText(p.preorder_deposit_value ?? 0),
+          isCombo: p.is_combo ?? false,
         })
         setTimeout(() => nameRef.current?.focus(), 0)
         if (p.catalog_product_id != null) void getCatalogName(p.catalog_product_id).then(setCatalogName)
-        void getComboOptions(p.id)
-          .then((ids) => {
-            originalCombo.current = ids
-            setComboOptionsState(ids)
-          })
-          .catch(() => setComboOptionsState([]))
       })
       .catch((e) => setError(isNetworkError(e) ? 'Sin conexión: editar un producto necesita internet.' : (e as Error).message))
   }, [productId])
@@ -166,13 +155,10 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
           isPreorder: fields.isPreorder,
           preorderDepositType: fields.depositType,
           preorderDepositValue: Number.isNaN(depositValue) ? 0 : depositValue,
+          isCombo: fields.isCombo,
         },
         image,
       )
-      if (comboOptions && comboOptions.join() !== originalCombo.current.join()) {
-        await setComboOptions(product.id, comboOptions)
-        inventoryStore.setComboOptions(product.id, comboOptions)
-      }
       onSaved(saved)
     } catch (err) {
       setError(isNetworkError(err) ? 'Sin conexión: no se guardaron los cambios.' : (err as Error).message)
@@ -318,79 +304,22 @@ export function ProductEditModal({ productId, suppliers, onCancel, onSaved, onCh
                 )}
               </div>
               <div className="md:col-span-2 rounded-md border border-line p-4">
-                <span className="text-label text-ink">Combo: refresco a elegir</span>
-                <span className="block text-caption text-ink-muted">
-                  Al vender este producto se elige uno de estos. El refresco va incluido ($0) y descuenta su propio inventario.
-                </span>
-                {comboOptions === null ? (
-                  <p className="mt-2 text-caption text-ink-subtle">Cargando…</p>
-                ) : (
-                  <>
-                    {comboOptions.length > 0 && (
-                      <ul className="mt-2 flex flex-wrap gap-2">
-                        {comboOptions.map((id) => (
-                          <li key={id} className="inline-flex items-center gap-1 border border-line bg-surface py-1 pr-1 pl-2.5 text-label">
-                            {productsById[id]?.name ?? 'Producto'}
-                            <button
-                              type="button"
-                              aria-label={`Quitar ${productsById[id]?.name ?? 'opción'}`}
-                              onClick={() => setComboOptionsState((o) => (o ?? []).filter((x) => x !== id))}
-                              className="grid size-7 cursor-pointer place-items-center text-ink-muted hover:text-danger-fg"
-                            >
-                              <Icon name="x" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {refrescos.length > 0 && (
-                      <div className="mt-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-caption text-ink-muted">Refrescos:</span>
-                          {refrescos.map((p) => {
-                            const on = comboOptions.includes(p.id)
-                            return (
-                              <button
-                                key={p.id}
-                                type="button"
-                                aria-pressed={on}
-                                onClick={() => setComboOptionsState((o) => (on ? (o ?? []).filter((x) => x !== p.id) : [...(o ?? []), p.id]))}
-                                className="choice px-3 py-1 text-caption"
-                              >
-                                {p.name}
-                              </button>
-                            )
-                          })}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setComboOptionsState((o) => [...(o ?? []), ...refrescos.map((p) => p.id).filter((id) => !(o ?? []).includes(id))])
-                            }
-                            disabled={refrescos.every((p) => comboOptions.includes(p.id))}
-                            className="btn btn-ghost btn-sm"
-                          >
-                            Agregar todos
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    <div className="mt-2">
-                      <ProductPicker
-                        id="pe-combo"
-                        label="Otra opción (busca por nombre)"
-                        inputRef={comboRef}
-                        products={products}
-                        available={(p: CachedProduct) => (p.id === product?.id || comboOptions.includes(p.id) ? 0 : 1)}
-                        availableText={(p) => (p.track_stock === false ? 'Sin inventario' : `Tienda ${formatInt(p.quantity)}`)}
-                        unavailableText={(p) => (p.id === product?.id ? 'Es este producto' : 'Ya es opción')}
-                        onPick={(p) => {
-                          if (p.id === product?.id || comboOptions.includes(p.id)) return
-                          setComboOptionsState((o) => [...(o ?? []), p.id])
-                        }}
-                      />
-                    </div>
-                  </>
-                )}
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={fields.isCombo}
+                    onChange={(e) => setFields((f) => (f ? { ...f, isCombo: e.target.checked } : f))}
+                  />
+                  <span>
+                    <span className="text-label text-ink">Combo: incluye una bebida a elegir</span>
+                    <span className="block text-caption text-ink-muted">
+                      {settings.comboDrinksCategory
+                        ? `Al venderlo se elige entre las ${drinks.length} bebidas de ${settings.comboDrinksCategory}. La bebida va incluida ($0) y descuenta su propio inventario. Para cambiar la lista, mueve productos a esa categoría.`
+                        : 'Falta elegir el grupo de bebidas de los combos en Configuración → Operación.'}
+                    </span>
+                  </span>
+                </label>
               </div>
               <div className="md:col-span-2">
                 <span className={label}>Imagen</span>

@@ -55,6 +55,8 @@ export interface Product {
   /** Anticipo mínimo: 'percent' (del precio) o 'amount' (pesos por pieza). */
   preorder_deposit_type: PreorderDepositType
   preorder_deposit_value: number
+  /** Combo: al venderlo se elige una bebida del grupo de bebidas (va a $0 y descuenta su inventario). */
+  is_combo: boolean
   /** Piezas comprometidas en preventas sin entregar (columna calculada). */
   preorder_reserved?: number
   description: string | null

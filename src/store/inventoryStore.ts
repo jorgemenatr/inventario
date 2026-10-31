@@ -55,6 +55,8 @@ export interface CachedProduct {
   preorder_deposit_value?: number
   /** Piezas comprometidas en preventas sin entregar. */
   preorder_reserved?: number
+  /** Combo: al venderlo se elige una bebida del grupo de bebidas (la caché anterior no lo trae). */
+  is_combo?: boolean
   /** Alta que aún está en la cola (no existe en el servidor todavía). */
   pending?: boolean
 }
@@ -158,8 +160,6 @@ export interface FailedOp {
 
 export interface InventoryState {
   products: Record<string, CachedProduct>
-  /** Combo (id de producto) → opciones que se eligen al venderlo (ids de producto). */
-  combos: Record<string, string[]>
   productsLoaded: boolean
   queue: QueueItem[]
   failed: FailedOp[]
@@ -202,7 +202,6 @@ const withQtyAt = (p: CachedProduct, location: StockLocation, n: number): Cached
 
 const KEYS = {
   products: 'hachiko.products.v1',
-  combos: 'hachiko.combos.v1',
   queue: 'hachiko.queue.v1',
   failed: 'hachiko.failed.v1',
   recent: 'hachiko.recent.v1',
@@ -246,7 +245,16 @@ function toCached(p: Product): CachedProduct {
     preorder_deposit_type: p.preorder_deposit_type,
     preorder_deposit_value: p.preorder_deposit_value == null ? undefined : Number(p.preorder_deposit_value),
     preorder_reserved: p.preorder_reserved,
+    is_combo: p.is_combo,
   }
+}
+
+/** Bebidas que se eligen con un combo: los productos de la categoría del grupo de bebidas. */
+export function comboDrinks(products: Record<string, CachedProduct>, category: string | null) {
+  if (!category) return []
+  return Object.values(products)
+    .filter((p) => p.category === category)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es-MX'))
 }
 
 /** Piezas que aún se pueden vender en tienda: stock − comprometidas en preventas. */
@@ -296,7 +304,6 @@ class InventoryStore {
     const products = load<Record<string, CachedProduct>>(KEYS.products, {})
     this.state = {
       products,
-      combos: load<Record<string, string[]>>(KEYS.combos, {}),
       productsLoaded: Object.keys(products).length > 0,
       queue: load<QueueItem[]>(KEYS.queue, []),
       failed: load<FailedOp[]>(KEYS.failed, []),
@@ -318,7 +325,6 @@ class InventoryStore {
   private set(patch: Partial<InventoryState>) {
     this.state = { ...this.state, ...patch }
     if (patch.products) save(KEYS.products, this.state.products)
-    if (patch.combos) save(KEYS.combos, this.state.combos)
     if (patch.queue) save(KEYS.queue, this.state.queue)
     if (patch.failed) save(KEYS.failed, this.state.failed)
     if (patch.recent) save(KEYS.recent, this.state.recent)
@@ -382,7 +388,7 @@ class InventoryStore {
             .from('products')
             .select(
               'id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, ' +
-                'is_preorder, preorder_deposit_type, preorder_deposit_value',
+                'is_preorder, preorder_deposit_type, preorder_deposit_value, is_combo',
             )
             .order('created_at', { ascending: true })
             .range(from, from + PAGE - 1)
@@ -397,15 +403,8 @@ class InventoryStore {
         if (reservationsError) throw reservationsError
         const reserved = new Map((reservations ?? []).map((r) => [r.product_id as string, Number(r.reserved)]))
         for (const p of Object.values(all)) p.preorder_reserved = reserved.get(p.id) ?? 0
-        const { data: options, error: optionsError } = await supabase
-          .from('product_combo_options')
-          .select('combo_product_id, option_product_id')
-          .order('position', { ascending: true })
-        if (optionsError) throw optionsError
-        const combos: Record<string, string[]> = {}
-        for (const o of options ?? []) (combos[o.combo_product_id] ??= []).push(o.option_product_id)
         this.markOnline()
-        this.set({ products: all, combos, productsLoaded: true })
+        this.set({ products: all, productsLoaded: true })
       } catch (e) {
         if (isNetworkError(e)) this.markOffline()
         else console.error('No se pudo cargar el catálogo', e)
@@ -776,19 +775,6 @@ class InventoryStore {
   }
 
   // ---------- venta (mostrador) ----------
-  /** Opciones (refrescos) de un combo; vacío si el producto no es combo. */
-  comboOptions(productId: string) {
-    return this.state.combos[productId] ?? []
-  }
-
-  /** Cambia las opciones de un combo en la copia local (después de guardarlas). */
-  setComboOptions(productId: string, optionIds: string[]) {
-    const combos = { ...this.state.combos }
-    if (optionIds.length) combos[productId] = optionIds
-    else delete combos[productId]
-    this.set({ combos })
-  }
-
   private applyTicketResult(res: TicketRpcResult, opId: string) {
     for (const p of res.products) this.putServerProduct(toCached(p), opId)
   }
