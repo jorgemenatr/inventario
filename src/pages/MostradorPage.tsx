@@ -1,39 +1,87 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { CancelTicketModal } from '../components/CancelTicketModal'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { Icon } from '../components/Icon'
 import { ProductImage } from '../components/ProductImage'
 import { CustomerPicker } from '../components/pos/CustomerPicker'
 import { PaymentPanel } from '../components/pos/PaymentPanel'
+import { PreorderPanel } from '../components/pos/PreorderPanel'
 import { ProductPicker } from '../components/pos/ProductPicker'
 import { findByCode, gameSuggestions } from '../lib/customers'
-import { formatInt, formatMoney, parseMoney } from '../lib/format'
-import { ticketFolio } from '../lib/sales'
+import { formatDateTime, formatInt, formatMoney, parseMoney } from '../lib/format'
+import { listPreorders, saleTitle, ticketFolio } from '../lib/sales'
+import { useSettings } from '../lib/settings'
 import { sounds } from '../lib/sounds'
-import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
-import { inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { PAYMENT_LABELS, type PaymentPart, type SaleRow } from '../lib/types'
+import { freeQuantity, inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
-import { posStore, ticketLabel, ticketOpenedTime, ticketPieces, ticketTotal, usePos, type OpenTicket, type PosLine } from '../store/posStore'
-
+import {
+  lineDeposit,
+  posStore,
+  ticketLabel,
+  ticketOpenedTime,
+  ticketPieces,
+  ticketTotal,
+  usePos,
+  type OpenTicket,
+  type PosLine,
+} from '../store/posStore'
 
 type Notice = { kind: 'error' | 'info'; text: string } | null
-type LastSale = { name: string | null; total: number; payments: PaymentPart[]; change: number | null; pending: boolean } | null
+type LastSale = {
+  title: string
+  total: number
+  payments: PaymentPart[]
+  change: number | null
+  /** Preventa: lo que falta por pagar. */
+  balance: number | null
+} | null
+
+/** Lo que está en pantalla: un ticket abierto o una preventa registrada. */
+type Selection = { kind: 'open'; id: string } | { kind: 'preorder'; id: string } | null
 
 export function MostradorPage() {
-  const { products, online } = useInventory()
-  const { tickets, activeId, customers } = usePos()
-  const active = tickets.find((t) => t.id === activeId) ?? null
+  const { products, combos, online } = useInventory()
+  const { tickets, activeId, customers, pending, syncError } = usePos()
+  const settings = useSettings()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [preorders, setPreorders] = useState<SaleRow[] | null>(null)
+  const [preorderId, setPreorderId] = useState<string | null>(() => searchParams.get('preventa'))
+  const selection: Selection = preorderId ? { kind: 'preorder', id: preorderId } : activeId ? { kind: 'open', id: activeId } : null
+  const active = selection?.kind === 'open' ? (tickets.find((t) => t.id === activeId) ?? null) : null
 
   const [notice, setNotice] = useState<Notice>(null)
   const [paying, setPaying] = useState(false)
   const [lastSale, setLastSale] = useState<LastSale>(null)
   const [creatingCustomer, setCreatingCustomer] = useState<string | null>(null)
+  const [comboFor, setComboFor] = useState<CachedProduct | null>(null)
+  const [cancelling, setCancelling] = useState(false)
   const productRef = useRef<HTMLInputElement>(null)
+
+  const productsById = useMemo(() => {
+    const byId: Record<string, CachedProduct> = {}
+    for (const p of Object.values(products)) byId[p.id] = p
+    return byId
+  }, [products])
 
   const focusProduct = useCallback(() => setTimeout(() => productRef.current?.focus(), 0), [])
 
-  // Al entrar: inventario y clientes frescos si hay red (si no, se usan las copias locales).
+  const loadPreorders = useCallback(() => {
+    listPreorders()
+      .then(setPreorders)
+      .catch(() => setPreorders((p) => p ?? []))
+  }, [])
+
+  // Al entrar: ningún ticket abierto (se elige de la lista), tickets
+  // compartidos al día, e inventario y clientes frescos si hay red.
   useEffect(() => {
+    if (!searchParams.get('preventa')) posStore.select(null)
+    posStore.start()
+    void posStore.refresh()
+    loadPreorders()
     if (!online) return
     void inventoryStore.refreshProducts()
     posStore.loadCustomers().catch(() => undefined)
@@ -49,14 +97,32 @@ export function MostradorPage() {
   // Depende de los tickets: lo apartado cambia al agregar o cobrar.
   const available = useCallback((p: CachedProduct) => posStore.available(p), [tickets])
 
+  function selectOpen(id: string) {
+    setPreorderId(null)
+    if (searchParams.has('preventa')) setSearchParams({}, { replace: true })
+    posStore.select(id)
+    setLastSale(null)
+  }
+
+  function selectPreorder(id: string) {
+    posStore.select(null)
+    setPreorderId(id)
+    setLastSale(null)
+  }
+
   function createTicket() {
+    setPreorderId(null)
     posStore.createTicket()
     setLastSale(null)
   }
 
-  function addProduct(p: CachedProduct) {
+  function addProduct(p: CachedProduct, choice: CachedProduct | null = null) {
     if (!active) return
-    const res = posStore.addProduct(active.id, p)
+    if (!choice && (combos[p.id]?.length ?? 0) > 0) {
+      setComboFor(p)
+      return
+    }
+    const res = posStore.addProduct(active.id, p, choice)
     if (res.ok) {
       sounds.success()
       setNotice(null)
@@ -79,20 +145,42 @@ export function MostradorPage() {
     return true
   }
 
+  // Preventa: el ticket lleva productos de preventa. El primer abono cubre
+  // los productos normales completos más el anticipo de los de preventa.
+  const preorderInfo = useMemo(() => {
+    if (!active) return null
+    let has = false
+    let minimum = 0
+    for (const l of active.lines) {
+      const p = productsById[l.productId]
+      if (p?.is_preorder) {
+        has = true
+        minimum += lineDeposit(l, p)
+      } else {
+        minimum += l.quantity * l.unitPrice
+      }
+    }
+    return has ? { minimum: Math.round(minimum * 100) / 100 } : null
+  }, [active, productsById])
+
   async function pay(payments: PaymentPart[], change: number | null) {
     if (!active || paying || active.lines.length === 0) return
     setPaying(true)
     setNotice(null)
-    const out = await inventoryStore.paySale({
+    const out = await inventoryStore.checkout({
       ticketId: active.id,
-      // Solo para mostrarla mientras esté en la cola; el folio lo pone el servidor.
-      name: ticketLabel(active),
-      customerId: active.customer?.id ?? null,
-      customerName: active.customer?.name ?? null,
-      paymentMethod: payments.length > 1 ? 'mixed' : payments[0].method,
+      items: active.lines.map((l) => ({
+        productId: l.productId,
+        name: productsById[l.productId]?.name ?? 'Producto',
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        choiceProductId: l.choiceProductId,
+      })),
       payments,
+      customerId: active.customer?.id ?? null,
+      customerName: active.customer ? null : active.freeName,
+      notes: active.notes || null,
       openedAt: active.openedAt,
-      items: active.lines.map((l) => ({ barcode: l.barcode, name: l.name, quantity: l.quantity, unitPrice: l.unitPrice })),
     })
     setPaying(false)
     if (out.type === 'error') {
@@ -101,8 +189,16 @@ export function MostradorPage() {
       return
     }
     sounds.success()
-    setLastSale({ name: out.ticketName, total: out.total, payments, change, pending: out.pending })
-    posStore.closeTicket(active.id)
+    const preorder = out.ticket.status === 'preorder'
+    setLastSale({
+      title: preorder ? `Preventa registrada · #${ticketFolio(out.ticket.name)}` : `Venta registrada · #${ticketFolio(out.ticket.name)}`,
+      total: payments.reduce((s, p) => s + p.amount, 0),
+      payments,
+      change,
+      balance: preorder ? out.balance : null,
+    })
+    posStore.forget(active.id)
+    if (preorder) loadPreorders()
   }
 
   return (
@@ -112,29 +208,41 @@ export function MostradorPage() {
       {!online && (
         <p className="notice bg-warning-bg text-warning-fg">
           <Icon name="wifi-off" className="mt-0.5" />
-          Sin conexión: puedes abrir tickets y agregar productos, pero para cobrar se necesita internet.
+          Sin conexión: puedes abrir tickets y agregar productos (se comparten al volver el internet), pero para cobrar se necesita
+          internet.
+        </p>
+      )}
+
+      {syncError && (
+        <p className="notice bg-warning-bg text-warning-fg" role="alert">
+          <Icon name="alert" className="mt-0.5" />
+          <span className="mr-auto">Un cambio en los tickets abiertos no se pudo guardar: {syncError}</span>
+          <button type="button" onClick={() => posStore.dismissSyncError()} className="btn btn-ghost btn-sm">
+            Entendido
+          </button>
         </p>
       )}
 
       {lastSale && (
-        <div
-          className={`flex flex-wrap items-center gap-4 p-5 ${lastSale.pending ? 'rounded-lg border-2 border-warning-solid bg-warning-bg text-warning-fg' : 'kn-block kn-mint kn-deep'}`}
-          aria-live="polite"
-        >
+        <div className="kn-block kn-mint kn-deep flex flex-wrap items-center gap-4 p-5" aria-live="polite">
           <Icon name="check" size={32} />
           <div className="mr-auto">
-            <p className="text-title">
-              {lastSale.pending
-                ? 'Venta guardada sin conexión (el folio se asigna al sincronizar)'
-                : `Venta registrada · #${ticketFolio(lastSale.name)}`}
-            </p>
-            <p className="text-heading">
-              {formatMoney(lastSale.total)} con{' '}
-              {lastSale.payments.length === 1
-                ? PAYMENT_LABELS[lastSale.payments[0].method].toLowerCase()
-                : lastSale.payments.map((p) => `${PAYMENT_LABELS[p.method].toLowerCase()} ${formatMoney(p.amount)}`).join(' + ')}
-            </p>
+            <p className="text-title">{lastSale.title}</p>
+            {lastSale.payments.length > 0 && (
+              <p className="text-heading">
+                {formatMoney(lastSale.total)} con{' '}
+                {lastSale.payments.length === 1
+                  ? PAYMENT_LABELS[lastSale.payments[0].method].toLowerCase()
+                  : lastSale.payments.map((p) => `${PAYMENT_LABELS[p.method].toLowerCase()} ${formatMoney(p.amount)}`).join(' + ')}
+              </p>
+            )}
           </div>
+          {lastSale.balance !== null && (
+            <div className="text-right">
+              <p className="stat-label">Saldo pendiente</p>
+              <p className="stat-value">{formatMoney(lastSale.balance)}</p>
+            </div>
+          )}
           {lastSale.change !== null && lastSale.change > 0 && (
             <div className="text-right">
               <p className="stat-label">Cambio</p>
@@ -144,52 +252,87 @@ export function MostradorPage() {
         </div>
       )}
 
-      <div className="grid flex-1 items-start gap-4 lg:grid-cols-[260px_1fr]">
-        {/* Tickets abiertos */}
-        <aside className="card flex flex-col">
-          <h2 className="border-b border-line px-4 py-3 text-label uppercase tracking-wider text-ink-muted">Tickets abiertos</h2>
-          {tickets.length === 0 && <p className="px-4 py-6 text-center text-ink-subtle">No hay tickets abiertos.</p>}
-          <ul className="divide-y divide-line">
-            {tickets.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    posStore.select(t.id)
-                    setLastSale(null)
-                  }}
-                  aria-current={t.id === activeId}
-                  className={`flex w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left ${t.id === activeId ? 'bg-brand text-on-brand' : 'hover:bg-subtle'}`}
-                >
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span
-                      className={`truncate text-label ${t.id === activeId ? '' : t.customer ? 'text-ink' : 'text-ink-muted'}`}
+      <div className="grid flex-1 items-start gap-4 lg:grid-cols-[280px_1fr]">
+        <aside className="flex flex-col gap-4">
+          {/* Tickets abiertos (de todos los dispositivos) */}
+          <div className="card flex flex-col">
+            <h2 className="flex items-center justify-between border-b border-line px-4 py-3 text-label uppercase tracking-wider text-ink-muted">
+              Tickets abiertos
+              {pending > 0 && (
+                <span className="badge badge-warning normal-case tracking-normal" title="Cambios que aún no llegan a los demás dispositivos">
+                  {pending} sin enviar
+                </span>
+              )}
+            </h2>
+            {tickets.length === 0 && <p className="px-4 py-6 text-center text-ink-subtle">No hay tickets abiertos.</p>}
+            <ul className="divide-y divide-line">
+              {tickets.map((t) => (
+                <li key={t.id}>
+                  <TicketButton ticket={t} current={selection?.kind === 'open' && t.id === activeId} onClick={() => selectOpen(t.id)} />
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-line p-3">
+              <button type="button" onClick={createTicket} className="btn btn-primary btn-block">
+                <Icon name="plus" />
+                Nuevo ticket
+              </button>
+            </div>
+          </div>
+
+          {/* Preventas sin entregar */}
+          <div className="card flex flex-col">
+            <h2 className="flex items-center justify-between border-b border-line px-4 py-3 text-label uppercase tracking-wider text-ink-muted">
+              Preventas
+              <button type="button" onClick={loadPreorders} className="icon-btn size-8" aria-label="Actualizar preventas">
+                <Icon name="refresh" />
+              </button>
+            </h2>
+            {preorders === null && <p className="px-4 py-4 text-center text-ink-subtle">Cargando…</p>}
+            {preorders?.length === 0 && <p className="px-4 py-4 text-center text-ink-subtle">No hay preventas pendientes.</p>}
+            <ul className="divide-y divide-line">
+              {preorders?.map((s) => {
+                const current = selection?.kind === 'preorder' && selection.id === s.id
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => selectPreorder(s.id)}
+                      aria-current={current}
+                      className={`flex w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left ${current ? 'bg-brand text-on-brand' : 'hover:bg-subtle'}`}
                     >
-                      {ticketLabel(t)}
-                    </span>
-                    <span className={`shrink-0 text-caption ${t.id === activeId ? '' : 'text-ink-subtle'}`}>{ticketOpenedTime(t)}</span>
-                  </span>
-                  <span className={`flex justify-between text-caption ${t.id === activeId ? '' : 'text-ink-subtle'}`}>
-                    <span>{formatInt(ticketPieces(t))} pzas</span>
-                    <span className="tabular-nums">{formatMoney(ticketTotal(t))}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-line p-3">
-            <button type="button" onClick={createTicket} className="btn btn-primary btn-block">
-              <Icon name="plus" />
-              Nuevo ticket
-            </button>
+                      <span className="truncate text-label">{saleTitle(s)}</span>
+                      <span className={`flex justify-between text-caption ${current ? '' : 'text-ink-subtle'}`}>
+                        <span>{formatDateTime(s.created_at)}</span>
+                        <span className="tabular-nums">{s.balance > 0 ? `Debe ${formatMoney(s.balance)}` : 'Saldada'}</span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
           </div>
         </aside>
 
-        {/* Ticket activo */}
-        {!active ? (
+        {selection?.kind === 'preorder' ? (
+          <PreorderPanel
+            key={selection.id}
+            ticketId={selection.id}
+            productsById={productsById}
+            online={online}
+            onChanged={(message, closed) => {
+              loadPreorders()
+              if (message) setLastSale({ title: message, total: 0, payments: [], change: null, balance: null })
+              if (closed) {
+                setPreorderId(null)
+                setSearchParams({}, { replace: true })
+              }
+            }}
+          />
+        ) : !active ? (
           <section className="card flex min-h-80 flex-col items-center justify-center gap-3 p-8 text-center">
             <Icon name="receipt" size={40} className="text-ink-subtle" />
-            <p className="text-title text-ink">Abre un ticket para empezar a vender</p>
+            <p className="text-title text-ink">{tickets.length > 0 ? 'Elige un ticket abierto o crea uno nuevo' : 'Abre un ticket para empezar a vender'}</p>
             <p className="text-ink-subtle">Al cobrarlo recibe su folio (1, 2, 3…).</p>
             <button type="button" onClick={createTicket} className="btn btn-primary btn-lg mt-3">
               <Icon name="plus" size={20} />
@@ -199,16 +342,22 @@ export function MostradorPage() {
         ) : (
           <section className="grid items-start gap-4 2xl:grid-cols-[1fr_320px]">
             <div className="card flex min-w-0 flex-col gap-4 p-5">
-              <TicketHeader ticket={active} onRemove={() => posStore.removeTicket(active.id)} />
+              <TicketHeader
+                ticket={active}
+                online={online}
+                onRemove={() => posStore.removeTicket(active.id)}
+                onCancel={() => setCancelling(true)}
+              />
 
               <div>
                 <span className="field-label">Cliente</span>
-                {active.customer ? (
+                {active.customer || active.freeName ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex h-control-sm items-center gap-2 rounded-md border-2 border-jade bg-brand-soft px-3 text-label text-brand-ink">
-                      <Icon name="users" />
-                      {active.customer.name}
+                      <Icon name={active.customer ? 'users' : 'receipt'} />
+                      {active.customer?.name ?? active.freeName}
                     </span>
+                    {!active.customer && <span className="text-caption text-ink-subtle">Solo nombre (sin perfil)</span>}
                     <button type="button" onClick={() => posStore.setCustomer(active.id, null)} className="btn btn-ghost btn-sm">
                       Quitar
                     </button>
@@ -217,8 +366,13 @@ export function MostradorPage() {
                   <CustomerPicker
                     customers={customers}
                     canCreate={online}
+                    placeholder="Cliente (nombre, apodo, teléfono o código) o escribe un nombre…"
                     onPick={(c) => {
                       posStore.setCustomer(active.id, { id: c.id, name: c.name })
+                      focusProduct()
+                    }}
+                    onUseName={(name) => {
+                      posStore.setFreeName(active.id, name)
                       focusProduct()
                     }}
                     onCreate={(name) => setCreatingCustomer(name)}
@@ -226,7 +380,22 @@ export function MostradorPage() {
                 )}
               </div>
 
-              <ProductPicker inputRef={productRef} products={products} available={available} onPick={addProduct} onOtherCode={pickCustomerByCode} />
+              <ProductPicker
+                inputRef={productRef}
+                products={products}
+                available={available}
+                onPick={(p) => addProduct(p)}
+                onOtherCode={pickCustomerByCode}
+                availableText={(p, n) =>
+                  p.is_preorder
+                    ? `Preventa · ${depositLabel(p)}`
+                    : (combos[p.id]?.length ?? 0) > 0
+                      ? 'Combo · elige refresco'
+                      : n === Infinity
+                        ? 'Sin inventario'
+                        : `Disponibles: ${formatInt(n)}`
+                }
+              />
 
               {notice && (
                 <p className={`notice ${notice.kind === 'error' ? 'bg-danger-bg text-danger-fg' : 'bg-info-bg text-info-fg'}`} role="alert">
@@ -235,18 +404,32 @@ export function MostradorPage() {
                 </p>
               )}
 
-              <TicketLines ticket={active} products={products} onChanged={focusProduct} />
+              <TicketLines ticket={active} productsById={productsById} onChanged={focusProduct} />
+
+              <TicketNotes ticket={active} />
             </div>
 
-            {/* Cobro: se reinicia al cambiar de ticket */}
+            {/* Cobro: se reinicia al cambiar de ticket (o al volverse preventa) */}
             <PaymentPanel
-              key={active.id}
+              key={`${active.id}-${preorderInfo ? 'pre' : 'sale'}`}
               total={ticketTotal(active)}
               pieces={ticketPieces(active)}
               hasLines={active.lines.length > 0}
               customer={active.customer}
               online={online}
               paying={paying}
+              allowCredit={!preorderInfo || settings.preorderCreditPayments}
+              partial={
+                preorderInfo
+                  ? {
+                      min: preorderInfo.minimum,
+                      max: ticketTotal(active),
+                      initial: preorderInfo.minimum,
+                      label: 'Primer abono (mínimo: anticipo de preventa + productos normales)',
+                    }
+                  : undefined
+              }
+              actionLabel={preorderInfo ? (amount) => `Registrar preventa · ${formatMoney(amount)}` : undefined}
               onPay={(payments, change) => void pay(payments, change)}
             />
           </section>
@@ -267,11 +450,78 @@ export function MostradorPage() {
           }}
         />
       )}
+
+      {comboFor && active && (
+        <ComboChoiceModal
+          combo={comboFor}
+          options={(combos[comboFor.id] ?? []).map((id) => productsById[id]).filter((p): p is CachedProduct => !!p)}
+          onClose={() => {
+            setComboFor(null)
+            focusProduct()
+          }}
+          onPick={(choice) => {
+            const combo = comboFor
+            setComboFor(null)
+            addProduct(combo, choice)
+          }}
+        />
+      )}
+
+      {cancelling && active && (
+        <CancelTicketModal
+          title="Cancelar ticket"
+          description="El ticket se quita de los abiertos en todos los dispositivos. Como aún no se cobraba, no se toca el inventario. Queda registrado quién lo canceló y cuándo."
+          onClose={() => setCancelling(false)}
+          onConfirm={async (reason) => {
+            const res = await posStore.cancelTicket(active.id, reason)
+            if (!res.ok) return res.message
+            setCancelling(false)
+            setNotice(null)
+            return null
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function TicketHeader({ ticket, onRemove }: { ticket: OpenTicket; onRemove: () => void }) {
+function depositLabel(p: CachedProduct) {
+  const v = p.preorder_deposit_value ?? 0
+  return p.preorder_deposit_type === 'amount' ? `anticipo ${formatMoney(v)} por pieza` : `anticipo ${v}%`
+}
+
+function TicketButton({ ticket: t, current, onClick }: { ticket: OpenTicket; current: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={current}
+      className={`flex w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left ${current ? 'bg-brand text-on-brand' : 'hover:bg-subtle'}`}
+    >
+      <span className="flex items-baseline justify-between gap-2">
+        <span className={`truncate text-label ${current ? '' : t.customer || t.freeName ? 'text-ink' : 'text-ink-muted'}`}>{ticketLabel(t)}</span>
+        <span className={`shrink-0 text-caption ${current ? '' : 'text-ink-subtle'}`}>{ticketOpenedTime(t)}</span>
+      </span>
+      <span className={`flex justify-between text-caption ${current ? '' : 'text-ink-subtle'}`}>
+        <span>{formatInt(ticketPieces(t))} pzas</span>
+        <span className="tabular-nums">{formatMoney(ticketTotal(t))}</span>
+      </span>
+      {t.notes && <span className={`truncate text-caption italic ${current ? '' : 'text-ink-muted'}`}>{t.notes}</span>}
+    </button>
+  )
+}
+
+function TicketHeader({
+  ticket,
+  online,
+  onRemove,
+  onCancel,
+}: {
+  ticket: OpenTicket
+  online: boolean
+  onRemove: () => void
+  onCancel: () => void
+}) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="mr-auto min-w-0">
@@ -281,22 +531,126 @@ function TicketHeader({ ticket, onRemove }: { ticket: OpenTicket; onRemove: () =
           asigna al cobrar
         </p>
       </div>
-      {ticket.lines.length === 0 && (
+      {ticket.lines.length === 0 ? (
         <button type="button" onClick={onRemove} className="btn btn-danger btn-sm">
           Eliminar ticket
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={!online}
+          title={online ? undefined : 'Cancelar necesita conexión'}
+          className="btn btn-danger btn-sm"
+        >
+          Cancelar ticket
         </button>
       )}
     </div>
   )
 }
 
+/** Notas del ticket: se guardan al salir del campo y se ven al retomarlo y en el historial. */
+function TicketNotes({ ticket }: { ticket: OpenTicket }) {
+  const [text, setText] = useState(ticket.notes)
+  const [editing, setEditing] = useState(false)
+  // Lo que llega de otro dispositivo se muestra mientras no se esté escribiendo.
+  useEffect(() => {
+    if (!editing) setText(ticket.notes)
+  }, [ticket.notes, editing])
+
+  return (
+    <div>
+      <label className="field-label" htmlFor="pos-notes">
+        Notas
+      </label>
+      <textarea
+        id="pos-notes"
+        value={text}
+        onFocus={() => setEditing(true)}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          setEditing(false)
+          posStore.setNotes(ticket.id, text.trim())
+        }}
+        rows={2}
+        placeholder="Comentarios del ticket (opcional)"
+        className="field h-auto py-2"
+      />
+    </div>
+  )
+}
+
+/** Elegir el refresco (u otra opción) que va con el combo. */
+function ComboChoiceModal({
+  combo,
+  options,
+  onPick,
+  onClose,
+}: {
+  combo: CachedProduct
+  options: CachedProduct[]
+  onPick: (p: CachedProduct) => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="combo-title"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
+    >
+      <div className="max-h-full w-full max-w-lg overflow-auto dialog">
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
+          <div>
+            <h2 id="combo-title" className="text-title">
+              {combo.name}
+            </h2>
+            <p className="mt-1 text-ink-muted">Elige el refresco incluido (no cambia el precio).</p>
+          </div>
+          <button type="button" onClick={onClose} className="btn btn-ghost">
+            <Icon name="x" />
+            Cancelar
+          </button>
+        </div>
+        <ul className="divide-y divide-line">
+          {options.map((p, i) => {
+            const avail = posStore.available(p)
+            return (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  autoFocus={i === 0}
+                  onClick={() => onPick(p)}
+                  disabled={avail <= 0}
+                  className="flex w-full cursor-pointer items-center gap-3 px-6 py-3 text-left hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ProductImage path={p.image_url} alt="" className="size-10 shrink-0 rounded-xs" />
+                  <span className="min-w-0 flex-1 truncate text-label">{p.name}</span>
+                  <span className={`text-caption ${avail > 0 ? 'text-ink-muted' : 'text-danger-fg'}`}>
+                    {avail === Infinity ? 'Sin inventario' : avail > 0 ? `Disponibles: ${formatInt(avail)}` : 'Sin stock'}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+          {options.length === 0 && <li className="px-6 py-6 text-center text-ink-subtle">Este combo no tiene opciones disponibles.</li>}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 function TicketLines({
   ticket,
-  products,
+  productsById,
   onChanged,
 }: {
   ticket: OpenTicket
-  products: Record<string, CachedProduct>
+  productsById: Record<string, CachedProduct>
   onChanged: () => void
 }) {
   if (ticket.lines.length === 0) {
@@ -319,7 +673,14 @@ function TicketLines({
         </thead>
         <tbody className="max-md:block">
           {ticket.lines.map((l) => (
-            <LineRow key={l.barcode} ticket={ticket} line={l} product={products[l.barcode]} onChanged={onChanged} />
+            <LineRow
+              key={l.id}
+              ticket={ticket}
+              line={l}
+              product={productsById[l.productId]}
+              choice={l.choiceProductId ? productsById[l.choiceProductId] : undefined}
+              onChanged={onChanged}
+            />
           ))}
         </tbody>
       </table>
@@ -331,22 +692,25 @@ function LineRow({
   ticket,
   line,
   product,
+  choice,
   onChanged,
 }: {
   ticket: OpenTicket
   line: PosLine
   product: CachedProduct | undefined
+  choice: CachedProduct | undefined
   onChanged: () => void
 }) {
   const [text, setText] = useState(String(line.quantity))
   useEffect(() => setText(String(line.quantity)), [line.quantity])
-  const max = product ? posStore.maxFor(ticket.id, product) : line.quantity
+  const room = posStore.lineRoom(ticket.id, product, choice)
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const name = product?.name ?? 'Producto'
 
   function commit(value: number) {
     if (!product) return
-    const q = posStore.setQuantity(ticket.id, product, Number.isFinite(value) ? value : line.quantity)
+    const q = posStore.setQuantity(ticket.id, line.id, Number.isFinite(value) ? value : line.quantity, product, choice)
     setText(String(q))
   }
 
@@ -354,10 +718,23 @@ function LineRow({
     <tr className="border-b border-line max-md:grid max-md:grid-cols-[1fr_auto_auto] max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
       <td className="py-3 pr-3 max-md:col-span-2 max-md:p-0">
         <div className="flex items-center gap-3">
-          <ProductImage path={line.imagePath} alt="" className="size-10 shrink-0 rounded-xs" />
+          <ProductImage path={product?.image_url ?? null} alt="" className="size-10 shrink-0 rounded-xs" />
           <div className="min-w-40">
-            <p className="font-semibold text-ink">{line.name}</p>
-            <p className="font-mono text-caption text-ink-subtle">{line.barcode}</p>
+            <p className="font-semibold text-ink">
+              {name}
+              {product?.is_preorder && <span className="ml-2 badge badge-warning align-middle">Preventa</span>}
+            </p>
+            {line.choiceProductId && (
+              <p className="text-caption text-ink-muted">
+                Refresco: <span className="font-medium text-ink">{choice?.name ?? 'ya no existe'}</span>
+              </p>
+            )}
+            {product?.is_preorder && (
+              <p className="text-caption text-ink-muted">
+                Anticipo mínimo {formatMoney(lineDeposit(line, product))} · {formatInt(Math.max(0, freeQuantity(product)))} libres en tienda
+              </p>
+            )}
+            {product && <p className="font-mono text-caption text-ink-subtle">{product.barcode}</p>}
             {isAdmin ? (
               <div className="mt-1 md:hidden">
                 <LinePrice ticket={ticket} line={line} product={product} onChanged={onChanged} />
@@ -376,7 +753,7 @@ function LineRow({
         <div className="mx-auto flex w-fit max-md:mx-0 items-center gap-1">
           <button
             type="button"
-            aria-label={`Quitar una pieza de ${line.name}`}
+            aria-label={`Quitar una pieza de ${name}`}
             disabled={line.quantity <= 1}
             onClick={() => commit(line.quantity - 1)}
             className="icon-btn"
@@ -395,14 +772,14 @@ function LineRow({
               }
             }}
             inputMode="numeric"
-            aria-label={`Cantidad de ${line.name}`}
+            aria-label={`Cantidad de ${name}`}
             className="field h-control-sm w-14 px-1 text-center font-semibold tabular-nums"
           />
           <button
             type="button"
-            aria-label={`Agregar una pieza de ${line.name}`}
-            disabled={!product || line.quantity >= max}
-            title={product && line.quantity >= max ? 'No hay más stock disponible' : undefined}
+            aria-label={`Agregar una pieza de ${name}`}
+            disabled={!product || room <= 0}
+            title={product && room <= 0 ? 'No hay más stock disponible' : undefined}
             onClick={() => commit(line.quantity + 1)}
             className="icon-btn"
           >
@@ -415,10 +792,10 @@ function LineRow({
         <button
           type="button"
           onClick={() => {
-            posStore.removeLine(ticket.id, line.barcode)
+            posStore.removeLine(ticket.id, line.id)
             onChanged()
           }}
-          aria-label={`Quitar ${line.name} del ticket`}
+          aria-label={`Quitar ${name} del ticket`}
           className="grid size-11 cursor-pointer place-items-center rounded-md text-ink-muted hover:bg-danger-bg hover:text-danger-fg"
         >
           <Icon name="x" />
@@ -450,7 +827,7 @@ function LinePrice({
   function commit() {
     const price = parseMoney(text)
     if (price === null || Number.isNaN(price)) return setText(String(line.unitPrice))
-    posStore.setPrice(ticket.id, line.barcode, price)
+    posStore.setPrice(ticket.id, line.id, price)
     setText(String(price))
   }
 
@@ -470,7 +847,7 @@ function LinePrice({
             }
           }}
           inputMode="decimal"
-          aria-label={`Precio de ${line.name} en este ticket`}
+          aria-label={`Precio de ${product?.name ?? 'producto'} en este ticket`}
           title="Precio solo para este ticket"
           className={`field h-control-sm w-24 px-2 text-right tabular-nums ${changed ? 'font-semibold text-ink' : ''}`}
         />
@@ -479,7 +856,7 @@ function LinePrice({
         <button
           type="button"
           onClick={() => {
-            posStore.setPrice(ticket.id, line.barcode, product.price)
+            posStore.setPrice(ticket.id, line.id, product.price)
             onChanged()
           }}
           className="cursor-pointer text-caption text-ink-muted underline hover:text-ink"

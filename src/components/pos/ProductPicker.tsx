@@ -140,7 +140,7 @@ export function ProductPicker({
                     {showPrice && <p className="text-label tabular-nums">{formatMoney(p.price)}</p>}
                     {avail > 0 ? (
                       <p className="text-caption text-ink-muted">
-                        {avail === Infinity ? 'Sin inventario' : availableText ? availableText(p, avail) : `Disponibles: ${formatInt(avail)}`}
+                        {availableText ? availableText(p, avail) : avail === Infinity ? 'Sin inventario' : `Disponibles: ${formatInt(avail)}`}
                       </p>
                     ) : (
                       <p className="text-caption text-danger-fg">

@@ -5,6 +5,7 @@ import { LocationSelect } from '../components/LocationSelect'
 import { LotPicker } from '../components/LotPicker'
 import { MoreMenu } from '../components/MoreMenu'
 import { ProductImage } from '../components/ProductImage'
+import { ProductPicker } from '../components/pos/ProductPicker'
 import { SupplierSelect } from '../components/SupplierSelect'
 import { useKeepFocus } from '../components/useKeepFocus'
 import { isInternalCode, normalizeBarcode } from '../lib/barcode'
@@ -14,7 +15,7 @@ import { createBurstDetector } from '../lib/scannerBurst'
 import { exportName } from '../lib/settings'
 import { sounds } from '../lib/sounds'
 import { LOCATION_LABELS, type LotPick, type ScanMode, type StockLocation } from '../lib/types'
-import { inventoryStore, qtyAt, type CachedProduct, type ScanContext } from '../store/inventoryStore'
+import { inventoryStore, qtyAt, tracksStock, type CachedProduct, type ScanContext } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 
 type Feedback =
@@ -64,6 +65,7 @@ export function ScanPage() {
   const [lotChoice, setLotChoice] = useState<{ product: CachedProduct; remove: number; quantity: number } | null>(null)
   const [exporting, setExporting] = useState(false)
   const scanRef = useRef<HTMLInputElement>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
   const qtyRef = useRef<HTMLInputElement>(null)
   const qtyOnFocus = useRef(qtyText)
   const qtyIdle = useRef<number | undefined>(undefined)
@@ -383,6 +385,28 @@ export function ScanPage() {
                   </span>
                 </p>
               )}
+            </div>
+
+            {/* Sin código a la mano: buscar por nombre y aplicar la misma cantidad y modo. */}
+            <div data-keep-focus className="mt-4 border-t border-line pt-4">
+              <ProductPicker
+                id="scan-name"
+                label={`¿No tienes el código? Busca por nombre: ${mode === 'add' ? 'se suman' : 'se fija el total en'} ${qtyValid ? formatInt(quantity) : '…'} pza(s)`}
+                inputRef={nameRef}
+                products={products}
+                showPrice={false}
+                available={(p) => (tracksStock(p) ? 1 : 0)}
+                availableText={(p) => `Tienda ${formatInt(p.quantity)} · Bodega ${formatInt(p.warehouse_quantity ?? 0)}`}
+                unavailableText={() => 'Sin inventario (no lleva stock)'}
+                onPick={(p) => {
+                  if (!tracksStock(p)) {
+                    sounds.error()
+                    setFeedback({ kind: 'error', title: `${p.name} no lleva inventario`, detail: 'Los productos sin control de inventario no reciben piezas.' })
+                    return
+                  }
+                  void processScan(p.barcode).then(focusScan)
+                }}
+              />
             </div>
           </form>
 

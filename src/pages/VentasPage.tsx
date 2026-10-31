@@ -3,7 +3,8 @@ import { FiltersButton } from '../components/FiltersButton'
 import { Icon } from '../components/Icon'
 import { SalesTable } from '../components/SalesTable'
 import { formatDateTime, formatInt, formatMoney } from '../lib/format'
-import { listSales, salesSummary, SALES_PAGE, type SalesFilter } from '../lib/sales'
+import { listPreorders, listSales, salesSummary, SALES_PAGE, type SalesFilter } from '../lib/sales'
+import { businessDate, useSettings } from '../lib/settings'
 import { isNetworkError } from '../lib/supabase'
 import { PAYMENT_LABELS, PAYMENT_METHODS, type SaleRow, type TicketPaymentMethod } from '../lib/types'
 import { inventoryStore } from '../store/inventoryStore'
@@ -11,16 +12,15 @@ import { useInventory } from '../store/useInventory'
 
 const FILTER_METHODS: TicketPaymentMethod[] = [...PAYMENT_METHODS, 'mixed']
 
-function today() {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+/** Día de operación actual (a las 3:00 a.m. todavía es el día anterior). */
+const today = () => businessDate()
 
 type Summary = Awaited<ReturnType<typeof salesSummary>>
 
 export function VentasPage() {
   const { queue, online } = useInventory()
+  const settings = useSettings()
+  const [preorders, setPreorders] = useState<SaleRow[]>([])
   const [filter, setFilter] = useState<SalesFilter>({ from: today(), to: today(), method: '' })
   const [rows, setRows] = useState<SaleRow[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -39,8 +39,13 @@ export function VentasPage() {
     setLoading(true)
     setError(null)
     try {
-      const [page, sum] = await Promise.all([listSales(f, offset), offset === 0 ? salesSummary(f) : Promise.resolve(null)])
+      const [page, sum, pre] = await Promise.all([
+        listSales(f, offset),
+        offset === 0 ? salesSummary(f) : Promise.resolve(null),
+        offset === 0 ? listPreorders() : Promise.resolve(null),
+      ])
       if (id !== requestId.current) return
+      if (pre) setPreorders(pre)
       setRows((prev) => (offset === 0 ? page : [...prev, ...page]))
       if (sum) setSummary(sum)
       setHasMore(page.length === SALES_PAGE)
@@ -62,6 +67,10 @@ export function VentasPage() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <h1 className="hidden text-title-lg uppercase md:block">Ventas</h1>
+      <p className="-mt-2 text-caption text-ink-subtle">
+        Cada día de operación termina a las {String(settings.dayCutoffHour).padStart(2, '0')}:00: lo vendido antes de esa hora cuenta para el día
+        anterior. Las preventas cuentan como venta el día que se entregan; sus abonos, el día que se reciben.
+      </p>
 
       <FiltersButton
         open={showFilters}
@@ -105,10 +114,10 @@ export function VentasPage() {
         <div className="hidden items-start gap-3 md:grid md:grid-cols-[auto_minmax(0,1fr)]">
           {/* StatBlock: el total del periodo es la cifra que destaca. */}
           <div className="kn-block kn-deep flex min-w-64 flex-col gap-1 px-5 pt-4 pb-5" role="group" aria-label="Total">
-            <span className="stat-label">Total</span>
+            <span className="stat-label">Ventas</span>
             <span className="stat-value">{formatMoney(summary.total)}</span>
             <span className="text-caption">
-              {formatInt(summary.count)} {summary.count === 1 ? 'venta' : 'ventas'}
+              {formatInt(summary.count)} {summary.count === 1 ? 'venta' : 'ventas'} · cobrado {formatMoney(summary.collected)}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -159,7 +168,23 @@ export function VentasPage() {
         </p>
       )}
 
-      <SalesTable sales={rows} emptyText={loading ? 'Cargando ventas…' : 'No hay ventas con estos filtros.'} />
+      {preorders.length > 0 && (
+        <details className="card">
+          <summary className="cursor-pointer px-4 py-3 text-label">
+            Preventas sin entregar ({formatInt(preorders.length)}) · saldo pendiente{' '}
+            {formatMoney(preorders.reduce((sum, p) => sum + p.balance, 0))}
+          </summary>
+          <div className="border-t border-line">
+            <SalesTable sales={preorders} emptyText="" onChanged={() => void load(filter, 0)} />
+          </div>
+        </details>
+      )}
+
+      <SalesTable
+        sales={rows}
+        emptyText={loading ? 'Cargando ventas…' : 'No hay ventas con estos filtros.'}
+        onChanged={() => void load(filter, 0)}
+      />
 
       {hasMore && (
         <div className="flex items-center justify-between gap-4">

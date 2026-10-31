@@ -14,7 +14,7 @@ import {
   type CategoryNode,
 } from '../lib/categories'
 import { formatDateTime, formatInt } from '../lib/format'
-import { updateBusinessName, useSettings } from '../lib/settings'
+import { updateBusinessName, updateOperationSettings, useSettings } from '../lib/settings'
 import { isNetworkError } from '../lib/supabase'
 import { inventoryStore } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
@@ -73,6 +73,7 @@ export function ConfigPage() {
       <h1 className="hidden text-title-lg uppercase md:block">Configuración</h1>
 
       <BusinessCard />
+      <OperationCard />
 
       {saved && (
         <p className="notice bg-success-bg text-success-fg" role="status">
@@ -211,6 +212,85 @@ function BusinessCard() {
         Códigos internos: <span className="font-mono text-ink">{settings.codePrefix}-000001</span>. El prefijo se fija al
         dar de alta el negocio y ya no cambia (va impreso en las etiquetas).
       </p>
+      {msg && (
+        <p className={`notice ${msg.ok ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg'}`} role="status">
+          <Icon name={msg.ok ? 'check' : 'alert'} className="mt-0.5" />
+          {msg.text}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/** Día de operación (hora de corte) y preventas. */
+function OperationCard() {
+  const settings = useSettings()
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  async function save(patch: Parameters<typeof updateOperationSettings>[0], ok: string) {
+    setSaving(true)
+    setMsg(null)
+    try {
+      await updateOperationSettings(patch)
+      setMsg({ ok: true, text: ok })
+    } catch (err) {
+      setMsg({ ok: false, text: errorText(err) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const hour = (h: number) => `${String(h).padStart(2, '0')}:00`
+
+  return (
+    <section className="card flex flex-col gap-3 p-4">
+      <h2 className="text-title">Operación</h2>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="field-label" htmlFor="cfg-cutoff">
+            El día termina a las
+          </label>
+          <select
+            id="cfg-cutoff"
+            className="field cursor-pointer"
+            value={settings.dayCutoffHour}
+            disabled={saving}
+            onChange={(e) => void save({ dayCutoffHour: Number(e.target.value) }, `El día de operación ahora termina a las ${hour(Number(e.target.value))}.`)}
+          >
+            {Array.from({ length: 24 }, (_, h) => (
+              <option key={h} value={h}>
+                {hour(h)}
+                {h === 0 ? ' (medianoche)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="max-w-xl text-caption text-ink-muted">
+          {settings.dayCutoffHour === 0
+            ? 'El día termina a medianoche.'
+            : `Las ventas entre las 00:00 y las ${String(settings.dayCutoffHour - 1).padStart(2, '0')}:59 cuentan para el día anterior en ventas, cortes y filtros por fecha.`}{' '}
+          Zona horaria: {settings.timezone}.
+        </p>
+      </div>
+      <label className="flex cursor-pointer items-start gap-2">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={settings.preorderCreditPayments}
+          disabled={saving}
+          onChange={(e) =>
+            void save(
+              { preorderCreditPayments: e.target.checked },
+              e.target.checked ? 'Se aceptan créditos en abonos de preventa.' : 'Ya no se aceptan créditos en abonos de preventa.',
+            )
+          }
+        />
+        <span>
+          <span className="text-label text-ink">Aceptar créditos de tienda en abonos de preventa</span>
+          <span className="block text-caption text-ink-muted">Si lo apagas, los anticipos y abonos solo se pagan con efectivo, tarjeta o transferencia.</span>
+        </span>
+      </label>
       {msg && (
         <p className={`notice ${msg.ok ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg'}`} role="status">
           <Icon name={msg.ok ? 'check' : 'alert'} className="mt-0.5" />

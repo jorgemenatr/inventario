@@ -1,6 +1,6 @@
 import { uploadProductImage } from './images'
 import { supabase } from './supabase'
-import type { LotPick, MovementHistoryRow, MovementResult, Product, StockLocation } from './types'
+import type { LotPick, MovementHistoryRow, MovementResult, PreorderDepositType, Product, StockLocation } from './types'
 
 export interface ProductPatch {
   name: string
@@ -10,13 +10,22 @@ export interface ProductPatch {
   supplier: string | null
   description: string | null
   trackStock: boolean
+  isPreorder: boolean
+  preorderDepositType: PreorderDepositType
+  preorderDepositValue: number
 }
 
 // Sin cost: esa columna solo la lee un admin, con la vista product_costs.
 const COLUMNS =
-  'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, description, catalog_product_id, created_by, created_at, updated_at'
+  'id, barcode, name, category, supplier, supplier_id, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, ' +
+  'is_preorder, preorder_deposit_type, preorder_deposit_value, preorder_reserved, description, catalog_product_id, created_by, created_at, updated_at'
 
-const num = (p: Product): Product => ({ ...p, price: Number(p.price), cost: p.cost == null ? null : Number(p.cost) })
+const num = (p: Product): Product => ({
+  ...p,
+  price: Number(p.price),
+  cost: p.cost == null ? null : Number(p.cost),
+  preorder_deposit_value: Number(p.preorder_deposit_value ?? 0),
+})
 
 /** Último costo del producto (null si no tiene o si quien consulta no es admin). */
 async function getCost(id: string): Promise<number | null> {
@@ -32,7 +41,29 @@ export async function getProduct(id: string): Promise<Product | null> {
     getCost(id),
   ])
   if (error) throw error
-  return data ? num({ ...(data as Omit<Product, 'cost'>), cost }) : null
+  return data ? num({ ...(data as unknown as Omit<Product, 'cost'>), cost }) : null
+}
+
+/** Opciones (refrescos) que se eligen al vender un combo, en orden. */
+export async function getComboOptions(comboId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('product_combo_options')
+    .select('option_product_id')
+    .eq('combo_product_id', comboId)
+    .order('position', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => r.option_product_id as string)
+}
+
+/** Reemplaza las opciones de un combo (solo admin). */
+export async function setComboOptions(comboId: string, optionIds: string[]) {
+  const { error } = await supabase.from('product_combo_options').delete().eq('combo_product_id', comboId)
+  if (error) throw error
+  if (optionIds.length === 0) return
+  const { error: insertError } = await supabase
+    .from('product_combo_options')
+    .insert(optionIds.map((id, position) => ({ combo_product_id: comboId, option_product_id: id, position })))
+  if (insertError) throw insertError
 }
 
 /**
@@ -48,12 +79,15 @@ export async function updateProduct(id: string, patch: ProductPatch, image?: Blo
     supplier: patch.supplier?.trim() || null,
     description: patch.description?.trim() || null,
     track_stock: patch.trackStock,
+    is_preorder: patch.isPreorder,
+    preorder_deposit_type: patch.preorderDepositType,
+    preorder_deposit_value: patch.preorderDepositValue,
   }
   if (image === null) row.image_url = null
   else if (image) row.image_url = await uploadProductImage(image)
   const { data, error } = await supabase.from('products').update(row).eq('id', id).select(COLUMNS).single()
   if (error) throw error
-  return num({ ...(data as Omit<Product, 'cost'>), cost: await getCost(id) })
+  return num({ ...(data as unknown as Omit<Product, 'cost'>), cost: await getCost(id) })
 }
 
 const rpcProduct = (data: unknown) => num((data as MovementResult).product)

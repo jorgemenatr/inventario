@@ -1,5 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
-import { findByCode } from '../../lib/customers'
+import { customerSearchText, findByCode } from '../../lib/customers'
 import type { Customer } from '../../lib/types'
 import { GameTags } from '../GamesInput'
 import { Icon } from '../Icon'
@@ -11,6 +11,8 @@ interface Props {
   /** Sin onCreate no se muestra el botón "Nuevo cliente". */
   onCreate?: (name: string) => void
   canCreate?: boolean
+  /** Ofrece usar lo escrito solo como nombre en el ticket, sin crear ni ligar un perfil. */
+  onUseName?: (name: string) => void
   placeholder?: string
   /** Clientes que no se ofrecen (p. ej. los ya elegidos). */
   exclude?: string[]
@@ -20,7 +22,7 @@ interface Props {
 const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 /** Buscar y asignar un cliente existente al ticket (o darlo de alta ahí mismo). */
-export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, placeholder, exclude, autoFocus }: Props) {
+export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, onUseName, placeholder, exclude, autoFocus }: Props) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -30,7 +32,7 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, 
     return customers
       .filter((c) => {
         if (exclude?.includes(c.id)) return false
-        const text = normalize(`${c.name} ${c.phone ?? ''} ${c.email ?? ''} ${c.code ?? ''}`)
+        const text = normalize(customerSearchText(c))
         return words.every((w) => text.includes(w))
       })
       .slice(0, 8)
@@ -94,6 +96,7 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, 
                 >
                   <span className="text-label text-ink">
                     {c.name}
+                    {(c.nicknames ?? []).length > 0 && <span className="ml-2 text-caption text-ink-muted">“{c.nicknames.join('”, “')}”</span>}
                     {c.phone && <span className="ml-2 text-caption text-ink-subtle">{c.phone}</span>}
                   </span>
                   {c.games.length > 0 && <GameTags games={c.games} max={3} />}
@@ -101,6 +104,23 @@ export function CustomerPicker({ customers, onPick, onCreate, canCreate = true, 
               </li>
             ))}
             {results.length === 0 && <li className="px-3 py-2 text-ink-subtle">Ningún cliente coincide.</li>}
+            {onUseName && query.trim() && (
+              <li>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onUseName(query.trim())
+                    setQuery('')
+                    setOpen(false)
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-label text-brand-ink hover:bg-subtle"
+                >
+                  <Icon name="receipt" />
+                  Usar “{query.trim()}” solo como nombre (sin perfil de cliente)
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </div>

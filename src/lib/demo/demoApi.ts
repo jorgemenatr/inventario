@@ -75,6 +75,10 @@ const products: Product[] = Array.from({ length: 24 }, (_, i) => {
     image_url: photo ? `demo/${photo}.jpg` : null,
     is_internal_code: internal,
     track_stock: true,
+    // Una preventa (30 % de anticipo) para probar abonos.
+    is_preorder: i === 1,
+    preorder_deposit_type: 'percent',
+    preorder_deposit_value: i === 1 ? 30 : 0,
     description: null,
     catalog_product_id: null,
     created_by: ADMIN_ID,
@@ -93,6 +97,7 @@ const customers: Row[] = CUSTOMER_NAMES.map((name, i) => ({
   // Con correo y teléfono: tiene código de cliente.
   code: i % 2 === 0 && i % 3 ? String(10000001 + i) : null,
   games: GAMES[i],
+  nicknames: i === 1 ? ['Wicho'] : [],
   created_at: ago(5000 * (i + 1)),
   updated_at: ago(100),
 }))
@@ -114,6 +119,12 @@ const sales: Row[] = Array.from({ length: 14 }, (_, i) => ({
   note: null,
   opened_at: ago(i * 180 + 20),
   paid_at: ago(i * 180),
+  created_at: ago(i * 180),
+  number: 140 - i,
+  notes: i === 1 ? 'Pidió factura' : null,
+  customer_is_free_name: false,
+  paid_amount: 300 + i * 117,
+  balance: 0,
   ...by,
 }))
 
@@ -219,9 +230,23 @@ const tables: Record<string, Row[]> = {
     ...by,
   })),
   sales_history: sales,
+  open_tickets: [],
+  open_ticket_lines: [],
+  // El café (p6) es combo: se elige entre dos productos como "refresco".
+  product_combo_options: [
+    { combo_product_id: 'p6', option_product_id: 'p3', position: 0 },
+    { combo_product_id: 'p6', option_product_id: 'p4', position: 1 },
+  ],
   tickets: sales,
   sales_payments: sales.map((s) => ({ method: s.payment_method === 'mixed' ? 'cash' : s.payment_method, amount: s.total, paid_at: s.paid_at })),
-  ticket_payments: sales.map((s, i) => ({ id: `tp${i}`, ticket_id: s.id, method: s.payment_method === 'mixed' ? 'cash' : s.payment_method, amount: s.total })),
+  ticket_payments: sales.map((s, i) => ({
+    id: `tp${i}`,
+    ticket_id: s.id,
+    method: s.payment_method === 'mixed' ? 'cash' : s.payment_method,
+    amount: s.total,
+    paid_at: s.paid_at,
+    kind: 'payment',
+  })),
   ticket_items: sales.flatMap((s, t) =>
     products.slice(t % 10, (t % 10) + (s.item_count as number)).map((p, i) => ({
       id: `ti${t}-${i}`,
@@ -302,6 +327,88 @@ let nextFolio = 141
 const rpcs: Record<string, (args: Row) => unknown> = {
   catalog_status: () => ({ total: 0, updated_at: null, games: [] }),
   search_catalog: () => [],
+  checkout_ticket: (a) => {
+    const items = (a.p_items as { product_id: string; quantity: number; unit_price: number; choice_product_id: string | null }[]) ?? []
+    const payments = (a.p_payments as { method: string; amount: number }[]) ?? []
+    const touched: Product[] = []
+    let preorder = false
+    for (const it of items) {
+      for (const id of [it.product_id, it.choice_product_id]) {
+        const p = products.find((x) => x.id === id)
+        if (!p) continue
+        if (p.is_preorder) preorder = true
+        else if (p.track_stock) p.quantity = Math.max(0, p.quantity - it.quantity)
+        touched.push(p)
+      }
+    }
+    const total = items.reduce((s, it) => s + it.quantity * it.unit_price, 0)
+    const paid = payments.reduce((s, p) => s + p.amount, 0)
+    const ticket = {
+      id: a.p_ticket_id,
+      number: nextFolio,
+      name: String(nextFolio++),
+      status: preorder ? 'preorder' : 'paid',
+      customer_id: a.p_customer_id ?? null,
+      payment_method: payments.length > 1 ? 'mixed' : (payments[0]?.method ?? 'cash'),
+      item_count: items.reduce((s, it) => s + it.quantity, 0),
+      subtotal: total,
+      total,
+      paid_offline: false,
+      note: null,
+      notes: a.p_notes ?? null,
+      opened_at: a.p_opened_at ?? null,
+      paid_at: preorder ? null : new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    }
+    const customer = customers.find((c) => c.id === ticket.customer_id)
+    sales.unshift({
+      ...ticket,
+      customer_name: customer?.name ?? a.p_customer_name ?? null,
+      customer_is_free_name: !customer && !!a.p_customer_name,
+      paid_amount: paid,
+      balance: total - paid,
+      ...by,
+    })
+    for (const p of payments) {
+      tables.ticket_payments.push({ id: crypto.randomUUID(), ticket_id: ticket.id, method: p.method, amount: p.amount, paid_at: new Date().toISOString(), kind: 'payment' })
+    }
+    items.forEach((it, position) => {
+      const p = products.find((x) => x.id === it.product_id)
+      const c = products.find((x) => x.id === it.choice_product_id)
+      const id = crypto.randomUUID()
+      const row = { ticket_id: ticket.id, quantity: it.quantity, position }
+      tables.ticket_items.push({ ...row, id, product_id: p?.id, barcode: p?.barcode, product_name: p?.name, unit_price: it.unit_price, line_total: it.quantity * it.unit_price, preorder: !!p?.is_preorder, parent_item_id: null })
+      if (c) tables.ticket_items.push({ ...row, id: crypto.randomUUID(), product_id: c.id, barcode: c.barcode, product_name: c.name, unit_price: 0, line_total: 0, preorder: false, parent_item_id: id })
+    })
+    tables.open_tickets = tables.open_tickets.filter((t) => t.id !== a.p_ticket_id)
+    tables.open_ticket_lines = tables.open_ticket_lines.filter((l) => l.ticket_id !== a.p_ticket_id)
+    return { status: 'ok', ticket, products: touched, balance: total - paid }
+  },
+  add_ticket_payment: (a) => {
+    const sale = sales.find((x) => x.id === a.p_ticket_id)
+    if (!sale) return { status: 'ok', ticket: null, products: [], balance: 0 }
+    const payments = (a.p_payments as { method: string; amount: number }[]) ?? []
+    const paid = payments.reduce((s, p) => s + p.amount, 0)
+    for (const p of payments) {
+      tables.ticket_payments.push({ id: crypto.randomUUID(), ticket_id: sale.id, method: p.method, amount: p.amount, paid_at: new Date().toISOString(), kind: 'payment' })
+    }
+    sale.paid_amount = (sale.paid_amount as number) + paid
+    sale.balance = (sale.balance as number) - paid
+    if (a.p_deliver && (sale.balance as number) <= 0) {
+      sale.status = 'paid'
+      sale.paid_at = new Date().toISOString()
+    }
+    return { status: 'ok', ticket: sale, products: [], balance: sale.balance }
+  },
+  cancel_ticket: (a) => {
+    const sale = sales.find((x) => x.id === a.p_ticket_id)
+    if (sale) Object.assign(sale, { status: 'cancelled', cancelled_at: new Date().toISOString(), cancel_reason: a.p_reason ?? null, balance: 0 })
+    return { status: 'ok', ticket: sale, products: [] }
+  },
+  cancel_open_ticket: (a) => {
+    tables.open_tickets = tables.open_tickets.filter((t) => t.id !== a.p_ticket_id)
+    return { status: 'ok' }
+  },
   pay_ticket: (a) => {
     const items = (a.p_items as { barcode: string; quantity: number; unit_price: number }[]) ?? []
     const touched: Product[] = []
@@ -423,17 +530,30 @@ export async function demoFetch(input: RequestInfo | URL, init?: RequestInit): P
     const reply = (out: Row[]) => (single ? json(out[0] ?? null) : json(out))
 
     if (method === 'GET' || method === 'HEAD') {
-      return reply(ordered(rows.filter((r) => matches(r, url.searchParams)), url.searchParams.get('order')))
+      let out = ordered(rows.filter((r) => matches(r, url.searchParams)), url.searchParams.get('order'))
+      // Único embebido que usa la app: los renglones de los tickets abiertos.
+      if (name === 'open_tickets') {
+        out = out.map((t) => ({ ...t, open_ticket_lines: tables.open_ticket_lines.filter((l) => l.ticket_id === t.id) }))
+      }
+      return reply(out)
     }
     if (method === 'POST') {
       const body = (await req.json().catch(() => ({}))) as Row | Row[]
-      const added = (Array.isArray(body) ? body : [body]).map((r) => ({
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        ...r,
-      }))
-      rows.push(...added)
+      // Upsert por id (como on_conflict=id).
+      const merge = (req.headers.get('prefer') ?? '').includes('resolution=')
+      const ignore = (req.headers.get('prefer') ?? '').includes('ignore-duplicates')
+      const added: Row[] = []
+      for (const r of Array.isArray(body) ? body : [body]) {
+        const existing = merge && r.id ? rows.find((x) => x.id === r.id) : undefined
+        if (existing) {
+          if (!ignore) Object.assign(existing, r, { updated_at: new Date().toISOString() })
+          added.push(existing)
+          continue
+        }
+        const row = { id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: name === 'open_tickets' ? 'open' : undefined, ...r }
+        rows.push(row)
+        added.push(row)
+      }
       return reply(added)
     }
     if (method === 'PATCH') {

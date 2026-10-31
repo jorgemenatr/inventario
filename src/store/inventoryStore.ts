@@ -8,11 +8,14 @@ import type {
   MovementResult,
   PaymentPart,
   PayTicketResult,
+  PreorderDepositType,
   Product,
   ScanMode,
   ScanRpcResult,
   StockLocation,
+  Ticket,
   TicketPaymentMethod,
+  TicketRpcResult,
 } from '../lib/types'
 
 /*
@@ -46,6 +49,12 @@ export interface CachedProduct {
   is_internal_code: boolean
   /** false = sin control de inventario (comida, torneos). La caché anterior no lo trae: sí lleva. */
   track_stock?: boolean
+  /** Preventa: se vende con anticipo aunque no haya llegado (la caché anterior no lo trae). */
+  is_preorder?: boolean
+  preorder_deposit_type?: PreorderDepositType
+  preorder_deposit_value?: number
+  /** Piezas comprometidas en preventas sin entregar. */
+  preorder_reserved?: number
   /** Alta que aún está en la cola (no existe en el servidor todavía). */
   pending?: boolean
 }
@@ -84,6 +93,22 @@ export interface SaleInput {
   openedAt: string
   items: { barcode: string; name: string; quantity: number; unitPrice: number }[]
 }
+
+/** Ticket abierto que se cobra con checkout_ticket (venta o preventa). */
+export interface CheckoutInput {
+  ticketId: string
+  items: { productId: string; name: string; quantity: number; unitPrice: number; choiceProductId: string | null }[]
+  payments: PaymentPart[]
+  customerId: string | null
+  /** Nombre libre (sin perfil de cliente). */
+  customerName: string | null
+  notes: string | null
+  openedAt: string
+}
+
+export type CheckoutOutcome =
+  | { type: 'ok'; ticket: Ticket; balance: number }
+  | { type: 'error'; message: string }
 
 /** Con qué se registra cada escaneo de una sesión de conteo. */
 export interface ScanContext {
@@ -133,6 +158,8 @@ export interface FailedOp {
 
 export interface InventoryState {
   products: Record<string, CachedProduct>
+  /** Combo (id de producto) → opciones que se eligen al venderlo (ids de producto). */
+  combos: Record<string, string[]>
   productsLoaded: boolean
   queue: QueueItem[]
   failed: FailedOp[]
@@ -161,11 +188,6 @@ export type CreateOutcome =
     }
   | { type: 'error'; message: string }
 
-export type SaleOutcome =
-  /** ticketName: "Ticket N" (folio). pending siempre es false: ya no se cobra sin conexión. */
-  | { type: 'ok'; pending: boolean; total: number; ticketName: string | null }
-  | { type: 'error'; message: string }
-
 export type UndoOutcome =
   | { type: 'ok'; entry: RecentEntry; quantityAfter: number; pending: boolean }
   | { type: 'nothing' }
@@ -180,6 +202,7 @@ const withQtyAt = (p: CachedProduct, location: StockLocation, n: number): Cached
 
 const KEYS = {
   products: 'hachiko.products.v1',
+  combos: 'hachiko.combos.v1',
   queue: 'hachiko.queue.v1',
   failed: 'hachiko.failed.v1',
   recent: 'hachiko.recent.v1',
@@ -219,8 +242,15 @@ function toCached(p: Product): CachedProduct {
     image_url: p.image_url,
     is_internal_code: p.is_internal_code,
     track_stock: p.track_stock,
+    is_preorder: p.is_preorder,
+    preorder_deposit_type: p.preorder_deposit_type,
+    preorder_deposit_value: p.preorder_deposit_value == null ? undefined : Number(p.preorder_deposit_value),
+    preorder_reserved: p.preorder_reserved,
   }
 }
+
+/** Piezas que aún se pueden vender en tienda: stock − comprometidas en preventas. */
+export const freeQuantity = (p: Pick<CachedProduct, 'quantity' | 'preorder_reserved'>) => p.quantity - (p.preorder_reserved ?? 0)
 
 /** Lleva inventario (se revisa y descuenta su stock al vender). */
 export const tracksStock = (p: { track_stock?: boolean }) => p.track_stock !== false
@@ -266,6 +296,7 @@ class InventoryStore {
     const products = load<Record<string, CachedProduct>>(KEYS.products, {})
     this.state = {
       products,
+      combos: load<Record<string, string[]>>(KEYS.combos, {}),
       productsLoaded: Object.keys(products).length > 0,
       queue: load<QueueItem[]>(KEYS.queue, []),
       failed: load<FailedOp[]>(KEYS.failed, []),
@@ -287,6 +318,7 @@ class InventoryStore {
   private set(patch: Partial<InventoryState>) {
     this.state = { ...this.state, ...patch }
     if (patch.products) save(KEYS.products, this.state.products)
+    if (patch.combos) save(KEYS.combos, this.state.combos)
     if (patch.queue) save(KEYS.queue, this.state.queue)
     if (patch.failed) save(KEYS.failed, this.state.failed)
     if (patch.recent) save(KEYS.recent, this.state.recent)
@@ -348,15 +380,25 @@ class InventoryStore {
         for (let from = 0; ; from += PAGE) {
           const { data, error } = await supabase
             .from('products')
-            .select('id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock')
+            .select(
+              'id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, ' +
+                'is_preorder, preorder_deposit_type, preorder_deposit_value, preorder_reserved',
+            )
             .order('created_at', { ascending: true })
             .range(from, from + PAGE - 1)
           if (error) throw error
-          for (const p of (data ?? []) as Product[]) all[p.barcode] = toCached(p)
+          for (const p of (data ?? []) as unknown as Product[]) all[p.barcode] = toCached(p)
           if (!data || data.length < PAGE) break
         }
+        const { data: options, error: optionsError } = await supabase
+          .from('product_combo_options')
+          .select('combo_product_id, option_product_id')
+          .order('position', { ascending: true })
+        if (optionsError) throw optionsError
+        const combos: Record<string, string[]> = {}
+        for (const o of options ?? []) (combos[o.combo_product_id] ??= []).push(o.option_product_id)
         this.markOnline()
-        this.set({ products: all, productsLoaded: true })
+        this.set({ products: all, combos, productsLoaded: true })
       } catch (e) {
         if (isNetworkError(e)) this.markOffline()
         else console.error('No se pudo cargar el catálogo', e)
@@ -366,8 +408,10 @@ class InventoryStore {
 
   private putProduct(p: CachedProduct, removeBarcode?: string) {
     const products = { ...this.state.products }
+    const before = products[removeBarcode ?? p.barcode]
     if (removeBarcode) delete products[removeBarcode]
-    products[p.barcode] = p
+    // Las funciones de escaneo no devuelven lo comprometido en preventas: se conserva.
+    products[p.barcode] = p.preorder_reserved === undefined && before ? { ...p, preorder_reserved: before.preorder_reserved } : p
     this.set({ products })
   }
 
@@ -725,42 +769,101 @@ class InventoryStore {
   }
 
   // ---------- venta (mostrador) ----------
+  /** Opciones (refrescos) de un combo; vacío si el producto no es combo. */
+  comboOptions(productId: string) {
+    return this.state.combos[productId] ?? []
+  }
+
+  /** Cambia las opciones de un combo en la copia local (después de guardarlas). */
+  setComboOptions(productId: string, optionIds: string[]) {
+    const combos = { ...this.state.combos }
+    if (optionIds.length) combos[productId] = optionIds
+    else delete combos[productId]
+    this.set({ combos })
+  }
+
+  private applyTicketResult(res: TicketRpcResult, opId: string) {
+    for (const p of res.products) this.putServerProduct(toCached(p), opId)
+  }
+
+  private async callTicketRpc(fn: string, args: Record<string, unknown>, opId: string): Promise<TicketRpcResult> {
+    if (!(await this.flushBeforeOnline())) {
+      throw new PermanentError('Sin conexión. Inténtalo cuando vuelva el internet.')
+    }
+    const { data, error } = await supabase.rpc(fn, args)
+    if (error) {
+      if (!isNetworkError(error) && !isAuthError(error)) throw new PermanentError(error.message)
+      if (isNetworkError(error)) this.markOffline()
+      throw new PermanentError('Se perdió la conexión. Vuelve a intentarlo cuando regrese el internet (no se cobra doble).')
+    }
+    this.markOnline()
+    const res = data as TicketRpcResult
+    this.applyTicketResult(res, opId)
+    return res
+  }
+
   /**
-   * Cobra un ticket con pay_ticket: valida el stock de la tienda y registra
-   * todo en una transacción. Solo con conexión (los tickets se pueden abrir y
-   * armar sin internet, pero no cobrar). Si la red se cae a medio cobro, se
-   * puede volver a presionar Cobrar: el id del ticket evita cobrar dos veces.
+   * Cobra un ticket abierto con checkout_ticket: venta normal (los pagos
+   * suman el total) o preventa (primer abono de al menos el anticipo). Solo
+   * con conexión; el id del ticket evita cobrar dos veces si se reintenta.
    */
-  paySale(sale: SaleInput): Promise<SaleOutcome> {
+  checkout(input: CheckoutInput): Promise<CheckoutOutcome> {
     return this.run(async () => {
-      if (sale.items.length === 0) return { type: 'error', message: 'El ticket no tiene productos' }
-      const total = sale.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0)
-
-      // Revisión local de stock de la tienda (la definitiva la hace el servidor).
-      // Los productos sin inventario (comida, torneos) no la llevan.
-      for (const item of sale.items) {
-        const p = this.state.products[item.barcode]
-        if (!p) return { type: 'error', message: `El producto ${item.name} ya no está en el inventario` }
-        if (tracksStock(p) && item.quantity > p.quantity) {
-          return { type: 'error', message: `Stock insuficiente: ${item.name} (pide ${item.quantity}, hay ${p.quantity} en tienda${warehouseHint(p)})` }
-        }
-      }
-
-      if (!(await this.flushBeforeOnline())) {
-        return { type: 'error', message: 'Sin conexión no se puede cobrar. El ticket sigue abierto: cóbralo cuando vuelva el internet.' }
-      }
+      if (input.items.length === 0) return { type: 'error', message: 'El ticket no tiene productos' }
       try {
-        const res = await this.callPayTicket(sale, false)
-        return { type: 'ok', pending: false, total, ticketName: res.ticket.name }
+        const res = await this.callTicketRpc(
+          'checkout_ticket',
+          {
+            p_ticket_id: input.ticketId,
+            p_items: input.items.map((i) => ({
+              product_id: i.productId,
+              quantity: i.quantity,
+              unit_price: i.unitPrice,
+              choice_product_id: i.choiceProductId,
+            })),
+            p_payments: input.payments,
+            p_customer_id: input.customerId,
+            p_customer_name: input.customerName,
+            p_notes: input.notes,
+            p_opened_at: input.openedAt,
+          },
+          input.ticketId,
+        )
+        return { type: 'ok', ticket: res.ticket, balance: Number(res.balance ?? 0) }
       } catch (e) {
-        if (e instanceof PermanentError || (!isNetworkError(e) && !isAuthError(e))) {
-          return { type: 'error', message: errorMessage(e) }
-        }
-        if (isNetworkError(e)) this.markOffline()
-        return {
-          type: 'error',
-          message: 'Se perdió la conexión al cobrar. Cuando vuelva el internet presiona Cobrar otra vez (no se cobra doble).',
-        }
+        return { type: 'error', message: errorMessage(e) }
+      }
+    })
+  }
+
+  /** Abono a una preventa (y entrega, si se pide y queda saldada). */
+  addTicketPayment(ticketId: string, payments: PaymentPart[], deliver: boolean, opId: string): Promise<CheckoutOutcome> {
+    return this.run(async () => {
+      try {
+        const res = await this.callTicketRpc(
+          'add_ticket_payment',
+          { p_ticket_id: ticketId, p_payments: payments, p_deliver: deliver, p_op_id: opId },
+          opId,
+        )
+        return { type: 'ok', ticket: res.ticket, balance: Number(res.balance ?? 0) }
+      } catch (e) {
+        return { type: 'error', message: errorMessage(e) }
+      }
+    })
+  }
+
+  /** Cancela una preventa o una venta cobrada (solo admin): regresa inventario y, si se pide, los pagos. */
+  cancelTicket(ticketId: string, reason: string | null, refund: boolean): Promise<CheckoutOutcome> {
+    return this.run(async () => {
+      try {
+        const res = await this.callTicketRpc(
+          'cancel_ticket',
+          { p_ticket_id: ticketId, p_reason: reason, p_refund: refund },
+          crypto.randomUUID(),
+        )
+        return { type: 'ok', ticket: res.ticket, balance: 0 }
+      } catch (e) {
+        return { type: 'error', message: errorMessage(e) }
       }
     })
   }

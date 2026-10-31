@@ -23,9 +23,10 @@ export interface CustomerInput {
   phone: string | null
   code: string | null
   games: string[]
+  nicknames: string[]
 }
 
-const COLUMNS = 'id, name, email, phone, code, games, created_at, updated_at'
+const COLUMNS = 'id, name, email, phone, code, games, nicknames, created_at, updated_at'
 
 /** Código de cliente: 8 dígitos y siempre empieza con 1. */
 export const CUSTOMER_CODE_RE = /^1\d{7}$/
@@ -50,7 +51,9 @@ export function validateCustomer(input: CustomerInput): string | null {
 
 function clean(input: CustomerInput) {
   const games = [...new Set(input.games.map((g) => g.trim()).filter(Boolean))]
+  const nicknames = [...new Set(input.nicknames.map((n) => n.trim()).filter(Boolean))]
   return {
+    nicknames,
     name: input.name.trim(),
     email: input.email?.trim().toLowerCase() || null,
     phone: input.phone?.trim() || null,
@@ -115,6 +118,13 @@ export async function nextCustomerCode(): Promise<string> {
   if (next > LAST_CODE) throw new Error('Ya no hay códigos de cliente disponibles.')
   return String(next)
 }
+
+/** "Peque, El Profe" → ["Peque", "El Profe"]. */
+export const parseNicknames = (text: string) => text.split(',').map((n) => n.trim()).filter(Boolean)
+
+/** Texto en el que se busca a un cliente: nombre, apodos, teléfono, correo y código. */
+export const customerSearchText = (c: Customer) =>
+  `${c.name} ${(c.nicknames ?? []).join(' ')} ${c.phone ?? ''} ${c.email ?? ''} ${c.code ?? ''}`
 
 /** Cliente con ese código (exacto), si hay. */
 export function findByCode(customers: Customer[], raw: string) {

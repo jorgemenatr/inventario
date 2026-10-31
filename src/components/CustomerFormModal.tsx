@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { createCustomer, nextCustomerCode, updateCustomer, validateCustomer } from '../lib/customers'
+import { createCustomer, nextCustomerCode, parseNicknames, updateCustomer, validateCustomer } from '../lib/customers'
 import { isNetworkError } from '../lib/supabase'
 import type { Customer } from '../lib/types'
 import { GamesInput } from './GamesInput'
@@ -23,6 +23,7 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
   const [code, setCode] = useState(customer?.code ?? '')
   const [generating, setGenerating] = useState(false)
   const [games, setGames] = useState<string[]>(customer?.games ?? [])
+  const [nicknames, setNicknames] = useState((customer?.nicknames ?? []).join(', '))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -47,7 +48,7 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (saving) return
-    const input = { name, email, phone, code, games }
+    const input = { name, email, phone, code, games, nicknames: parseNicknames(nicknames) }
     const invalid = validateCustomer(input)
     if (invalid) return setError(invalid)
     setSaving(true)
@@ -131,6 +132,23 @@ export function CustomerFormModal({ customer, gameSuggestions, initialName = '',
               {canLinkCode
                 ? 'Escanea la tarjeta del cliente o genera uno: 8 dígitos que empiezan con 1.'
                 : 'Para vincular un código, llena correo y teléfono.'}
+            </p>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="cf-nicknames">
+              Apodos
+            </label>
+            <input
+              id="cf-nicknames"
+              value={nicknames}
+              onChange={(e) => setNicknames(e.target.value)}
+              placeholder="Separados por coma. Ej. Peque, El Profe"
+              autoComplete="off"
+              aria-describedby="cf-nicknames-help"
+              className="field"
+            />
+            <p id="cf-nicknames-help" className="mt-1 text-caption text-ink-muted">
+              Al buscar clientes también se encuentran por apodo.
             </p>
           </div>
           <div>

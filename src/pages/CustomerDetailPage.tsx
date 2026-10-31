@@ -89,6 +89,7 @@ export function CustomerDetailPage() {
             </span>
             <div className="mr-auto min-w-0">
               <h1 className="truncate text-title-lg uppercase">{customer.name}</h1>
+              {(customer.nicknames ?? []).length > 0 && <p className="text-ink-muted">“{customer.nicknames.join('”, “')}”</p>}
               <p className="text-caption text-ink-subtle">Cliente desde {formatDateTime(customer.created_at)}</p>
             </div>
             <button type="button" onClick={openEditor} className="btn btn-secondary">
