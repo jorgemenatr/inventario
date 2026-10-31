@@ -4,6 +4,7 @@ import { CustomerCodeBarcode } from '../components/CustomerCodeBarcode'
 import { CustomerCredits } from '../components/CustomerCredits'
 import { CustomerFormModal } from '../components/CustomerFormModal'
 import { CustomerLeaguePoints } from '../components/CustomerLeaguePoints'
+import { CustomerPreorders } from '../components/CustomerPreorders'
 import { GameTags } from '../components/GamesInput'
 import { SalesTable } from '../components/SalesTable'
 import { Icon } from '../components/Icon'
@@ -128,6 +129,8 @@ export function CustomerDetailPage() {
           <CustomerLeaguePoints customer={customer} />
 
           <CustomerCredits customer={customer} />
+
+          <CustomerPreorders customer={customer} />
 
           <section className="flex flex-col gap-3">
             <div className="flex flex-wrap items-baseline gap-3">

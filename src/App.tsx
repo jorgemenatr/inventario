@@ -10,6 +10,7 @@ import { InventoryPage } from './pages/InventoryPage'
 import { MostradorPage } from './pages/MostradorPage'
 import { PurchasesPage } from './pages/PurchasesPage'
 import { TransfersPage } from './pages/TransfersPage'
+import { PreventasPage } from './pages/PreventasPage'
 import { VentasPage } from './pages/VentasPage'
 import { LabelPage } from './pages/LabelPage'
 import { LoginPage } from './pages/LoginPage'
@@ -66,6 +67,7 @@ export function App() {
             />
             <Route path="mostrador" element={<MostradorPage />} />
             <Route path="ventas" element={<VentasPage />} />
+            <Route path="preventas" element={<PreventasPage />} />
             <Route path="clientes" element={<CustomersPage />} />
             <Route path="clientes/:id" element={<CustomerDetailPage />} />
             <Route path="historial" element={<HistoryPage />} />

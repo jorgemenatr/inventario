@@ -24,6 +24,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/mostrador', label: 'Mostrador', icon: 'store' },
   { to: '/ventas', label: 'Ventas', icon: 'receipt' },
+  { to: '/preventas', label: 'Preventas', icon: 'box' },
   { to: '/clientes', label: 'Clientes', icon: 'users' },
   {
     to: '/inventario',

@@ -128,6 +128,30 @@ const sales: Row[] = Array.from({ length: 14 }, (_, i) => ({
   ...by,
 }))
 
+// Una preventa pendiente (para la sección Preventas y el perfil del cliente).
+sales.push({
+  id: 'pre1',
+  name: '141',
+  number: 141,
+  status: 'preorder',
+  customer_id: 'c1',
+  customer_name: CUSTOMER_NAMES[1],
+  customer_is_free_name: false,
+  payment_method: 'cash',
+  item_count: 2,
+  subtotal: 3298,
+  total: 3298,
+  paid_offline: false,
+  note: null,
+  notes: 'Avisar por WhatsApp cuando llegue',
+  opened_at: ago(3000),
+  paid_at: null,
+  created_at: ago(3000),
+  paid_amount: 1000,
+  balance: 2298,
+  ...by,
+})
+
 const MOVE_TYPES = ['sale', 'scan_add', 'purchase', 'transfer', 'adjustment', 'set_total', 'initial_count', 'barcode_unlink']
 const movements: Row[] = Array.from({ length: 20 }, (_, i) => ({
   id: `m${i}`,
@@ -239,8 +263,8 @@ const tables: Record<string, Row[]> = {
     { combo_product_id: 'p6', option_product_id: 'p4', position: 1 },
   ],
   tickets: sales,
-  sales_payments: sales.map((s) => ({ method: s.payment_method === 'mixed' ? 'cash' : s.payment_method, amount: s.total, paid_at: s.paid_at })),
-  ticket_payments: sales.map((s, i) => ({
+  sales_payments: sales.filter((s) => s.id !== 'pre1').map((s) => ({ method: s.payment_method === 'mixed' ? 'cash' : s.payment_method, amount: s.total, paid_at: s.paid_at })),
+  ticket_payments: sales.filter((s) => s.id !== 'pre1').map((s, i) => ({
     id: `tp${i}`,
     ticket_id: s.id,
     method: s.payment_method === 'mixed' ? 'cash' : s.payment_method,
@@ -248,7 +272,7 @@ const tables: Record<string, Row[]> = {
     paid_at: s.paid_at,
     kind: 'payment',
   })),
-  ticket_items: sales.flatMap((s, t) =>
+  ticket_items: sales.filter((s) => s.id !== 'pre1').flatMap((s, t) =>
     products.slice(t % 10, (t % 10) + (s.item_count as number)).map((p, i) => ({
       id: `ti${t}-${i}`,
       ticket_id: s.id,
@@ -321,6 +345,13 @@ const tables: Record<string, Row[]> = {
   ),
   catalog_products: [],
 }
+
+// Renglón de la preventa de ejemplo (Booster Box en preventa, 2 piezas).
+tables.ticket_items.push({
+  id: 'pre1-0', ticket_id: 'pre1', product_id: 'p1', barcode: products[1].barcode, product_name: products[1].name,
+  quantity: 2, unit_price: 1649, line_total: 3298, position: 1, preorder: true, parent_item_id: null,
+})
+tables.ticket_payments.push({ id: 'pre1-pay', ticket_id: 'pre1', method: 'cash', amount: 1000, paid_at: ago(3000), kind: 'payment' })
 
 // ---------- RPC ----------
 let nextFolio = 141
