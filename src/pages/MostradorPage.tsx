@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { CancelTicketModal } from '../components/CancelTicketModal'
 import { CustomerFormModal } from '../components/CustomerFormModal'
@@ -7,14 +7,13 @@ import { Icon } from '../components/Icon'
 import { ProductImage } from '../components/ProductImage'
 import { CustomerPicker } from '../components/pos/CustomerPicker'
 import { PaymentPanel } from '../components/pos/PaymentPanel'
-import { PreorderPanel } from '../components/pos/PreorderPanel'
 import { ProductPicker } from '../components/pos/ProductPicker'
 import { findByCode, gameSuggestions } from '../lib/customers'
-import { formatDateTime, formatInt, formatMoney, parseMoney } from '../lib/format'
-import { listPreorders, saleTitle, ticketFolio } from '../lib/sales'
+import { formatInt, formatMoney, parseMoney } from '../lib/format'
+import { ticketFolio } from '../lib/sales'
 import { useSettings } from '../lib/settings'
 import { sounds } from '../lib/sounds'
-import { PAYMENT_LABELS, type PaymentPart, type SaleRow } from '../lib/types'
+import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
 import { freeQuantity, inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import {
@@ -35,23 +34,19 @@ type LastSale = {
   total: number
   payments: PaymentPart[]
   change: number | null
-  /** Preventa: lo que falta por pagar. */
+  /** Preventa: lo que falta por pagar y su id (para abrirla en Preventas). */
   balance: number | null
+  preorderId: string | null
 } | null
-
-/** Lo que está en pantalla: un ticket abierto o una preventa registrada. */
-type Selection = { kind: 'open'; id: string } | { kind: 'preorder'; id: string } | null
 
 export function MostradorPage() {
   const { products, combos, online } = useInventory()
   const { tickets, activeId, customers, pending, syncError } = usePos()
   const settings = useSettings()
-  const [searchParams, setSearchParams] = useSearchParams()
-
-  const [preorders, setPreorders] = useState<SaleRow[] | null>(null)
-  const [preorderId, setPreorderId] = useState<string | null>(() => searchParams.get('preventa'))
-  const selection: Selection = preorderId ? { kind: 'preorder', id: preorderId } : activeId ? { kind: 'open', id: activeId } : null
-  const active = selection?.kind === 'open' ? (tickets.find((t) => t.id === activeId) ?? null) : null
+  const [searchParams] = useSearchParams()
+  // Enlaces anteriores (/mostrador?preventa=…): las preventas tienen su propia sección.
+  const legacyPreorder = searchParams.get('preventa')
+  const active = tickets.find((t) => t.id === activeId) ?? null
 
   const [notice, setNotice] = useState<Notice>(null)
   const [paying, setPaying] = useState(false)
@@ -69,19 +64,12 @@ export function MostradorPage() {
 
   const focusProduct = useCallback(() => setTimeout(() => productRef.current?.focus(), 0), [])
 
-  const loadPreorders = useCallback(() => {
-    listPreorders()
-      .then(setPreorders)
-      .catch(() => setPreorders((p) => p ?? []))
-  }, [])
-
   // Al entrar: ningún ticket abierto (se elige de la lista), tickets
   // compartidos al día, e inventario y clientes frescos si hay red.
   useEffect(() => {
-    if (!searchParams.get('preventa')) posStore.select(null)
+    posStore.select(null)
     posStore.start()
     void posStore.refresh()
-    loadPreorders()
     if (!online) return
     void inventoryStore.refreshProducts()
     posStore.loadCustomers().catch(() => undefined)
@@ -98,20 +86,11 @@ export function MostradorPage() {
   const available = useCallback((p: CachedProduct) => posStore.available(p), [tickets])
 
   function selectOpen(id: string) {
-    setPreorderId(null)
-    if (searchParams.has('preventa')) setSearchParams({}, { replace: true })
     posStore.select(id)
     setLastSale(null)
   }
 
-  function selectPreorder(id: string) {
-    posStore.select(null)
-    setPreorderId(id)
-    setLastSale(null)
-  }
-
   function createTicket() {
-    setPreorderId(null)
     posStore.createTicket()
     setLastSale(null)
   }
@@ -196,10 +175,12 @@ export function MostradorPage() {
       payments,
       change,
       balance: preorder ? out.balance : null,
+      preorderId: preorder ? out.ticket.id : null,
     })
     posStore.forget(active.id)
-    if (preorder) loadPreorders()
   }
+
+  if (legacyPreorder) return <Navigate to={`/preventas?id=${legacyPreorder}`} replace />
 
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 md:p-6">
@@ -243,6 +224,11 @@ export function MostradorPage() {
               <p className="stat-value">{formatMoney(lastSale.balance)}</p>
             </div>
           )}
+          {lastSale.preorderId && (
+            <Link to={`/preventas?id=${lastSale.preorderId}`} className="btn btn-secondary">
+              Ver en Preventas
+            </Link>
+          )}
           {lastSale.change !== null && lastSale.change > 0 && (
             <div className="text-right">
               <p className="stat-label">Cambio</p>
@@ -268,7 +254,7 @@ export function MostradorPage() {
             <ul className="divide-y divide-line">
               {tickets.map((t) => (
                 <li key={t.id}>
-                  <TicketButton ticket={t} current={selection?.kind === 'open' && t.id === activeId} onClick={() => selectOpen(t.id)} />
+                  <TicketButton ticket={t} current={t.id === activeId} onClick={() => selectOpen(t.id)} />
                 </li>
               ))}
             </ul>
@@ -279,57 +265,9 @@ export function MostradorPage() {
               </button>
             </div>
           </div>
-
-          {/* Preventas sin entregar */}
-          <div className="card flex flex-col">
-            <h2 className="flex items-center justify-between border-b border-line px-4 py-3 text-label uppercase tracking-wider text-ink-muted">
-              Preventas
-              <button type="button" onClick={loadPreorders} className="icon-btn size-8" aria-label="Actualizar preventas">
-                <Icon name="refresh" />
-              </button>
-            </h2>
-            {preorders === null && <p className="px-4 py-4 text-center text-ink-subtle">Cargando…</p>}
-            {preorders?.length === 0 && <p className="px-4 py-4 text-center text-ink-subtle">No hay preventas pendientes.</p>}
-            <ul className="divide-y divide-line">
-              {preorders?.map((s) => {
-                const current = selection?.kind === 'preorder' && selection.id === s.id
-                return (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      onClick={() => selectPreorder(s.id)}
-                      aria-current={current}
-                      className={`flex w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left ${current ? 'bg-brand text-on-brand' : 'hover:bg-subtle'}`}
-                    >
-                      <span className="truncate text-label">{saleTitle(s)}</span>
-                      <span className={`flex justify-between text-caption ${current ? '' : 'text-ink-subtle'}`}>
-                        <span>{formatDateTime(s.created_at)}</span>
-                        <span className="tabular-nums">{s.balance > 0 ? `Debe ${formatMoney(s.balance)}` : 'Saldada'}</span>
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
         </aside>
 
-        {selection?.kind === 'preorder' ? (
-          <PreorderPanel
-            key={selection.id}
-            ticketId={selection.id}
-            productsById={productsById}
-            online={online}
-            onChanged={(message, closed) => {
-              loadPreorders()
-              if (message) setLastSale({ title: message, total: 0, payments: [], change: null, balance: null })
-              if (closed) {
-                setPreorderId(null)
-                setSearchParams({}, { replace: true })
-              }
-            }}
-          />
-        ) : !active ? (
+        {!active ? (
           <section className="card flex min-h-80 flex-col items-center justify-center gap-3 p-8 text-center">
             <Icon name="receipt" size={40} className="text-ink-subtle" />
             <p className="text-title text-ink">{tickets.length > 0 ? 'Elige un ticket abierto o crea uno nuevo' : 'Abre un ticket para empezar a vender'}</p>

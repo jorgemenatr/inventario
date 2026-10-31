@@ -69,6 +69,18 @@ export async function listPreorders(customerId?: string): Promise<SaleRow[]> {
   return ((data ?? []) as SaleRow[]).map(normalizeSale)
 }
 
+/** Productos de varias preventas (para la lista: qué llevan y si ya se pueden entregar). */
+export async function getPreorderItems(ticketIds: string[]): Promise<TicketItemRow[]> {
+  if (ticketIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('ticket_items')
+    .select('*')
+    .in('ticket_id', ticketIds)
+    .order('position', { ascending: true })
+  if (error) throw error
+  return ((data ?? []) as TicketItemRow[]).map((i) => ({ ...i, unit_price: Number(i.unit_price), line_total: Number(i.line_total) }))
+}
+
 export async function getSale(id: string): Promise<SaleRow | null> {
   const { data, error } = await supabase.from('sales_history').select('*').eq('id', id).maybeSingle()
   if (error) throw error

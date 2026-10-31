@@ -243,8 +243,8 @@ function SaleDetail({ sale: s, detail, onChanged }: { sale: SaleRow; detail: Det
       {(s.status === 'preorder' || canCancel) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {s.status === 'preorder' && (
-            <Link to={`/mostrador?preventa=${s.id}`} className="btn btn-secondary btn-sm">
-              Abonar o entregar en mostrador
+            <Link to={`/preventas?id=${s.id}`} className="btn btn-secondary btn-sm">
+              Abonar o entregar
             </Link>
           )}
           {canCancel && (
