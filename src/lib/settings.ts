@@ -20,6 +20,8 @@ export interface AppSettings {
   timezone: string
   /** Se pueden pagar abonos de preventa con créditos de tienda. */
   preorderCreditPayments: boolean
+  /** Categoría (texto de products.category) cuyos productos son las bebidas de los combos. */
+  comboDrinksCategory: string | null
 }
 
 const KEY = 'hachiko.ajustes'
@@ -31,6 +33,7 @@ const DEFAULTS: AppSettings = {
   dayCutoffHour: 5,
   timezone: 'America/Mexico_City',
   preorderCreditPayments: true,
+  comboDrinksCategory: null,
 }
 
 let current: AppSettings = load()
@@ -71,7 +74,7 @@ export function useSettings(): AppSettings {
 export async function refreshSettings() {
   const { data, error } = await supabase
     .from('app_settings')
-    .select('business_name, internal_code_prefix, day_cutoff_hour, timezone, preorder_credit_payments')
+    .select('business_name, internal_code_prefix, day_cutoff_hour, timezone, preorder_credit_payments, combo_drinks_category')
     .maybeSingle()
   // Sin red, o la base aún no tiene la migración: se queda la copia local.
   if (error || !data) return
@@ -82,6 +85,7 @@ export async function refreshSettings() {
     dayCutoffHour: data.day_cutoff_hour ?? DEFAULTS.dayCutoffHour,
     timezone: data.timezone ?? DEFAULTS.timezone,
     preorderCreditPayments: data.preorder_credit_payments ?? DEFAULTS.preorderCreditPayments,
+    comboDrinksCategory: data.combo_drinks_category ?? null,
   }
   if (JSON.stringify(next) === JSON.stringify(current)) return
   current = next
@@ -102,8 +106,13 @@ export async function updateBusinessName(name: string) {
 }
 
 /** El admin cambia la hora de corte del día y si se aceptan créditos en abonos de preventa. */
-export async function updateOperationSettings(patch: { dayCutoffHour?: number; preorderCreditPayments?: boolean }) {
+export async function updateOperationSettings(patch: {
+  dayCutoffHour?: number
+  preorderCreditPayments?: boolean
+  comboDrinksCategory?: string | null
+}) {
   const row: Record<string, unknown> = {}
+  if (patch.comboDrinksCategory !== undefined) row.combo_drinks_category = patch.comboDrinksCategory
   if (patch.dayCutoffHour !== undefined) row.day_cutoff_hour = patch.dayCutoffHour
   if (patch.preorderCreditPayments !== undefined) row.preorder_credit_payments = patch.preorderCreditPayments
   const { error } = await supabase.from('app_settings').update(row).eq('id', true)

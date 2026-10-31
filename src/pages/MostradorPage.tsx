@@ -14,7 +14,7 @@ import { ticketFolio } from '../lib/sales'
 import { useSettings } from '../lib/settings'
 import { sounds } from '../lib/sounds'
 import { PAYMENT_LABELS, type PaymentPart } from '../lib/types'
-import { freeQuantity, inventoryStore, type CachedProduct } from '../store/inventoryStore'
+import { comboDrinks, freeQuantity, inventoryStore, type CachedProduct } from '../store/inventoryStore'
 import { useInventory } from '../store/useInventory'
 import {
   lineDeposit,
@@ -40,7 +40,7 @@ type LastSale = {
 } | null
 
 export function MostradorPage() {
-  const { products, combos, online } = useInventory()
+  const { products, online } = useInventory()
   const { tickets, activeId, customers, pending, syncError } = usePos()
   const settings = useSettings()
   const [searchParams] = useSearchParams()
@@ -97,7 +97,7 @@ export function MostradorPage() {
 
   function addProduct(p: CachedProduct, choice: CachedProduct | null = null) {
     if (!active) return
-    if (!choice && (combos[p.id]?.length ?? 0) > 0) {
+    if (!choice && p.is_combo) {
       setComboFor(p)
       return
     }
@@ -327,8 +327,8 @@ export function MostradorPage() {
                 availableText={(p, n) =>
                   p.is_preorder
                     ? `Preventa · ${depositLabel(p)}`
-                    : (combos[p.id]?.length ?? 0) > 0
-                      ? 'Combo · elige refresco'
+                    : p.is_combo
+                      ? 'Combo · elige bebida'
                       : n === Infinity
                         ? 'Sin inventario'
                         : `Disponibles: ${formatInt(n)}`
@@ -392,7 +392,7 @@ export function MostradorPage() {
       {comboFor && active && (
         <ComboChoiceModal
           combo={comboFor}
-          options={(combos[comboFor.id] ?? []).map((id) => productsById[id]).filter((p): p is CachedProduct => !!p)}
+          options={comboDrinks(products, settings.comboDrinksCategory).filter((p) => p.id !== comboFor.id)}
           onClose={() => {
             setComboFor(null)
             focusProduct()
@@ -519,7 +519,7 @@ function TicketNotes({ ticket }: { ticket: OpenTicket }) {
   )
 }
 
-/** Elegir el refresco (u otra opción) que va con el combo. */
+/** Elegir la bebida que va con el combo. */
 function ComboChoiceModal({
   combo,
   options,
@@ -547,7 +547,7 @@ function ComboChoiceModal({
             <h2 id="combo-title" className="text-title">
               {combo.name}
             </h2>
-            <p className="mt-1 text-ink-muted">Elige el refresco incluido (no cambia el precio).</p>
+            <p className="mt-1 text-ink-muted">Elige la bebida incluida (no cambia el precio).</p>
           </div>
           <button type="button" onClick={onClose} className="btn btn-ghost">
             <Icon name="x" />
@@ -575,7 +575,7 @@ function ComboChoiceModal({
               </li>
             )
           })}
-          {options.length === 0 && <li className="px-6 py-6 text-center text-ink-subtle">Este combo no tiene opciones disponibles.</li>}
+          {options.length === 0 && <li className="px-6 py-6 text-center text-ink-subtle">No hay bebidas en el grupo de los combos (Configuración → Operación).</li>}
         </ul>
       </div>
     </div>
@@ -664,7 +664,7 @@ function LineRow({
             </p>
             {line.choiceProductId && (
               <p className="text-caption text-ink-muted">
-                Refresco: <span className="font-medium text-ink">{choice?.name ?? 'ya no existe'}</span>
+                Bebida: <span className="font-medium text-ink">{choice?.name ?? 'ya no existe'}</span>
               </p>
             )}
             {product?.is_preorder && (

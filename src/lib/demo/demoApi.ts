@@ -79,6 +79,8 @@ const products: Product[] = Array.from({ length: 24 }, (_, i) => {
     is_preorder: i === 1,
     preorder_deposit_type: 'percent',
     preorder_deposit_value: i === 1 ? 30 : 0,
+    // El café (p6) es combo: se elige una bebida del grupo (en el demo, Accesorios).
+    is_combo: i === 6,
     description: null,
     catalog_product_id: null,
     created_by: ADMIN_ID,
@@ -217,7 +219,7 @@ const tables: Record<string, Row[]> = {
     { id: COUNTER_ID, email: 'mostrador@demo.mx', full_name: 'Mariana López Gutiérrez', role: 'mostrador', created_at: ago(9999) },
     { id: 'demo-3', email: 'fines.de.semana.turno.extra@demo.mx', full_name: null, role: 'mostrador', created_at: ago(999) },
   ],
-  app_settings: [{ id: true, business_name: 'Demo', internal_code_prefix: 'DEMO' }],
+  app_settings: [{ id: true, business_name: 'Demo', internal_code_prefix: 'DEMO', combo_drinks_category: 'Accesorios' }],
   product_categories: [
     { id: 'k1', parent_id: null, name: 'TCG', catalog_sources: [], sort_order: 1 },
     { id: 'k1a', parent_id: 'k1', name: 'Pokémon', catalog_sources: ['pokemon'], sort_order: 1 },
@@ -256,12 +258,6 @@ const tables: Record<string, Row[]> = {
   sales_history: sales,
   open_tickets: [],
   open_ticket_lines: [],
-  // El café (p6) es combo: se elige entre dos productos como "refresco".
-  product_reservations: [],
-  product_combo_options: [
-    { combo_product_id: 'p6', option_product_id: 'p3', position: 0 },
-    { combo_product_id: 'p6', option_product_id: 'p4', position: 1 },
-  ],
   tickets: sales,
   sales_payments: sales.filter((s) => s.id !== 'pre1').map((s) => ({ method: s.payment_method === 'mixed' ? 'cash' : s.payment_method, amount: s.total, paid_at: s.paid_at })),
   ticket_payments: sales.filter((s) => s.id !== 'pre1').map((s, i) => ({
