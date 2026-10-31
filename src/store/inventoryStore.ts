@@ -382,7 +382,7 @@ class InventoryStore {
             .from('products')
             .select(
               'id, barcode, name, category, supplier, price, quantity, warehouse_quantity, image_url, is_internal_code, track_stock, ' +
-                'is_preorder, preorder_deposit_type, preorder_deposit_value, preorder_reserved',
+                'is_preorder, preorder_deposit_type, preorder_deposit_value',
             )
             .order('created_at', { ascending: true })
             .range(from, from + PAGE - 1)
@@ -390,6 +390,13 @@ class InventoryStore {
           for (const p of (data ?? []) as unknown as Product[]) all[p.barcode] = toCached(p)
           if (!data || data.length < PAGE) break
         }
+        // Piezas comprometidas en preventas (vista aparte: products.cost no es legible para la app).
+        const { data: reservations, error: reservationsError } = await supabase
+          .from('product_reservations')
+          .select('product_id, reserved')
+        if (reservationsError) throw reservationsError
+        const reserved = new Map((reservations ?? []).map((r) => [r.product_id as string, Number(r.reserved)]))
+        for (const p of Object.values(all)) p.preorder_reserved = reserved.get(p.id) ?? 0
         const { data: options, error: optionsError } = await supabase
           .from('product_combo_options')
           .select('combo_product_id, option_product_id')

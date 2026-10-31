@@ -233,6 +233,7 @@ const tables: Record<string, Row[]> = {
   open_tickets: [],
   open_ticket_lines: [],
   // El café (p6) es combo: se elige entre dos productos como "refresco".
+  product_reservations: [],
   product_combo_options: [
     { combo_product_id: 'p6', option_product_id: 'p3', position: 0 },
     { combo_product_id: 'p6', option_product_id: 'p4', position: 1 },
